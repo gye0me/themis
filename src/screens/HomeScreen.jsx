@@ -1,13 +1,34 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Header } from '../components/Header';
+import { logout, getCurrentUser } from '../services/firebaseService';
 import './HomeScreen.css';
 
 export function HomeScreen() {
+  const navigate = useNavigate();
+  const user = getCurrentUser();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('로그아웃 오류:', error);
+    }
+  };
+
   return (
     <Layout>
       <Header title="⚖️ Themis" />
       <div className="home-container">
+        <div className="user-info">
+          <span className="user-email">{user?.email}</span>
+          <button onClick={handleLogout} className="logout-button">
+            로그아웃
+          </button>
+        </div>
+
         <section className="hero">
           <h1>디지털 증거 관리 플랫폼</h1>
           <p>투명한 기록과 안전한 리포팅을 위한 통합 솔루션입니다.</p>

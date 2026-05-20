@@ -21,6 +21,8 @@ import {
 import { ref, uploadBytes, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 
+console.log('Firebase Service Loading - auth:', auth, 'db:', db, 'storage:', storage);
+
 // ==================== 인증 (Auth) ====================
 
 /**
