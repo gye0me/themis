@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Layout } from '../components/Layout';
-import { Header } from '../components/Header';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { signUp } from '../services/firebaseService';
-import './SignupScreen.css';
 
-export function SignupScreen() {
-  const navigate = useNavigate();
+export function SignupScreen({ onSwitchToLogin }) {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,8 +40,7 @@ export function SignupScreen() {
     return true;
   };
 
-  const handleSignup = async (e) => {
-    e.preventDefault();
+  const handleSignup = async () => {
     setError('');
 
     if (!validateForm()) {
@@ -48,8 +53,6 @@ export function SignupScreen() {
       console.log('Starting signup with email:', email);
       await signUp(email, password, displayName);
       console.log('Signup successful');
-      // 회원가입 성공 → 홈으로 이동
-      navigate('/');
     } catch (err) {
       console.error('회원가입 오류:', err);
 
@@ -69,85 +72,180 @@ export function SignupScreen() {
   };
 
   return (
-    <Layout>
-      <Header title="회원가입" />
-      <div className="signup-container">
-        <div className="signup-card">
-          <h1>⚖️ Themis</h1>
-          <p className="subtitle">새 계정 만들기</p>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.screen}
+    >
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <View style={styles.card}>
+          <Text style={styles.badge}>THEMIS</Text>
+          <Text style={styles.title}>회원가입</Text>
+          <Text style={styles.subtitle}>새 계정을 만들고 안전한 기록 관리를 시작하세요.</Text>
 
-          {error && <div className="error-message">{error}</div>}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <form onSubmit={handleSignup}>
-            <div className="form-group">
-              <label htmlFor="displayName">이름</label>
-              <input
-                id="displayName"
-                type="text"
-                placeholder="홍길동"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>이름</Text>
+            <TextInput
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="홍길동"
+              placeholderTextColor="#6f7c98"
+              style={styles.input}
+              editable={!loading}
+            />
+          </View>
 
-            <div className="form-group">
-              <label htmlFor="email">이메일</label>
-              <input
-                id="email"
-                type="email"
-                placeholder="example@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>이메일</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="example@gmail.com"
+              placeholderTextColor="#6f7c98"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              style={styles.input}
+              editable={!loading}
+            />
+          </View>
 
-            <div className="form-group">
-              <label htmlFor="password">비밀번호</label>
-              <input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
-              <small className="hint">최소 6자 이상</small>
-            </div>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>비밀번호</Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#6f7c98"
+              secureTextEntry
+              autoComplete="password"
+              style={styles.input}
+              editable={!loading}
+            />
+            <Text style={styles.hint}>최소 6자 이상</Text>
+          </View>
 
-            <div className="form-group">
-              <label htmlFor="confirmPassword">비밀번호 확인</label>
-              <input
-                id="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>비밀번호 확인</Text>
+            <TextInput
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#6f7c98"
+              secureTextEntry
+              style={styles.input}
+              editable={!loading}
+            />
+          </View>
 
-            <button 
-              type="submit" 
-              className="signup-button"
-              disabled={loading}
-            >
-              {loading ? '가입 중...' : '계정 만들기'}
-            </button>
-          </form>
+          <Pressable
+            onPress={handleSignup}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && !loading ? styles.buttonPressed : null,
+              loading ? styles.buttonDisabled : null,
+            ]}
+          >
+            {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryButtonText}>계정 만들기</Text>}
+          </Pressable>
 
-          <div className="divider">또는</div>
-
-          <Link to="/login" className="login-link">
-            이미 계정이 있으신가요? <strong>로그인</strong>
-          </Link>
-        </div>
-      </div>
-    </Layout>
+          <Pressable onPress={onSwitchToLogin} style={styles.linkButton}>
+            <Text style={styles.linkText}>이미 계정이 있으신가요? 로그인</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#0b1220',
+  },
+  container: {
+    flexGrow: 1,
+    padding: 20,
+    justifyContent: 'center',
+  },
+  card: {
+    backgroundColor: '#11192a',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#22304a',
+    gap: 16,
+  },
+  badge: {
+    color: '#8fd3ff',
+    letterSpacing: 2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 30,
+    fontWeight: '800',
+  },
+  subtitle: {
+    color: '#b8c2d6',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  error: {
+    color: '#ffb5b5',
+    backgroundColor: '#381d24',
+    borderRadius: 16,
+    padding: 14,
+  },
+  formGroup: {
+    gap: 8,
+  },
+  label: {
+    color: '#d7def0',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: '#0d1627',
+    borderColor: '#29405f',
+    borderWidth: 1,
+    borderRadius: 16,
+    color: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+  },
+  hint: {
+    color: '#7f8ca8',
+    fontSize: 12,
+  },
+  primaryButton: {
+    backgroundColor: '#4d7cff',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  buttonPressed: {
+    opacity: 0.9,
+  },
+  buttonDisabled: {
+    opacity: 0.75,
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  linkButton: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  linkText: {
+    color: '#8fd3ff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});

@@ -1,26 +1,17 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-// 직접 환경 변수 확인
-const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
-const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET;
-const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
-const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+const env = globalThis.process?.env ?? {};
 
-window.__FIREBASE_CONFIG_DEBUG__ = {
-  apiKey: apiKey ? 'SET' : 'UNDEFINED',
-  authDomain: authDomain ? 'SET' : 'UNDEFINED',
-  projectId: projectId ? 'SET' : 'UNDEFINED',
-  storageBucket: storageBucket ? 'SET' : 'UNDEFINED',
-  messagingSenderId: messagingSenderId ? 'SET' : 'UNDEFINED',
-  appId: appId ? 'SET' : 'UNDEFINED',
-};
-
-console.log('Firebase Environment Variables:', window.__FIREBASE_CONFIG_DEBUG__);
+const apiKey = env.EXPO_PUBLIC_FIREBASE_API_KEY;
+const authDomain = env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN;
+const projectId = env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+const storageBucket = env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
+const appId = env.EXPO_PUBLIC_FIREBASE_APP_ID;
 
 const firebaseConfig = {
   apiKey,
@@ -33,19 +24,19 @@ const firebaseConfig = {
 
 console.log('Firebase Config Loaded:', firebaseConfig);
 
-// Firebase 초기화
-let app;
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+let auth;
 try {
-  app = initializeApp(firebaseConfig);
-  console.log('Firebase initialized successfully');
-} catch (error) {
-  console.error('Firebase initialization failed:', error);
-  console.error('Config was:', firebaseConfig);
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch {
+  auth = getAuth(app);
 }
 
-// Firebase 서비스 내보내기
-export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export { auth };
 
 export default app;
