@@ -1,6 +1,6 @@
 # Themis
 
-디지털 증거 관리 플랫폼입니다. 현재는 React Native + Expo 기반으로 동작하며, Firebase를 연결해 둔 상태입니다.
+현재는 React Native + Expo 기반으로 동작하며, Firebase를 연결해 둔 상태입니다.
 
 ## 실행
 
@@ -60,6 +60,8 @@ themis/
 ## 환경 변수
 
 Expo에서는 `VITE_` 대신 `EXPO_PUBLIC_` 접두사를 사용합니다.
+
+`.env.example`를 복사해서 `.env`로 사용하면 됩니다.
 
 예시:
 
