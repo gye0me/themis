@@ -1,22 +1,21 @@
 
-import { SafeAreaView, StyleSheet } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { HomeScreen } from './screens/HomeScreen'
+import { AuthProvider } from './context/AuthContext'
+import { AppNavigator } from './navigation/AppNavigator'
 
 function App() {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <HomeScreen />
-      <StatusBar style="light" />
-    </SafeAreaView>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
+        <StatusBar style="light" />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
 
 export default App
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-})

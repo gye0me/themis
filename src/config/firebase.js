@@ -12,6 +12,7 @@ const projectId = env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
 const storageBucket = env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
 const messagingSenderId = env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
 const appId = env.EXPO_PUBLIC_FIREBASE_APP_ID;
+const measurementId = env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 const firebaseConfig = {
   apiKey,
@@ -20,9 +21,8 @@ const firebaseConfig = {
   storageBucket,
   messagingSenderId,
   appId,
+  ...(measurementId ? { measurementId } : {}),
 };
-
-console.log('Firebase Config Loaded:', firebaseConfig);
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
