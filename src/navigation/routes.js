@@ -4,41 +4,28 @@ export const AUTH_ROUTES = {
 };
 
 export const APP_ROUTES = {
-  HOME_STACK: 'HomeStack',
-  CONTRACTS_STACK: 'ContractsStack',
-  COMMUNITY_STACK: 'CommunityStack',
+  RECORDS_STACK: 'RecordsStack',
+  EXPERTS_STACK: 'ExpertsStack',
   CHATS_STACK: 'ChatsStack',
-  SETTINGS_STACK: 'SettingsStack',
+  HOME_STACK: 'HomeStack',
 };
 
 export const HOME_ROUTES = {
-  DASHBOARD: 'Dashboard',
-  CONTRACT_DETAIL: 'ContractDetail',
-  CHATROOM_PREVIEW: 'ChatroomPreview',
+  HOME: 'Home',
 };
 
-export const CONTRACT_ROUTES = {
-  LIST: 'ContractsList',
-  DETAIL: 'ContractDetail',
-  CLAUSE_DETAIL: 'ClauseDetail',
-  UPLOAD: 'ContractUpload',
+export const RECORD_ROUTES = {
+  START: 'RecordStart',
+  CONTRACT_ANALYSIS: 'ContractAnalysis',
+  EVIDENCE_UPLOAD: 'EvidenceUpload',
+  EVIDENCE_TIMELINE: 'EvidenceTimeline',
 };
 
-export const COMMUNITY_ROUTES = {
-  FEED: 'CommunityFeed',
-  POST_DETAIL: 'CommunityPostDetail',
-  COMMENT_THREAD: 'CommentThread',
+export const EXPERT_ROUTES = {
+  GUIDE: 'ResponseGuide',
 };
 
 export const CHAT_ROUTES = {
-  LIST: 'ChatroomList',
-  DETAIL: 'ChatroomDetail',
-  MEMBER_DETAIL: 'ChatroomMemberDetail',
+  SOLIDARITY: 'SolidarityChat',
 };
 
-export const SETTINGS_ROUTES = {
-  MAIN: 'SettingsMain',
-  PROFILE_EDIT: 'ProfileEdit',
-  SECURITY: 'SecuritySettings',
-  NOTIFICATIONS: 'NotificationSettings',
-};
