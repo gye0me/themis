@@ -35,7 +35,7 @@ export function HomeScreen({ navigation }) {
         </View>
 
         {/* 진행 중인 사건 배너 */}
-        <TouchableOpacity style={styles.caseBanner} onPress={() => navigation.navigate('Timeline')}>
+        <TouchableOpacity style={styles.caseBanner} onPress={() => navigation.navigate('EvidenceTimeline')}>
           <Text style={styles.caseBannerText}>현재 진행 중인 사건</Text>
           <Text style={styles.caseBannerSub}>전세보증금 미반환 · 퀘스트 3/5 완료 · 증거 8건 수집</Text>
           <Text style={styles.caseBannerArrow}>→</Text>
@@ -45,7 +45,7 @@ export function HomeScreen({ navigation }) {
         <Text style={styles.sectionTitle}>내 사건 기록</Text>
 
         {/* 사건 카드 1 — 진행 중 */}
-        <TouchableOpacity style={styles.caseCard} onPress={() => navigation.navigate('Upload')}>
+        <TouchableOpacity style={styles.caseCard} onPress={() => navigation.navigate('EvidenceUpload')}>
           <View style={[styles.caseCardBar, {backgroundColor: '#DC2626'}]} />
           <View style={styles.caseCardBody}>
             <View style={styles.caseCardHeader}>
@@ -92,7 +92,7 @@ export function HomeScreen({ navigation }) {
                 <Text style={[styles.evidenceNum, {color: '#15803D'}]}>1</Text>
                 <Text style={[styles.evidenceLabel, {color: '#16A34A'}]}>PDF</Text>
               </View>
-              <TouchableOpacity style={styles.timelineBtn} onPress={() => navigation.navigate('Timeline')}>
+              <TouchableOpacity style={styles.timelineBtn} onPress={() => navigation.navigate('EvidenceTimeline')}>
                 <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
               </TouchableOpacity>
             </View>
@@ -122,7 +122,7 @@ export function HomeScreen({ navigation }) {
         </View>
 
         {/* 새 사건 추가 */}
-        <TouchableOpacity style={styles.caseCardNew} onPress={() => navigation.navigate('NewCase')}>
+        <TouchableOpacity style={styles.caseCardNew} onPress={() => navigation.navigate('RecordStart')}>
           <Text style={styles.caseCardNewPlus}>+</Text>
           <Text style={styles.caseCardNewText}>새 사건 기록 시작하기</Text>
         </TouchableOpacity>
@@ -148,7 +148,7 @@ export function HomeScreen({ navigation }) {
 
       {/* 네비바 */}
       <View style={styles.navbar}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Upload')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('EvidenceUpload')}>
           <Text style={styles.navIcon}>✏️</Text>
           <Text style={styles.navLabel}>기록</Text>
         </TouchableOpacity>

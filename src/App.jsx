@@ -16,9 +16,9 @@ export default function App() {
         <StatusBar style="light" />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Upload" component={UploadScreen} />
-          <Stack.Screen name="Timeline" component={TimelineScreen} />
-          <Stack.Screen name="NewCase" component={NewCaseScreen} />
+          <Stack.Screen name="EvidenceUpload" component={UploadScreen} />
+          <Stack.Screen name="EvidenceTimeline" component={TimelineScreen} />
+          <Stack.Screen name="RecordStart" component={NewCaseScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaView>
