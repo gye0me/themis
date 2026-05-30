@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
 
-export function HomeScreen() {
+export function HomeScreen({ navigation }) {
   return (
     <View style={styles.wrapper}>
       {/* 상태바 */}
@@ -35,7 +35,7 @@ export function HomeScreen() {
         </View>
 
         {/* 진행 중인 사건 배너 */}
-        <TouchableOpacity style={styles.caseBanner}>
+        <TouchableOpacity style={styles.caseBanner} onPress={() => navigation.navigate('Timeline')}>
           <Text style={styles.caseBannerText}>현재 진행 중인 사건</Text>
           <Text style={styles.caseBannerSub}>전세보증금 미반환 · 퀘스트 3/5 완료 · 증거 8건 수집</Text>
           <Text style={styles.caseBannerArrow}>→</Text>
@@ -45,7 +45,7 @@ export function HomeScreen() {
         <Text style={styles.sectionTitle}>내 사건 기록</Text>
 
         {/* 사건 카드 1 — 진행 중 */}
-        <View style={styles.caseCard}>
+        <TouchableOpacity style={styles.caseCard} onPress={() => navigation.navigate('Upload')}>
           <View style={[styles.caseCardBar, {backgroundColor: '#DC2626'}]} />
           <View style={styles.caseCardBody}>
             <View style={styles.caseCardHeader}>
@@ -92,12 +92,12 @@ export function HomeScreen() {
                 <Text style={[styles.evidenceNum, {color: '#15803D'}]}>1</Text>
                 <Text style={[styles.evidenceLabel, {color: '#16A34A'}]}>PDF</Text>
               </View>
-              <TouchableOpacity style={styles.timelineBtn}>
+              <TouchableOpacity style={styles.timelineBtn} onPress={() => navigation.navigate('Timeline')}>
                 <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* 사건 카드 2 — 완료 */}
         <View style={styles.caseCard}>
@@ -122,7 +122,7 @@ export function HomeScreen() {
         </View>
 
         {/* 새 사건 추가 */}
-        <TouchableOpacity style={styles.caseCardNew}>
+        <TouchableOpacity style={styles.caseCardNew} onPress={() => navigation.navigate('NewCase')}>
           <Text style={styles.caseCardNewPlus}>+</Text>
           <Text style={styles.caseCardNewText}>새 사건 기록 시작하기</Text>
         </TouchableOpacity>
@@ -137,19 +137,18 @@ export function HomeScreen() {
               <Text style={styles.deadmanChange}>변경 →</Text>
             </TouchableOpacity>
           </View>
-          {/* 토글 */}
           <View style={styles.toggleOn}>
             <View style={styles.toggleCircle} />
             <Text style={styles.toggleText}>ON</Text>
           </View>
         </View>
 
-        <View style={{height: 80}} />
+        <View style={{height: 60}} />
       </ScrollView>
 
       {/* 네비바 */}
       <View style={styles.navbar}>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Upload')}>
           <Text style={styles.navIcon}>✏️</Text>
           <Text style={styles.navLabel}>기록</Text>
         </TouchableOpacity>
@@ -288,10 +287,17 @@ const styles = StyleSheet.create({
   toggleCircle: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
   toggleText: { color: '#FFFFFF', fontSize: 10, fontWeight: '500' },
   navbar: {
-    flexDirection: 'row', backgroundColor: '#FFFFFF',
-    borderTopWidth: 0.5, borderTopColor: '#E2E8F0',
-    paddingVertical: 8, paddingHorizontal: 8,
-  },
+  flexDirection: 'row',
+  backgroundColor: '#FFFFFF',
+  borderTopWidth: 0.5,
+  borderTopColor: '#E2E8F0',
+  paddingVertical: 8,
+  paddingHorizontal: 8,
+  position: 'absolute',
+  bottom: 0,
+  left: 0,
+  right: 0,
+},
   navItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
   navItemActive: {
     backgroundColor: '#0F1F3D', borderRadius: 8,
