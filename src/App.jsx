@@ -1,12 +1,11 @@
-
 import { SafeAreaView, StyleSheet } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
-import { HomeScreen } from './screens/HomeScreen'
+import { EvidenceUploadScreen } from './screens/EvidenceUploadScreen'
 
 function App() {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <HomeScreen />
+      <EvidenceUploadScreen />
       <StatusBar style="light" />
     </SafeAreaView>
   )
