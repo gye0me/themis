@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   },
   pdfBtnText: { color: '#F1F5F9', fontSize: 12, fontWeight: '500' },
   floatingBtn: {
-    position: 'absolute', right: 16, bottom: 30,
+    position: 'absolute', right: 16, bottom: 140,
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#3B7DD8',
     alignItems: 'center', justifyContent: 'center',
