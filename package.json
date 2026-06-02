@@ -13,23 +13,27 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-navigation/native": "^7.2.5",
+    "@react-navigation/stack": "^7.9.3",
     "expo": "~56.0.5",
     "expo-status-bar": "~56.0.4",
     "firebase": "^12.13.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
     "autoprefixer": "^10.5.0",
+    "babel-preset-expo": "~56.0.13",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "babel-preset-expo": "~56.0.13",
     "postcss": "^8.5.14",
     "tailwindcss": "^4.3.0"
   }
