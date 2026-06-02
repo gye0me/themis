@@ -22,17 +22,24 @@
     "@react-navigation/stack": "^7.9.3",
 >>>>>>> origin/jiyeon
     "expo": "~56.0.5",
+    "expo-document-picker": "~56.0.4",
+    "expo-location": "~56.0.15",
     "expo-status-bar": "~56.0.4",
     "firebase": "^12.13.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-native": "0.85.3",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "react-native-gesture-handler": "^3.0.0",
     "react-native-reanimated": "^4.4.0",
     "react-native-safe-area-context": "^5.8.0",
     "react-native-screens": "^4.25.2",
 =======
+=======
+    "react-native-gesture-handler": "~2.31.1",
+    "react-native-reanimated": "4.3.1",
+>>>>>>> b2245eb (Add evidence upload storage flow)
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
 >>>>>>> origin/jiyeon

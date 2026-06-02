@@ -20,7 +20,7 @@ import {
   setDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, deleteObject, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 import {
   THEMIS_COLLECTIONS,
@@ -309,6 +309,98 @@ export async function uploadFile(file, path) {
     return snapshot.ref.fullPath;
   } catch (error) {
     console.error('파일 업로드 오류:', error);
+    throw error;
+  }
+}
+
+async function uploadFileFromUri(fileUri, path, contentType) {
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+  const storageRef = ref(storage, path);
+  const snapshot = await uploadBytes(storageRef, blob, contentType ? { contentType } : undefined);
+  const downloadURL = await getDownloadURL(snapshot.ref);
+
+  return {
+    fullPath: snapshot.ref.fullPath,
+    downloadURL,
+  };
+}
+
+function sanitizeFileName(fileName = 'evidence') {
+  return fileName
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 120);
+}
+
+/**
+ * 증거 파일/메모를 Storage + Firestore에 함께 저장
+ */
+export async function createEvidenceRecord({
+  userId = null,
+  caseId = 'general',
+  caseTitle = '',
+  title = '',
+  note = '',
+  evidenceType = 'text',
+  file = null,
+  location = null,
+}) {
+  try {
+    const capturedAt = Timestamp.now();
+    let storagePath = null;
+    let downloadURL = null;
+    let originalFileName = null;
+    let mimeType = null;
+    let fileSize = null;
+
+    if (file?.uri) {
+      originalFileName = file.name ?? `${evidenceType}-${Date.now()}`;
+      mimeType = file.mimeType ?? null;
+      fileSize = file.size ?? null;
+      const safeFileName = sanitizeFileName(originalFileName);
+      storagePath = `evidence/${caseId}/${Date.now()}-${safeFileName}`;
+      const uploadResult = await uploadFileFromUri(file.uri, storagePath, mimeType);
+      storagePath = uploadResult.fullPath;
+      downloadURL = uploadResult.downloadURL;
+    }
+
+    const docRef = await addDoc(collection(db, 'evidenceRecords'), {
+      userId,
+      caseId,
+      caseTitle,
+      title,
+      note,
+      evidenceType,
+      originalFileName,
+      mimeType,
+      fileSize,
+      storagePath,
+      downloadURL,
+      location,
+      capturedAt,
+      createdAt: capturedAt,
+    });
+
+    return {
+      id: docRef.id,
+      userId,
+      caseId,
+      caseTitle,
+      title,
+      note,
+      evidenceType,
+      originalFileName,
+      mimeType,
+      fileSize,
+      storagePath,
+      downloadURL,
+      location,
+      capturedAt,
+    };
+  } catch (error) {
+    console.error('증거 저장 오류:', error);
     throw error;
   }
 }
