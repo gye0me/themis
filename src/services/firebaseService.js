@@ -19,6 +19,7 @@ import {
   where,
   setDoc,
   serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, deleteObject, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
@@ -313,11 +314,14 @@ export async function uploadFile(file, path) {
   }
 }
 
-async function uploadFileFromUri(fileUri, path, contentType) {
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
+async function uploadFileFromUri(fileUri, path, contentType, webFile = null) {
+  let uploadData = webFile;
+  if (!uploadData) {
+    const response = await fetch(fileUri);
+    uploadData = await response.blob();
+  }
   const storageRef = ref(storage, path);
-  const snapshot = await uploadBytes(storageRef, blob, contentType ? { contentType } : undefined);
+  const snapshot = await uploadBytes(storageRef, uploadData, contentType ? { contentType } : undefined);
   const downloadURL = await getDownloadURL(snapshot.ref);
 
   return {
@@ -361,7 +365,8 @@ export async function createEvidenceRecord({
       fileSize = file.size ?? null;
       const safeFileName = sanitizeFileName(originalFileName);
       storagePath = `evidence/${caseId}/${Date.now()}-${safeFileName}`;
-      const uploadResult = await uploadFileFromUri(file.uri, storagePath, mimeType);
+      // 웹과 앱 모두 완벽하게 업로드되도록 웹 파일 객체(file.file) 전달
+      const uploadResult = await uploadFileFromUri(file.uri, storagePath, mimeType, file.file);
       storagePath = uploadResult.fullPath;
       downloadURL = uploadResult.downloadURL;
     }

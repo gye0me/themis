@@ -5,6 +5,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignupScreen } from '../screens/auth/SignupScreen';
 import { NavigationPlaceholderScreen } from '../screens/shared/NavigationPlaceholderScreen';
+import { HomeScreen } from '../screens/HomeScreen';
+import { TimelineScreen } from '../screens/TimelineScreen';
+import { EvidenceUploadScreen } from '../screens/EvidenceUploadScreen';
+import { NewCaseScreen } from '../screens/NewCaseScreen';
+import { UploadScreen } from '../screens/UploadScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -49,6 +54,7 @@ function tabScreenOptions({ route }) {
     tabBarActiveTintColor: '#ffffff',
     tabBarInactiveTintColor: '#8d9ab5',
     tabBarStyle: {
+      display: 'none', // 커스텀 네비바를 사용하므로 기본 탭은 숨김 처리
       backgroundColor: '#0d1627',
       borderTopColor: '#1d2a42',
     },
@@ -63,13 +69,8 @@ function HomeNavigator() {
     <HomeStack.Navigator screenOptions={screenOptions}>
       <HomeStack.Screen
         name={HOME_ROUTES.HOME}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '홈' }}
-        initialParams={{
-          title: '홈',
-          subtitle: 'Home',
-          description: '전체 진입점 화면입니다.',
-        }}
+        component={HomeScreen}
+        options={{ headerShown: false }}
       />
     </HomeStack.Navigator>
   );
@@ -80,13 +81,8 @@ function RecordsNavigator() {
     <RecordsStack.Navigator screenOptions={screenOptions}>
       <RecordsStack.Screen
         name={RECORD_ROUTES.START}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '기록 시작' }}
-        initialParams={{
-          title: '기록 시작',
-          subtitle: 'Records',
-          description: '기록 흐름의 시작 화면입니다.',
-        }}
+        component={NewCaseScreen}
+        options={{ headerShown: false }}
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.CONTRACT_ANALYSIS}
@@ -100,23 +96,13 @@ function RecordsNavigator() {
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_UPLOAD}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '증거 업로드' }}
-        initialParams={{
-          title: '증거 업로드',
-          subtitle: 'Records > Upload',
-          description: '증거를 올리는 화면입니다.',
-        }}
+        component={EvidenceUploadScreen}
+        options={{ headerShown: false }}
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_TIMELINE}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '증거 타임라인' }}
-        initialParams={{
-          title: '증거 타임라인',
-          subtitle: 'Records > Timeline',
-          description: '증거 흐름을 시간순으로 확인하는 화면입니다.',
-        }}
+        component={TimelineScreen}
+        options={{ headerShown: false }}
       />
     </RecordsStack.Navigator>
   );
@@ -158,7 +144,7 @@ function ChatsNavigator() {
 
 function MainTabsNavigator() {
   return (
-    <Tabs.Navigator screenOptions={tabScreenOptions}>
+    <Tabs.Navigator screenOptions={tabScreenOptions} initialRouteName={APP_ROUTES.HOME_STACK}>
       <Tabs.Screen name={APP_ROUTES.RECORDS_STACK} component={RecordsNavigator} options={{ headerShown: false }} />
       <Tabs.Screen name={APP_ROUTES.EXPERTS_STACK} component={ExpertsNavigator} options={{ headerShown: false }} />
       <Tabs.Screen name={APP_ROUTES.CHATS_STACK} component={ChatsNavigator} options={{ headerShown: false }} />
@@ -172,6 +158,11 @@ export function AppNavigator() {
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="App">
         <RootStack.Screen name="App" component={MainTabsNavigator} />
+        {/* 홈 화면 등에서 사용하는 하드코딩 된 문자열 네비게이션과 완벽히 매칭하기 위해 추가 */}
+        <RootStack.Screen name="UploadScreen" component={UploadScreen} />
+        <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} />
+        <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
+        <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
         <RootStack.Screen
           name={AUTH_ROUTES.LOGIN}
           options={{ presentation: 'modal' }}

@@ -1,10 +1,64 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native'
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Location from 'expo-location';
+import { createEvidenceRecord } from '../services/firebaseService';
 
-export function EvidenceUploadScreen() {
+export function EvidenceUploadScreen({ navigation }) {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handlePhotoUpload = async () => {
+    try {
+      // 1. 기기에서 사진 파일 선택
+      const result = await DocumentPicker.getDocumentAsync({ type: 'image/*' });
+      if (result.canceled || !result.assets?.length) return;
+      
+      setIsUploading(true);
+      const file = result.assets[0];
+
+      // 2. GPS 위치 정보 가져오기 (권한 요청 포함)
+      let location = null;
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        location = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      }
+
+      // 3. Firebase 스토리지 + 파이어스토어에 동시 저장 (타임스탬프는 함수 내부에서 자동 생성)
+      await createEvidenceRecord({
+        userId: 'test_user_id', // 추후 로그인한 유저 ID로 교체
+        caseId: 'case_12345',   // 추후 현재 진행 중인 사건 ID로 교체
+        title: '현장 사진 증거',
+        evidenceType: 'image',
+        file: file,
+        location: location,
+      });
+
+      Alert.alert('업로드 완료! 🎉', '사진과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.');
+    } catch (error) {
+      console.error('업로드 실패:', error);
+      Alert.alert('업로드 실패', error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backBtn}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('App');
+            }
+          }}
+        >
+          <Text style={styles.backText}>‹ 뒤로</Text>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>증거 업로드</Text>
         <Text style={styles.headerSubtitle}>사건 기록 추가하기</Text>
       </View>
@@ -23,9 +77,13 @@ export function EvidenceUploadScreen() {
 
       {/* 4개 카드 그리드 */}
       <View style={styles.cardGrid}>
-        <TouchableOpacity style={styles.uploadCard}>
+        <TouchableOpacity 
+          style={styles.uploadCard}
+          onPress={handlePhotoUpload}
+          disabled={isUploading}
+        >
           <Text style={styles.cardIcon}>📷</Text>
-          <Text style={styles.cardTitle}>사진</Text>
+          <Text style={styles.cardTitle}>{isUploading ? '업로드 중...' : '사진'}</Text>
           <Text style={styles.cardDesc}>현장 사진 촬영</Text>
         </TouchableOpacity>
 
@@ -71,6 +129,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 20,
   },
+  backBtn: { marginBottom: 16, paddingVertical: 4 },
+  backText: { color: '#8da3c1', fontSize: 16 },
   headerTitle: {
     color: 'white',
     fontSize: 20,

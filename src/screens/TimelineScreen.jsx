@@ -5,7 +5,13 @@ export function TimelineScreen({ navigation }) {
     <View style={styles.wrapper}>
       {/* 앱바 */}
       <View style={styles.appbar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('App');
+          }
+        }}>
           <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
         <View>
@@ -167,7 +173,7 @@ export function TimelineScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F8FAFC', height: '100vh' },
+  wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
   appbar: {
     backgroundColor: '#1E3A5F', paddingTop: 44, paddingBottom: 12,
     paddingHorizontal: 16, flexDirection: 'row',
@@ -224,7 +230,7 @@ const styles = StyleSheet.create({
   },
   pdfBtnText: { color: '#F1F5F9', fontSize: 12, fontWeight: '500' },
   floatingBtn: {
-    position: 'absolute', right: 16, bottom: 140,
+    position: 'absolute', right: 16, bottom: 32,
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#3B7DD8',
     alignItems: 'center', justifyContent: 'center',

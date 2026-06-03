@@ -1,15 +1,12 @@
 {
   "name": "themis",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "main": "index.js",
+  "version": "1.0.0",
+  "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "eslint ."
+    "web": "expo start --web"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
@@ -32,15 +29,8 @@
     "react-native-web": "~0.19.10"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/react": "^19.2.14",
-    "autoprefixer": "^10.5.0",
-    "babel-preset-expo": "~51.0.0",
-    "eslint": "^10.3.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
-    "postcss": "^8.5.14",
-    "tailwindcss": "^4.3.0"
-  }
+    "@babel/core": "^7.20.0",
+    "babel-preset-expo": "~11.0.0"
+  },
+  "private": true
 }
