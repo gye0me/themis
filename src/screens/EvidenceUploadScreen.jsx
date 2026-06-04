@@ -1,33 +1,29 @@
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord } from '../services/firebaseService';
+import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
 
-const TIMELINE_MOCK = [
-  {
-    id: '1',
-    date: '3월 2일 오후 11:02',
-    title: '집 앞 잠긴 → 사진',
-    sub: 'VLM: 점문 체킹 작용 날상',
-    color: '#DC2626',
-  },
-  {
-    id: '2',
-    date: '3월 7일 오후 2:14',
-    title: '동화 녹음 3분 12초',
-    sub: 'Whisper: "보충금 못 돌다" 3회',
-    color: '#7C3AED',
-  },
-  {
-    id: '3',
-    date: '3월 9일 오전 5:30',
-    title: '메모 - 집주인 연락 두절',
-    sub: '',
-    color: '#EA580C',
-  },
-];
+const TYPE_CONFIG = {
+  image:  { icon: '📷', color: '#EA580C' },
+  audio:  { icon: '🎙️', color: '#7C3AED' },
+  video:  { icon: '🎥', color: '#16A34A' },
+  text:   { icon: '📝', color: '#3B82F6' },
+  default:{ icon: '📄', color: '#94A3B8' },
+};
+
+function formatDate(capturedAt) {
+  if (!capturedAt) return '';
+  const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hour = date.getHours();
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hour < 12 ? '오전' : '오후';
+  const hour12 = hour % 12 || 12;
+  return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
+}
 
 const UPLOAD_TYPES = {
   image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
@@ -38,6 +34,14 @@ const UPLOAD_TYPES = {
 export function EvidenceUploadScreen({ navigation }) {
   const { user } = useContext(AuthContext);
   const [uploadingType, setUploadingType] = useState(null);
+  const [recentRecords, setRecentRecords] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    getEvidenceRecords(user.uid)
+      .then((data) => setRecentRecords(data.slice(0, 3)))
+      .catch(() => {});
+  }, [user]);
 
   const handleUpload = async (evidenceType) => {
     const cfg = UPLOAD_TYPES[evidenceType];
@@ -148,16 +152,32 @@ export function EvidenceUploadScreen({ navigation }) {
         {/* 내 타임라인 */}
         <Text style={styles.sectionTitle2}>내 타임라인</Text>
 
-        {TIMELINE_MOCK.map((item) => (
-          <View key={item.id} style={styles.timelineItem}>
-            <View style={[styles.timelineDot, { backgroundColor: item.color }]} />
-            <View style={styles.timelineBody}>
-              <Text style={styles.timelineDate}>{item.date}</Text>
-              <Text style={styles.timelineTitle}>{item.title}</Text>
-              {item.sub ? <Text style={styles.timelineSub}>{item.sub}</Text> : null}
-            </View>
+        {recentRecords.length === 0 ? (
+          <View style={styles.timelineEmpty}>
+            <Text style={styles.timelineEmptyText}>아직 업로드된 증거가 없습니다</Text>
           </View>
-        ))}
+        ) : (
+          recentRecords.map((item) => {
+            const cfg = TYPE_CONFIG[item.evidenceType] ?? TYPE_CONFIG.default;
+            return (
+              <View key={item.id} style={styles.timelineItem}>
+                <View style={[styles.timelineDot, { backgroundColor: cfg.color }]} />
+                <View style={styles.timelineBody}>
+                  <Text style={styles.timelineDate}>{formatDate(item.capturedAt)}</Text>
+                  <Text style={styles.timelineTitle}>
+                    {cfg.icon} {item.title || cfg.label}
+                  </Text>
+                  {item.originalFileName ? (
+                    <Text style={styles.timelineSub}>{item.originalFileName}</Text>
+                  ) : null}
+                </View>
+                {item.location && (
+                  <Text style={styles.timelineGps}>GPS ✓</Text>
+                )}
+              </View>
+            );
+          })
+        )}
 
         <TouchableOpacity
           style={styles.timelineBtn}
@@ -275,10 +295,13 @@ const styles = StyleSheet.create({
     width: 8, height: 8, borderRadius: 4,
     marginTop: 4,
   },
+  timelineEmpty: { paddingVertical: 16, alignItems: 'center' },
+  timelineEmptyText: { color: '#94A3B8', fontSize: 12 },
   timelineBody: { flex: 1 },
   timelineDate: { color: '#94A3B8', fontSize: 10, marginBottom: 2 },
   timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '500' },
   timelineSub: { color: '#64748B', fontSize: 10, marginTop: 2 },
+  timelineGps: { color: '#1D4ED8', fontSize: 9, fontWeight: '500' },
   timelineBtn: {
     backgroundColor: '#1E3A5F',
     padding: 14,
