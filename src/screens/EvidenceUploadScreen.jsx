@@ -7,10 +7,15 @@ import { createEvidenceRecord } from '../services/firebaseService';
 export function EvidenceUploadScreen({ navigation }) {
   const [isUploading, setIsUploading] = useState(false);
 
-  const handlePhotoUpload = async () => {
+  const handleFileUpload = async (typeStr, titlePrefix) => {
     try {
-      // 1. 기기에서 사진 파일 선택
-      const result = await DocumentPicker.getDocumentAsync({ type: 'image/*' });
+      let docType = '*/*';
+      if (typeStr === 'image') docType = 'image/*';
+      else if (typeStr === 'audio') docType = 'audio/*';
+      else if (typeStr === 'video') docType = 'video/*';
+
+      // 1. 기기에서 파일 선택
+      const result = await DocumentPicker.getDocumentAsync({ type: docType });
       if (result.canceled || !result.assets?.length) return;
       
       setIsUploading(true);
@@ -28,13 +33,13 @@ export function EvidenceUploadScreen({ navigation }) {
       await createEvidenceRecord({
         userId: 'test_user_id', // 추후 로그인한 유저 ID로 교체
         caseId: 'case_12345',   // 추후 현재 진행 중인 사건 ID로 교체
-        title: '현장 사진 증거',
-        evidenceType: 'image',
+        title: `${titlePrefix} 증거`,
+        evidenceType: typeStr,
         file: file,
         location: location,
       });
 
-      Alert.alert('업로드 완료! 🎉', '사진과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.');
+      Alert.alert('업로드 완료! 🎉', `${titlePrefix} 파일과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`);
     } catch (error) {
       console.error('업로드 실패:', error);
       Alert.alert('업로드 실패', error.message);
@@ -79,7 +84,7 @@ export function EvidenceUploadScreen({ navigation }) {
       <View style={styles.cardGrid}>
         <TouchableOpacity 
           style={styles.uploadCard}
-          onPress={handlePhotoUpload}
+          onPress={() => handleFileUpload('image', '현장 사진')}
           disabled={isUploading}
         >
           <Text style={styles.cardIcon}>📷</Text>
@@ -87,15 +92,23 @@ export function EvidenceUploadScreen({ navigation }) {
           <Text style={styles.cardDesc}>현장 사진 촬영</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.uploadCard}>
+        <TouchableOpacity 
+          style={styles.uploadCard}
+          onPress={() => handleFileUpload('audio', '음성 녹음')}
+          disabled={isUploading}
+        >
           <Text style={styles.cardIcon}>🎙️</Text>
-          <Text style={styles.cardTitle}>음성</Text>
+          <Text style={styles.cardTitle}>{isUploading ? '업로드 중...' : '음성'}</Text>
           <Text style={styles.cardDesc}>녹음 파일 업로드</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.uploadCard}>
+        <TouchableOpacity 
+          style={styles.uploadCard}
+          onPress={() => handleFileUpload('video', '동영상')}
+          disabled={isUploading}
+        >
           <Text style={styles.cardIcon}>🎥</Text>
-          <Text style={styles.cardTitle}>영상</Text>
+          <Text style={styles.cardTitle}>{isUploading ? '업로드 중...' : '영상'}</Text>
           <Text style={styles.cardDesc}>동영상 파일 업로드</Text>
         </TouchableOpacity>
 
