@@ -17,6 +17,7 @@ import {
   doc,
   query,
   where,
+  orderBy,
   setDoc,
   serverTimestamp,
   Timestamp,
@@ -406,6 +407,29 @@ export async function createEvidenceRecord({
     };
   } catch (error) {
     console.error('증거 저장 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 증거 목록 조회 (userId 기준, capturedAt 내림차순)
+ */
+export async function getEvidenceRecords(userId, caseId = null) {
+  try {
+    const constraints = [where('userId', '==', userId)];
+    if (caseId) constraints.push(where('caseId', '==', caseId));
+    const q = query(collection(db, 'evidenceRecords'), ...constraints);
+    const snapshot = await getDocs(q);
+    const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // 복합 인덱스 없이도 동작하도록 클라이언트에서 정렬
+    docs.sort((a, b) => {
+      const aTime = a.capturedAt?.toDate?.() ?? new Date(a.capturedAt ?? 0);
+      const bTime = b.capturedAt?.toDate?.() ?? new Date(b.capturedAt ?? 0);
+      return bTime - aTime;
+    });
+    return docs;
+  } catch (error) {
+    console.error('증거 목록 조회 오류:', error);
     throw error;
   }
 }

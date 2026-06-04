@@ -1,22 +1,54 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
+import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord } from '../services/firebaseService';
 
-export function EvidenceUploadScreen({ navigation }) {
-  const [isUploading, setIsUploading] = useState(false);
+const TIMELINE_MOCK = [
+  {
+    id: '1',
+    date: '3월 2일 오후 11:02',
+    title: '집 앞 잠긴 → 사진',
+    sub: 'VLM: 점문 체킹 작용 날상',
+    color: '#DC2626',
+  },
+  {
+    id: '2',
+    date: '3월 7일 오후 2:14',
+    title: '동화 녹음 3분 12초',
+    sub: 'Whisper: "보충금 못 돌다" 3회',
+    color: '#7C3AED',
+  },
+  {
+    id: '3',
+    date: '3월 9일 오전 5:30',
+    title: '메모 - 집주인 연락 두절',
+    sub: '',
+    color: '#EA580C',
+  },
+];
 
-  const handlePhotoUpload = async () => {
+const UPLOAD_TYPES = {
+  image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
+  audio: { mimeType: 'audio/*',  title: '음성 녹음 증거',  label: '음성' },
+  video: { mimeType: 'video/*',  title: '영상 증거',        label: '영상' },
+};
+
+export function EvidenceUploadScreen({ navigation }) {
+  const { user } = useContext(AuthContext);
+  const [uploadingType, setUploadingType] = useState(null);
+
+  const handleUpload = async (evidenceType) => {
+    const cfg = UPLOAD_TYPES[evidenceType];
+    if (!cfg) return;
     try {
-      // 1. 기기에서 사진 파일 선택
-      const result = await DocumentPicker.getDocumentAsync({ type: 'image/*' });
+      const result = await DocumentPicker.getDocumentAsync({ type: cfg.mimeType });
       if (result.canceled || !result.assets?.length) return;
-      
-      setIsUploading(true);
+
+      setUploadingType(evidenceType);
       const file = result.assets[0];
 
-      // 2. GPS 위치 정보 가져오기 (권한 요청 포함)
       let location = null;
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
@@ -24,195 +56,253 @@ export function EvidenceUploadScreen({ navigation }) {
         location = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       }
 
-      // 3. Firebase 스토리지 + 파이어스토어에 동시 저장 (타임스탬프는 함수 내부에서 자동 생성)
       await createEvidenceRecord({
-        userId: 'test_user_id', // 추후 로그인한 유저 ID로 교체
-        caseId: 'case_12345',   // 추후 현재 진행 중인 사건 ID로 교체
-        title: '현장 사진 증거',
-        evidenceType: 'image',
-        file: file,
-        location: location,
+        userId: user?.uid ?? null,
+        caseId: 'case_12345',
+        title: cfg.title,
+        evidenceType,
+        file,
+        location,
       });
 
-      Alert.alert('업로드 완료! 🎉', '사진과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.');
+      Alert.alert('업로드 완료!', `${cfg.label}과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`);
     } catch (error) {
       console.error('업로드 실패:', error);
       Alert.alert('업로드 실패', error.message);
     } finally {
-      setIsUploading(false);
+      setUploadingType(null);
     }
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backBtn}
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('App');
-            }
-          }}
-        >
-          <Text style={styles.backText}>‹ 뒤로</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>증거 업로드</Text>
-        <Text style={styles.headerSubtitle}>사건 기록 추가하기</Text>
-      </View>
-
-      {/* 기록 유형 선택 */}
-      <Text style={styles.sectionTitle}>기록 유형 선택</Text>
-
-      {/* 계약서 분석 큰 카드 */}
-      <TouchableOpacity style={styles.contractCard}>
-        <Text style={styles.contractIcon}>📄</Text>
-        <View>
-          <Text style={styles.contractTitle}>계약서 분석</Text>
-          <Text style={styles.contractDesc}>독소조항 자동 탐지</Text>
+    <View style={styles.wrapper}>
+      {/* 앱바 */}
+      <View style={styles.appbar}>
+        <View style={styles.appbarLogo}>
+          <Text style={styles.appbarLogoText}>T</Text>
         </View>
-      </TouchableOpacity>
+        <View>
+          <Text style={styles.appbarTitle}>증거 업로드</Text>
+          <Text style={styles.appbarSub}>사건 기록 추가하기</Text>
+        </View>
+      </View>
 
-      {/* 4개 카드 그리드 */}
-      <View style={styles.cardGrid}>
-        <TouchableOpacity 
-          style={styles.uploadCard}
-          onPress={handlePhotoUpload}
-          disabled={isUploading}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* 기록 유형 선택 */}
+        <Text style={styles.sectionTitle}>기록 유형 선택</Text>
+
+        {/* 계약서 분석 큰 카드 */}
+        <TouchableOpacity style={styles.contractCard}>
+          <Text style={styles.contractIcon}>📋</Text>
+          <View>
+            <Text style={styles.contractTitle}>계약서 분석</Text>
+            <Text style={styles.contractDesc}>독소조항 자동 탐지</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 4개 카드 그리드 */}
+        <View style={styles.cardGrid}>
+          <TouchableOpacity
+            style={[styles.uploadCard, { borderTopColor: '#EA580C' }]}
+            onPress={() => handleUpload('image')}
+            disabled={uploadingType !== null}
+          >
+            <Text style={styles.cardIcon}>📷</Text>
+            <Text style={styles.cardTitle}>{uploadingType === 'image' ? '업로드 중...' : '사진'}</Text>
+            <Text style={styles.cardDesc}>현장 사진 촬영</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.uploadCard, { borderTopColor: '#7C3AED' }]}
+            onPress={() => handleUpload('audio')}
+            disabled={uploadingType !== null}
+          >
+            <Text style={styles.cardIcon}>🎙️</Text>
+            <Text style={styles.cardTitle}>{uploadingType === 'audio' ? '업로드 중...' : '음성'}</Text>
+            <Text style={styles.cardDesc}>녹음 파일 업로드</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.uploadCard, { borderTopColor: '#16A34A' }]}
+            onPress={() => handleUpload('video')}
+            disabled={uploadingType !== null}
+          >
+            <Text style={styles.cardIcon}>🎥</Text>
+            <Text style={styles.cardTitle}>{uploadingType === 'video' ? '업로드 중...' : '영상'}</Text>
+            <Text style={styles.cardDesc}>동영상 파일 업로드</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}>
+            <Text style={styles.cardIcon}>📝</Text>
+            <Text style={styles.cardTitle}>메모</Text>
+            <Text style={styles.cardDesc}>텍스트 직접 입력</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* GPS 안내 */}
+        <View style={styles.gpsNotice}>
+          <Text style={styles.gpsTitle}>📍 GPS + 타임스탬프 자동 저장</Text>
+          <Text style={styles.gpsDesc}>업로드 시 현재 위치와 시간이 자동으로 기록됩니다</Text>
+        </View>
+
+        {/* 내 타임라인 */}
+        <Text style={styles.sectionTitle2}>내 타임라인</Text>
+
+        {TIMELINE_MOCK.map((item) => (
+          <View key={item.id} style={styles.timelineItem}>
+            <View style={[styles.timelineDot, { backgroundColor: item.color }]} />
+            <View style={styles.timelineBody}>
+              <Text style={styles.timelineDate}>{item.date}</Text>
+              <Text style={styles.timelineTitle}>{item.title}</Text>
+              {item.sub ? <Text style={styles.timelineSub}>{item.sub}</Text> : null}
+            </View>
+          </View>
+        ))}
+
+        <TouchableOpacity
+          style={styles.timelineBtn}
+          onPress={() => navigation.navigate('EvidenceTimeline')}
         >
-          <Text style={styles.cardIcon}>📷</Text>
-          <Text style={styles.cardTitle}>{isUploading ? '업로드 중...' : '사진'}</Text>
-          <Text style={styles.cardDesc}>현장 사진 촬영</Text>
+          <Text style={styles.timelineBtnText}>증거 타임라인 전체 보기 →</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.uploadCard}>
-          <Text style={styles.cardIcon}>🎙️</Text>
-          <Text style={styles.cardTitle}>음성</Text>
-          <Text style={styles.cardDesc}>녹음 파일 업로드</Text>
-        </TouchableOpacity>
+        <View style={{ height: 80 }} />
+      </ScrollView>
 
-        <TouchableOpacity style={styles.uploadCard}>
-          <Text style={styles.cardIcon}>🎥</Text>
-          <Text style={styles.cardTitle}>영상</Text>
-          <Text style={styles.cardDesc}>동영상 파일 업로드</Text>
+      {/* 하단 네비바 */}
+      <View style={styles.navbar}>
+        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
+          <Text style={styles.navIconActive}>✏️</Text>
+          <Text style={styles.navLabelActive}>기록</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.uploadCard}>
-          <Text style={styles.cardIcon}>📝</Text>
-          <Text style={styles.cardTitle}>메모</Text>
-          <Text style={styles.cardDesc}>텍스트 직접 입력</Text>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>👥</Text>
+          <Text style={styles.navLabel}>전문가</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>💬</Text>
+          <Text style={styles.navLabel}>채팅</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('App')}
+        >
+          <Text style={styles.navIcon}>🏠</Text>
+          <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
       </View>
-
-      {/* GPS 안내 */}
-      <View style={styles.gpsNotice}>
-        <Text style={styles.gpsTitle}>GPS + 타임스탬프 자동 저장</Text>
-        <Text style={styles.gpsDesc}>
-          업로드 시 현재 위치와 시간이 자동으로 기록됩니다
-        </Text>
-      </View>
-    </ScrollView>
-  )
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-    padding: 16,
-  },
-  header: {
-    backgroundColor: '#1a2942',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  backBtn: { marginBottom: 16, paddingVertical: 4 },
-  backText: { color: '#8da3c1', fontSize: 16 },
-  headerTitle: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: '#8da3c1',
-    fontSize: 14,
-  },
-  sectionTitle: {
-    color: '#8da3c1',
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  contractCard: {
-    backgroundColor: '#1a3a5c',
-    padding: 20,
-    borderRadius: 12,
+  wrapper: { flex: 1, backgroundColor: '#F1F5F9' },
+  appbar: {
+    backgroundColor: '#1E3A5F',
+    paddingTop: 48,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    marginBottom: 16,
+    gap: 10,
   },
-  contractIcon: {
-    fontSize: 32,
+  appbarLogo: {
+    width: 28, height: 28, borderRadius: 7,
+    backgroundColor: '#3B7DD8',
+    alignItems: 'center', justifyContent: 'center',
   },
-  contractTitle: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  appbarLogoText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
+  appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
+  appbarSub: { color: '#7B9EC5', fontSize: 11 },
+  content: { flex: 1, padding: 16 },
+  sectionTitle: {
+    fontSize: 10, fontWeight: '500', color: '#94A3B8',
+    letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
   },
-  contractDesc: {
-    color: '#8da3c1',
-    fontSize: 13,
+  sectionTitle2: {
+    fontSize: 10, fontWeight: '500', color: '#94A3B8',
+    letterSpacing: 1, marginBottom: 10, marginTop: 8, textTransform: 'uppercase',
   },
+  contractCard: {
+    backgroundColor: '#1E3A5F',
+    padding: 18,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 12,
+  },
+  contractIcon: { fontSize: 30 },
+  contractTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  contractDesc: { color: '#7B9EC5', fontSize: 12 },
   cardGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 14,
   },
   uploadCard: {
-    backgroundColor: '#1a2942',
-    padding: 20,
-    borderRadius: 12,
-    width: '47%',
-    alignItems: 'center',
-    borderTopWidth: 4,
-    borderTopColor: '#4a90e2',
-  },
-  cardIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  cardTitle: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  cardDesc: {
-    color: '#8da3c1',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  gpsNotice: {
-    backgroundColor: '#1a2942',
+    backgroundColor: '#FFFFFF',
     padding: 16,
-    borderRadius: 12,
-    marginTop: 20,
-    marginBottom: 40,
+    borderRadius: 10,
+    width: '47.5%',
+    alignItems: 'center',
+    borderTopWidth: 3,
   },
-  gpsTitle: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  cardIcon: { fontSize: 28, marginBottom: 6 },
+  cardTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600', marginBottom: 2 },
+  cardDesc: { color: '#94A3B8', fontSize: 11, textAlign: 'center' },
+  gpsNotice: {
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: '#BFDBFE',
+    marginBottom: 16,
   },
-  gpsDesc: {
-    color: '#8da3c1',
-    fontSize: 12,
+  gpsTitle: { color: '#1D4ED8', fontSize: 12, fontWeight: '500', marginBottom: 2 },
+  gpsDesc: { color: '#3B82F6', fontSize: 11 },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 8,
   },
-})
+  timelineDot: {
+    width: 8, height: 8, borderRadius: 4,
+    marginTop: 4,
+  },
+  timelineBody: { flex: 1 },
+  timelineDate: { color: '#94A3B8', fontSize: 10, marginBottom: 2 },
+  timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '500' },
+  timelineSub: { color: '#64748B', fontSize: 10, marginTop: 2 },
+  timelineBtn: {
+    backgroundColor: '#1E3A5F',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  timelineBtnText: { color: '#F1F5F9', fontSize: 13, fontWeight: '500' },
+  navbar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderTopColor: '#E2E8F0',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+  },
+  navItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
+  navItemActive: {
+    backgroundColor: '#0F1F3D', borderRadius: 8, paddingVertical: 6,
+  },
+  navIcon: { fontSize: 20 },
+  navIconActive: { fontSize: 20 },
+  navLabel: { fontSize: 10, color: '#94A3B8' },
+  navLabelActive: { fontSize: 10, color: '#FFFFFF', fontWeight: '500' },
+});

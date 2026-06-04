@@ -142,6 +142,14 @@ function ChatsNavigator() {
   );
 }
 
+function LoginScreenWrapper({ navigation }) {
+  return <LoginScreen onSwitchToSignup={() => navigation.replace(AUTH_ROUTES.SIGNUP)} />;
+}
+
+function SignupScreenWrapper({ navigation }) {
+  return <SignupScreen onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)} />;
+}
+
 function MainTabsNavigator() {
   return (
     <Tabs.Navigator screenOptions={tabScreenOptions} initialRouteName={APP_ROUTES.HOME_STACK}>
@@ -165,20 +173,14 @@ export function AppNavigator() {
         <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
         <RootStack.Screen
           name={AUTH_ROUTES.LOGIN}
+          component={LoginScreenWrapper}
           options={{ presentation: 'modal' }}
-        >
-          {({ navigation }) => (
-            <LoginScreen onSwitchToSignup={() => navigation.replace(AUTH_ROUTES.SIGNUP)} />
-          )}
-        </RootStack.Screen>
+        />
         <RootStack.Screen
           name={AUTH_ROUTES.SIGNUP}
+          component={SignupScreenWrapper}
           options={{ presentation: 'modal' }}
-        >
-          {({ navigation }) => (
-            <SignupScreen onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)} />
-          )}
-        </RootStack.Screen>
+        />
       </RootStack.Navigator>
     </NavigationContainer>
   );
