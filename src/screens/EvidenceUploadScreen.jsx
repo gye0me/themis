@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
+import { createEvidenceRecord, getEvidenceRecords, transcribeAudio } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
   image:  { icon: '📷', color: '#EA580C' },
@@ -60,16 +60,29 @@ export function EvidenceUploadScreen({ navigation }) {
         location = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       }
 
+      let note = '';
+      if (evidenceType === 'audio') {
+        try {
+          note = await transcribeAudio(file.uri, file.mimeType);
+        } catch (e) {
+          console.warn('Whisper 변환 실패:', e.message);
+        }
+      }
+
       await createEvidenceRecord({
         userId: user?.uid ?? null,
         caseId: 'case_12345',
         title: cfg.title,
         evidenceType,
+        note,
         file,
         location,
       });
 
-      Alert.alert('업로드 완료!', `${cfg.label}과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`);
+      const msg = evidenceType === 'audio' && note
+        ? `음성이 기록되었습니다.\n\n변환된 텍스트:\n"${note.slice(0, 80)}${note.length > 80 ? '...' : ''}"`
+        : `${cfg.label}과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`;
+      Alert.alert('업로드 완료!', msg);
     } catch (error) {
       console.error('업로드 실패:', error);
       Alert.alert('업로드 실패', error.message);

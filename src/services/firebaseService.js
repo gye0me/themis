@@ -435,6 +435,36 @@ export async function getEvidenceRecords(userId, caseId = null) {
 }
 
 /**
+ * Whisper API로 음성 파일 텍스트 변환
+ */
+export async function transcribeAudio(fileUri, mimeType = 'audio/m4a') {
+  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OpenAI API 키가 설정되지 않았습니다.');
+
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
+
+  const formData = new FormData();
+  formData.append('file', blob, 'audio.m4a');
+  formData.append('model', 'whisper-1');
+  formData.append('language', 'ko');
+
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message ?? `Whisper API 오류 (${res.status})`);
+  }
+
+  const data = await res.json();
+  return data.text ?? '';
+}
+
+/**
  * 파일 삭제
  */
 export async function deleteFile(path) {
