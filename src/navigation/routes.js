@@ -27,5 +27,6 @@ export const EXPERT_ROUTES = {
 
 export const CHAT_ROUTES = {
   SOLIDARITY: 'SolidarityChat',
+  ROOM: 'ChatRoom',
 };
 

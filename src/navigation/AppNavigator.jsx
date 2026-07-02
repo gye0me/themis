@@ -10,6 +10,9 @@ import { TimelineScreen } from '../screens/TimelineScreen';
 import { EvidenceUploadScreen } from '../screens/EvidenceUploadScreen';
 import { NewCaseScreen } from '../screens/NewCaseScreen';
 import { UploadScreen } from '../screens/UploadScreen';
+import { ExpertScreen } from '../screens/ExpertScreen';
+import { ChatScreen } from '../screens/ChatScreen';
+import { ChatRoomScreen } from '../screens/ChatRoomScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -113,13 +116,8 @@ function ExpertsNavigator() {
     <ExpertsStack.Navigator screenOptions={screenOptions}>
       <ExpertsStack.Screen
         name={EXPERT_ROUTES.GUIDE}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '대응가이드' }}
-        initialParams={{
-          title: '대응가이드',
-          subtitle: 'Experts',
-          description: '대응 절차와 가이드를 확인하는 화면입니다.',
-        }}
+        component={ExpertScreen}
+        options={{ headerShown: false }}
       />
     </ExpertsStack.Navigator>
   );
@@ -130,13 +128,13 @@ function ChatsNavigator() {
     <ChatsStack.Navigator screenOptions={screenOptions}>
       <ChatsStack.Screen
         name={CHAT_ROUTES.SOLIDARITY}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '연대 (채팅)' }}
-        initialParams={{
-          title: '연대 (채팅)',
-          subtitle: 'Chats',
-          description: '연대용 채팅 시작 화면입니다.',
-        }}
+        component={ChatScreen}
+        options={{ headerShown: false }}
+      />
+      <ChatsStack.Screen
+        name={CHAT_ROUTES.ROOM}
+        component={ChatRoomScreen}
+        options={{ headerShown: false }}
       />
     </ChatsStack.Navigator>
   );

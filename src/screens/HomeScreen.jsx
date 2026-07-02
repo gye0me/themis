@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { APP_ROUTES } from '../navigation/routes';
 
 export function HomeScreen({ navigation }) {
   return (
@@ -152,11 +153,11 @@ export function HomeScreen({ navigation }) {
           <Text style={styles.navIcon}>✏️</Text>
           <Text style={styles.navLabel}>기록</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}>
           <Text style={styles.navIcon}>👥</Text>
           <Text style={styles.navLabel}>전문가</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
