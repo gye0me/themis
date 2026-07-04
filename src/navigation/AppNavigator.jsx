@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignupScreen } from '../screens/auth/SignupScreen';
 import { NavigationPlaceholderScreen } from '../screens/shared/NavigationPlaceholderScreen';
+import ContractAnalysisScreen from '../screens/ContractAnalysisScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { TimelineScreen } from '../screens/TimelineScreen';
 import { EvidenceUploadScreen } from '../screens/EvidenceUploadScreen';
@@ -86,13 +87,8 @@ function RecordsNavigator() {
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.CONTRACT_ANALYSIS}
-        component={NavigationPlaceholderScreen}
-        options={{ title: '계약서 분석' }}
-        initialParams={{
-          title: '계약서 분석',
-          subtitle: 'Records > Analysis',
-          description: '계약서 내용을 분석하는 화면입니다.',
-        }}
+        component={ContractAnalysisScreen}
+        options={{ headerShown: false }}
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_UPLOAD}
@@ -163,6 +159,7 @@ export function AppNavigator() {
         <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} />
         <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
         <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
+        <RootStack.Screen name="ContractAnalysis" component={ContractAnalysisScreen} options={{ headerShown: false }} />
         <RootStack.Screen
           name={AUTH_ROUTES.LOGIN}
           options={{ presentation: 'modal' }}
