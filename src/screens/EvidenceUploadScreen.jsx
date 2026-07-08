@@ -109,7 +109,7 @@ export function EvidenceUploadScreen({ navigation }) {
         <Text style={styles.sectionTitle}>기록 유형 선택</Text>
 
         {/* 계약서 분석 큰 카드 */}
-        <TouchableOpacity style={styles.contractCard}>
+        <TouchableOpacity style={styles.contractCard} onPress={() => navigation.push('ContractAnalysis')}>
           <Text style={styles.contractIcon}>📋</Text>
           <View>
             <Text style={styles.contractTitle}>계약서 분석</Text>
