@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import { B_callGeminiAPI } from "../services/geminiService";
 
 const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
 
@@ -82,12 +84,26 @@ export default function ContractAnalysisScreen({ navigation }) {
     }
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    if (!image) return;
     setLoading(true);
-    setTimeout(() => {
-      setResults(MOCK_RESULTS);
+    setResults(null);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(image, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const mimeType = image.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      const parsed = await B_callGeminiAPI(base64, mimeType, selectedType);
+      if (!parsed.items.length) {
+        Alert.alert('분석 실패', '계약서를 인식하지 못했습니다. 더 선명한 사진을 사용해 주세요.');
+      } else {
+        setResults(parsed);
+      }
+    } catch (err) {
+      Alert.alert('오류', err.message ?? '분석 중 오류가 발생했습니다.');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   return (
