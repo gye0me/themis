@@ -52,8 +52,45 @@ function cleanRawText(text) {
 function cleanStringValue(val) {
   if (typeof val !== 'string') return val;
   return val
+    .replace(/\u00a0/g, ' ')
     .replace(/\\n/g, ' ')          // 이스케이프 줄바꿈 → 공백
+    .replace(/\s*\|\s*/g, ' ')   // 표기 잔여 구분자 정리
     .replace(/\s{2,}/g, ' ')       // 연속 공백 압축
+    .trim();
+}
+
+function normalizeWhitespace(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/[ \u00a0]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function removeNoiseLines(text) {
+  const lines = normalizeWhitespace(text)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const filtered = lines.filter((line) => {
+    if (/^(page|p\.)\s*\d+/i.test(line)) return false;
+    if (/^\d+\s*\/\s*\d+$/.test(line)) return false;
+    if (/^[·•\-=_]{3,}$/.test(line)) return false;
+    if (/^\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}$/.test(line)) return false;
+    return true;
+  });
+
+  return filtered.join('\n').trim();
+}
+
+export function postProcessExtractedText(text) {
+  return removeNoiseLines(text)
+    .replace(/\n{2,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
 
@@ -119,6 +156,30 @@ function buildResult(parsed) {
   return { summary, items };
 }
 
+export function buildPreprocessPrompt(contractType) {
+  const basePrompt = PROMPT_TEMPLATE(contractType);
+
+  return `${basePrompt}\n\n추가 규칙:\n- OCR 노이즈처럼 보이는 반복 문자, 페이지 번호, 머리말/꼬리말은 제외하세요.\n- 줄바꿈이 깨져 있어도 조항 단위로 자연스럽게 복원하세요.\n- 근거가 약한 추정은 줄이고, 확실한 위험 조항 위주로 답하세요.`;
+}
+
+export function normalizeContractAnalysisText(text) {
+  return postProcessExtractedText(text);
+}
+
+export function compareAnalysisResults(beforeResult, afterResult) {
+  const beforeItems = Array.isArray(beforeResult?.items) ? beforeResult.items : [];
+  const afterItems = Array.isArray(afterResult?.items) ? afterResult.items : [];
+
+  return {
+    beforeCount: beforeItems.length,
+    afterCount: afterItems.length,
+    beforeRiskCount: beforeItems.filter((item) => item?.level === 'danger').length,
+    afterRiskCount: afterItems.filter((item) => item?.level === 'danger').length,
+    beforeSummary: beforeResult?.summary ?? '',
+    afterSummary: afterResult?.summary ?? '',
+  };
+}
+
 // ─── 메인 공개 함수 ──────────────────────────────────────────────────────────
 
 /**
@@ -133,6 +194,7 @@ export const B_callGeminiAPI = async (
   base64Img,
   mimeType = 'image/jpeg',
   contractType = '전월세',
+  promptOverride = null,
 ) => {
   const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
   if (!apiKey) {
@@ -143,7 +205,7 @@ export const B_callGeminiAPI = async (
     contents: [
       {
         parts: [
-          { text: PROMPT_TEMPLATE(contractType) },
+          { text: promptOverride ?? PROMPT_TEMPLATE(contractType) },
           {
             inlineData: {
               mimeType,
