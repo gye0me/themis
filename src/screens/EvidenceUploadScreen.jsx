@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
@@ -14,7 +15,11 @@ const TYPE_CONFIG = {
 };
 
 function formatDate(capturedAt) {
-  if (!capturedAt) return '';
+  // capturedAt 값이 유효하지 않을 경우를 대비하여 방어 코드 추가
+  if (!capturedAt || (typeof capturedAt.toDate !== 'function' && isNaN(new Date(capturedAt)))) {
+    return '날짜 정보 없음';
+  }
+
   const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -45,12 +50,16 @@ export function EvidenceUploadScreen({ navigation }) {
 
   const handleUpload = async (evidenceType) => {
     const cfg = UPLOAD_TYPES[evidenceType];
-    if (!cfg) return;
+    // 문서 선택기를 호출하기 전에 업로드 상태를 먼저 확인하여 중복 실행을 방지합니다.
+    if (!cfg || uploadingType !== null) return;
+
+    // await 이전에 상태를 먼저 설정하여 동시 클릭 문제를 해결합니다.
+    setUploadingType(evidenceType);
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: cfg.mimeType });
-      if (result.canceled || !result.assets?.length) return;
+      // 사용자가 파일 선택을 취소하면, 업로드 상태를 초기화하고 함수를 종료합니다.
+      if (result.canceled || !result.assets?.length) { setUploadingType(null); return; }
 
-      setUploadingType(evidenceType);
       const file = result.assets[0];
 
       let location = null;
@@ -92,7 +101,8 @@ export function EvidenceUploadScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.wrapper}>
+    // 최상위 View를 SafeAreaView로 변경하여 노치 및 하단 인디케이터 영역을 안전하게 처리합니다.
+    <SafeAreaView style={styles.wrapper}>
       {/* 앱바 */}
       <View style={styles.appbar}>
         <View style={styles.appbarLogo}>
@@ -125,7 +135,11 @@ export function EvidenceUploadScreen({ navigation }) {
             disabled={uploadingType !== null}
           >
             <Text style={styles.cardIcon}>📷</Text>
-            <Text style={styles.cardTitle}>{uploadingType === 'image' ? '업로드 중...' : '사진'}</Text>
+            {uploadingType === 'image' ? (
+              <ActivityIndicator color="#EA580C" style={{ marginVertical: 4 }} />
+            ) : (
+              <Text style={styles.cardTitle}>사진</Text>
+            )}
             <Text style={styles.cardDesc}>현장 사진 촬영</Text>
           </TouchableOpacity>
 
@@ -135,7 +149,11 @@ export function EvidenceUploadScreen({ navigation }) {
             disabled={uploadingType !== null}
           >
             <Text style={styles.cardIcon}>🎙️</Text>
-            <Text style={styles.cardTitle}>{uploadingType === 'audio' ? '업로드 중...' : '음성'}</Text>
+            {uploadingType === 'audio' ? (
+              <ActivityIndicator color="#7C3AED" style={{ marginVertical: 4 }} />
+            ) : (
+              <Text style={styles.cardTitle}>음성</Text>
+            )}
             <Text style={styles.cardDesc}>녹음 파일 업로드</Text>
           </TouchableOpacity>
 
@@ -145,13 +163,20 @@ export function EvidenceUploadScreen({ navigation }) {
             disabled={uploadingType !== null}
           >
             <Text style={styles.cardIcon}>🎥</Text>
-            <Text style={styles.cardTitle}>{uploadingType === 'video' ? '업로드 중...' : '영상'}</Text>
+            {uploadingType === 'video' ? (
+              <ActivityIndicator color="#16A34A" style={{ marginVertical: 4 }} />
+            ) : (
+              <Text style={styles.cardTitle}>영상</Text>
+            )}
             <Text style={styles.cardDesc}>동영상 파일 업로드</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}>
+          <TouchableOpacity
+            style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
+            onPress={() => navigation.navigate('Upload')}
+          >
             <Text style={styles.cardIcon}>📝</Text>
-            <Text style={styles.cardTitle}>메모</Text>
+            <Text style={styles.cardTitle}>상세 기록</Text>
             <Text style={styles.cardDesc}>텍스트 직접 입력</Text>
           </TouchableOpacity>
         </View>
@@ -194,7 +219,8 @@ export function EvidenceUploadScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.timelineBtn}
-          onPress={() => navigation.navigate('EvidenceTimeline')}
+          // 'EvidenceTimeline' 화면이 없으므로, 우선 아무 동작도 하지 않도록 비워둡니다.
+          onPress={() => Alert.alert('준비 중', '전체 타임라인 기능은 준비 중입니다.')}
         >
           <Text style={styles.timelineBtnText}>증거 타임라인 전체 보기 →</Text>
         </TouchableOpacity>
@@ -217,14 +243,14 @@ export function EvidenceUploadScreen({ navigation }) {
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.navItem}
+          style={styles.navItem} // 이 부분은 다른 화면으로 이동하는 기능이므로 active 스타일을 적용하지 않습니다.
           onPress={() => navigation.navigate('App')}
         >
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

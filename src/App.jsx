@@ -6,7 +6,7 @@ import { AppNavigator } from './navigation/AppNavigator'
 
 function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, height: '100vh' }}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <AppNavigator />
