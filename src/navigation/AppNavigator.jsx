@@ -1,4 +1,5 @@
-import { Text } from 'react-native';
+import { useContext } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -14,6 +15,7 @@ import { UploadScreen } from '../screens/UploadScreen';
 import { ExpertScreen } from '../screens/ExpertScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { ChatRoomScreen } from '../screens/ChatRoomScreen';
+import { AuthContext } from '../context/AuthContext';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -136,14 +138,6 @@ function ChatsNavigator() {
   );
 }
 
-function LoginScreenWrapper({ navigation }) {
-  return <LoginScreen onSwitchToSignup={() => navigation.replace(AUTH_ROUTES.SIGNUP)} />;
-}
-
-function SignupScreenWrapper({ navigation }) {
-  return <SignupScreen onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)} />;
-}
-
 function MainTabsNavigator() {
   return (
     <Tabs.Navigator screenOptions={tabScreenOptions} initialRouteName={APP_ROUTES.HOME_STACK}>
@@ -155,28 +149,51 @@ function MainTabsNavigator() {
   );
 }
 
+function AuthNavigator() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name={AUTH_ROUTES.LOGIN}>
+        {({ navigation }) => (
+          <LoginScreen onSwitchToSignup={() => navigation.replace(AUTH_ROUTES.SIGNUP)} />
+        )}
+      </RootStack.Screen>
+      <RootStack.Screen name={AUTH_ROUTES.SIGNUP}>
+        {({ navigation }) => (
+          <SignupScreen onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)} />
+        )}
+      </RootStack.Screen>
+    </RootStack.Navigator>
+  );
+}
+
+function AppStack() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="App">
+      <RootStack.Screen name="App" component={MainTabsNavigator} />
+      <RootStack.Screen name="UploadScreen" component={UploadScreen} />
+      <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} />
+      <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
+      <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
+      <RootStack.Screen name="ContractAnalysis" component={ContractAnalysisScreen} options={{ headerShown: false }} />
+    </RootStack.Navigator>
+  );
+}
+
 export function AppNavigator() {
+  const { user, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0b1220', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#4d7cff" />
+        <Text style={{ color: '#8fd3ff', marginTop: 12, fontSize: 13 }}>로딩 중...</Text>
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
-      <RootStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="App">
-        <RootStack.Screen name="App" component={MainTabsNavigator} />
-        {/* 홈 화면 등에서 사용하는 하드코딩 된 문자열 네비게이션과 완벽히 매칭하기 위해 추가 */}
-        <RootStack.Screen name="UploadScreen" component={UploadScreen} />
-        <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} />
-        <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
-        <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
-        <RootStack.Screen name="ContractAnalysis" component={ContractAnalysisScreen} options={{ headerShown: false }} />
-        <RootStack.Screen
-          name={AUTH_ROUTES.LOGIN}
-          component={LoginScreenWrapper}
-          options={{ presentation: 'modal' }}
-        />
-        <RootStack.Screen
-          name={AUTH_ROUTES.SIGNUP}
-          component={SignupScreenWrapper}
-          options={{ presentation: 'modal' }}
-        />
-      </RootStack.Navigator>
+      {user ? <AppStack /> : <AuthNavigator />}
     </NavigationContainer>
   );
 }

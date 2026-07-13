@@ -1,7 +1,28 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { useContext } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { APP_ROUTES } from '../navigation/routes';
+import { AuthContext } from '../context/AuthContext';
+import { logout } from '../services/firebaseService';
 
 export function HomeScreen({ navigation }) {
+  const { user } = useContext(AuthContext);
+
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout();
+          } catch (e) {
+            Alert.alert('오류', '로그아웃에 실패했습니다.');
+          }
+        },
+      },
+    ]);
+  };
   return (
     <View style={styles.wrapper}>
       {/* 상태바 */}
@@ -15,10 +36,13 @@ export function HomeScreen({ navigation }) {
         <View style={styles.appbarLogo}>
           <Text style={styles.appbarLogoText}>T</Text>
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.appbarTitle}>홈</Text>
-          <Text style={styles.appbarSub}>어떤 도움이 필요하세요?</Text>
+          <Text style={styles.appbarSub}>{user?.email ?? '어떤 도움이 필요하세요?'}</Text>
         </View>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>로그아웃</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -198,6 +222,13 @@ const styles = StyleSheet.create({
   appbarLogoText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
   appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
   appbarSub: { color: '#7B9EC5', fontSize: 11 },
+  logoutBtn: {
+    backgroundColor: '#1E3A5F',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  logoutText: { color: '#94A3B8', fontSize: 11 },
   content: { flex: 1, padding: 16 },
   profileCard: {
     backgroundColor: '#1E3A5F', borderRadius: 10,
