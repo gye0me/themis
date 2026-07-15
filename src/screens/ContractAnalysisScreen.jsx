@@ -19,6 +19,17 @@ const levelColor = {
   warning: "#F59E0B",
   safe: "#10B981",
 };
+const levelIcon = {
+  danger: "🔴",
+  warning: "🟡",
+  safe: "🟢",
+};
+
+const levelLabel = {
+  danger: "위험",
+  warning: "주의",
+  safe: "양호",
+};
 
 const SAMPLE_SCENARIOS = [
   {
@@ -81,6 +92,19 @@ export default function ContractAnalysisScreen({ navigation }) {
       setResults(null);
     }
   };
+
+  
+const handleTestResults = () => {
+  setResults({
+    summary: "위험 조항 2개 · 주의 조항 1개 · 양호 조항 1개 발견",
+    items: [
+      { level: "danger", score: "위험", title: "임대인 일방 해지 가능", desc: "테스트입니다.", example: null },
+      { level: "warning", score: "주의", title: "수리비 범위 불명확", desc: "테스트입니다.", example: null },
+      { level: "safe", score: "양호", title: "보증금 반환 조항", desc: "테스트입니다.", example: null },
+    ]
+  });
+};
+
 
   const handleAnalyze = async () => {
     if (!image) return;
@@ -240,6 +264,12 @@ export default function ContractAnalysisScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
+       
+        <TouchableOpacity onPress={handleTestResults} style={[styles.analyzeBtn, {backgroundColor: "#334155", marginTop: 8}]}>
+         <Text style={styles.analyzeBtnText}>🧪 UI 테스트</Text>
+        </TouchableOpacity>
+
+
         {comparison && (
           <View style={styles.comparisonBox}>
             <Text style={styles.comparisonTitle}>전처리 전/후 비교</Text>
@@ -273,6 +303,7 @@ export default function ContractAnalysisScreen({ navigation }) {
                 style={[styles.card, { borderLeftColor: levelColor[item.level] }]}
               >
                 <View style={styles.cardTop}>
+                  <Text style={styles.levelIcon}>{levelIcon[item.level]}</Text>
                   <View style={[styles.badge, { backgroundColor: levelColor[item.level] }]}>
                     <Text style={styles.badgeText}>{item.score}</Text>
                   </View>
@@ -328,6 +359,7 @@ const styles = StyleSheet.create({
   summaryText: { color: "#FCA5A5", fontSize: 13, fontWeight: "bold" },
   card: { backgroundColor: "#1a2942", borderRadius: 8, padding: 14, marginBottom: 10, borderLeftWidth: 4 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  levelIcon: { fontSize: 16, marginRight: 2 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   badgeText: { color: "#fff", fontSize: 11, fontWeight: "bold" },
   cardTitle: { color: "#fff", fontWeight: "bold", fontSize: 15 },
