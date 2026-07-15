@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
+import { APP_ROUTES } from '../navigation/routes';
 import { createEvidenceRecord, getEvidenceRecords, transcribeAudio } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
@@ -173,7 +174,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
-            onPress={() => navigation.navigate('Upload')}
+            onPress={() => navigation.navigate('UploadScreen')}
           >
             <Text style={styles.cardIcon}>📝</Text>
             <Text style={styles.cardTitle}>상세 기록</Text>
@@ -219,8 +220,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.timelineBtn}
-          // 'EvidenceTimeline' 화면이 없으므로, 우선 아무 동작도 하지 않도록 비워둡니다.
-          onPress={() => Alert.alert('준비 중', '전체 타임라인 기능은 준비 중입니다.')}
+          onPress={() => navigation.navigate('EvidenceTimeline')}
         >
           <Text style={styles.timelineBtnText}>증거 타임라인 전체 보기 →</Text>
         </TouchableOpacity>
@@ -244,7 +244,7 @@ export function EvidenceUploadScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem} // 이 부분은 다른 화면으로 이동하는 기능이므로 active 스타일을 적용하지 않습니다.
-          onPress={() => navigation.navigate('App')}
+          onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}
         >
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>홈</Text>
