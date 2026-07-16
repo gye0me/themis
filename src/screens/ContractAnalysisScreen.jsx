@@ -126,12 +126,12 @@ const handleTestResults = () => {
       const processedBase64 = processedImage?.base64 ?? rawBase64;
       const mimeType = processedImage?.mimeType ?? 'image/jpeg';
       const prompt = buildPreprocessPrompt(selectedType);
-      const [rawResult, processedResult] = await Promise.all([
-        B_callGeminiAPI(rawBase64, mimeType, selectedType),
-        preprocessEnabled
-          ? B_callGeminiAPI(processedBase64, mimeType, selectedType, prompt)
-          : Promise.resolve(null),
-      ]);
+      const rawResult = await B_callGeminiAPI(rawBase64, mimeType, selectedType);
+    
+      let processedResult = null;
+      if (preprocessEnabled) {
+        processedResult = await B_callGeminiAPI(processedBase64, mimeType, selectedType, prompt);
+      }
 
       const nextResult = processedResult ?? rawResult;
       setComparison(processedResult ? compareAnalysisResults(rawResult, processedResult) : null);
