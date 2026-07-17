@@ -3,6 +3,6 @@ export default function (api) {
 
   return {
     presets: ['babel-preset-expo'],
-    plugins: ['react-native-reanimated/plugin'],
+    plugins: ['react-native-worklets/plugin'],
   }
 }
