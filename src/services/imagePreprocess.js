@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-const MAX_PREVIEW_WIDTH = 1800;
+const MAX_PREVIEW_WIDTH = 2200;
 const BRIGHTNESS_SHIFT = 12;
 const CONTRAST_RATIO = 1.18;
 
