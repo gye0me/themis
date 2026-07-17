@@ -1,5 +1,5 @@
 const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 // ─── 공통 출력 포맷 규칙 ─────────────────────────────────────────────────────
 
@@ -312,9 +312,12 @@ export const B_callGeminiAPI = async (
     },
   };
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+  const response = await fetch(GEMINI_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey.trim() // <-- 여기에 API 키를 숨겨서 보냅니다!
+    },
     body: JSON.stringify(body),
   });
 
