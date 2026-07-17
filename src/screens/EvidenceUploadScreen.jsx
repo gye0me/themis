@@ -173,7 +173,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
-            onPress={() => navigation.navigate('Upload')}
+            onPress={() => navigation.navigate('UploadScreen')}
           >
             <Text style={styles.cardIcon}>📝</Text>
             <Text style={styles.cardTitle}>상세 기록</Text>
