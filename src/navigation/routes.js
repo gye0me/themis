@@ -8,10 +8,18 @@ export const APP_ROUTES = {
   EXPERTS_STACK: 'ExpertsStack',
   CHATS_STACK: 'ChatsStack',
   HOME_STACK: 'HomeStack',
+  // Screen names
+  HOME: 'HomeScreen',
+  EXPERTS: 'ExpertScreen',
+  CHATS: 'ChatScreen',
+  EVIDENCE_UPLOAD: 'EvidenceUpload',
+  EVIDENCE_TIMELINE: 'EvidenceTimeline',
+  CONTRACT_ANALYSIS: 'ContractAnalysis',
+  UPLOAD_SCREEN: 'UploadScreen', // 상세 기록 화면
 };
 
 export const HOME_ROUTES = {
-  HOME: 'Home',
+  HOME: 'HomeScreen',
 };
 
 export const RECORD_ROUTES = {
@@ -26,7 +34,6 @@ export const EXPERT_ROUTES = {
 };
 
 export const CHAT_ROUTES = {
-  SOLIDARITY: 'SolidarityChat',
+  SOLIDARITY: 'ChatScreen',
   ROOM: 'ChatRoom',
 };
-

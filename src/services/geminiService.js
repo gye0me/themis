@@ -253,6 +253,45 @@ export function buildPreprocessPrompt(contractType) {
   return `${basePrompt}\n\n추가 규칙:\n- OCR 노이즈처럼 보이는 반복 문자, 페이지 번호, 머리말/꼬리말은 제외하세요.\n- 줄바꿈이 깨져 있어도 조항 단위로 자연스럽게 복원하세요.\n- 근거가 약한 추정은 줄이고, 확실한 위험 조항 위주로 답하세요.`;
 }
 
+export async function testGeminiConnection() {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
+  }
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey.trim(),
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: '반드시 한 단어 OK만 출력하세요.' },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 8,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    if (response.status === 429) {
+      throw new Error('Gemini 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도하세요.');
+    }
+    throw new Error(`Gemini 테스트 오류 ${response.status}: ${errText.slice(0, 120)}`);
+  }
+
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'OK';
+}
+
 export function normalizeContractAnalysisText(text) {
   return postProcessExtractedText(text);
 }
@@ -323,6 +362,9 @@ export const B_callGeminiAPI = async (
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
+    if (response.status === 429) {
+      throw new Error('Gemini API 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도하세요.');
+    }
     throw new Error(`Gemini API 오류 ${response.status}: ${errText.slice(0, 200)}`);
   }
 

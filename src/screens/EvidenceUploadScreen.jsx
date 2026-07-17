@@ -120,7 +120,7 @@ export function EvidenceUploadScreen({ navigation }) {
         <Text style={styles.sectionTitle}>기록 유형 선택</Text>
 
         {/* 계약서 분석 큰 카드 */}
-        <TouchableOpacity style={styles.contractCard} onPress={() => navigation.push('ContractAnalysis')}>
+        <TouchableOpacity style={styles.contractCard} onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS)}>
           <Text style={styles.contractIcon}>📋</Text>
           <View>
             <Text style={styles.contractTitle}>계약서 분석</Text>
@@ -174,7 +174,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
-            onPress={() => navigation.navigate('UploadScreen')}
+            onPress={() => navigation.navigate(APP_ROUTES.UPLOAD_SCREEN)}
           >
             <Text style={styles.cardIcon}>📝</Text>
             <Text style={styles.cardTitle}>상세 기록</Text>
@@ -220,7 +220,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.timelineBtn}
-          onPress={() => navigation.navigate('EvidenceTimeline')}
+          onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_TIMELINE)}
         >
           <Text style={styles.timelineBtnText}>증거 타임라인 전체 보기 →</Text>
         </TouchableOpacity>
@@ -234,11 +234,11 @@ export function EvidenceUploadScreen({ navigation }) {
           <Text style={styles.navIconActive}>✏️</Text>
           <Text style={styles.navLabelActive}>기록</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}>
           <Text style={styles.navIcon}>👥</Text>
           <Text style={styles.navLabel}>전문가</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
