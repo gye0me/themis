@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from "react-native";
+import { APP_ROUTES } from "../navigation/routes";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import {
   B_callGeminiAPI,
@@ -31,33 +33,12 @@ const levelLabel = {
   safe: "양호",
 };
 
-const SAMPLE_SCENARIOS = [
-  {
-    type: "전월세",
-    label: "샘플 1 - 전월세",
-    rawText: `임대차계약서\n\n제1조 목적\n본 계약은 아래 부동산의 임대차에 관한 사항을 정한다.\n\n제3조 보증금 및 차임\n보증금은 20,000,000원으로 한다.\n\n제7조 수선 의무\n임차인의 과실이 아닌 경우에도 소액 수선비를 임차인이 부담한다.\n\n제10조 해지\n임대인은 계약기간 중 필요시 30일 전 통보로 계약을 해지할 수 있다.`,
-  },
-  {
-    type: "매매",
-    label: "샘플 2 - 매매",
-    rawText: `부동산매매계약서\n\n제2조 대금 지급\n잔금은 등기 이전과 무관하게 매수인이 먼저 지급한다.\n\n제5조 하자담보\n매도인의 하자담보책임은 인도 후 7일로 제한한다.\n\n제8조 위약금\n계약 위반 시 계약금의 30%를 위약금으로 한다.`,
-  },
-  {
-    type: "프리랜서",
-    label: "샘플 3 - 프리랜서",
-    rawText: `업무위탁계약서\n\n제4조 대금 지급\n검수 완료 후 60일 이내 지급한다.\n\n제6조 저작권\n산출물의 모든 권리는 발주자에게 귀속된다.\n\n제9조 비밀유지\n계약 종료 후에도 비밀유지 의무는 무기한 지속된다.`,
-  },
-];
-
 export default function ContractAnalysisScreen({ navigation }) {
   const [selectedType, setSelectedType] = useState("전월세");
   const [image, setImage] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preprocessEnabled, setPreprocessEnabled] = useState(true);
-  const [comparison, setComparison] = useState(null);
-  const [debugText, setDebugText] = useState("");
-  const [sampleReport, setSampleReport] = useState([]);
 
   const handleCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -67,7 +48,7 @@ export default function ContractAnalysisScreen({ navigation }) {
     }
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
+      quality: 0.9,
       exif: true,
     });
     if (!result.canceled) {
@@ -84,7 +65,7 @@ export default function ContractAnalysisScreen({ navigation }) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
+      quality: 0.9,
       exif: true,
     });
     if (!result.canceled) {
@@ -93,28 +74,13 @@ export default function ContractAnalysisScreen({ navigation }) {
     }
   };
 
-  
-const handleTestResults = () => {
-  setResults({
-    summary: "위험 조항 2개 · 주의 조항 1개 · 양호 조항 1개 발견",
-    items: [
-      { level: "danger", score: "위험", title: "임대인 일방 해지 가능", desc: "테스트입니다.", example: null },
-      { level: "warning", score: "주의", title: "수리비 범위 불명확", desc: "테스트입니다.", example: null },
-      { level: "safe", score: "양호", title: "보증금 반환 조항", desc: "테스트입니다.", example: null },
-    ]
-  });
-};
-
 
   const handleAnalyze = async () => {
     if (!image) return;
     setLoading(true);
     setResults(null);
-    setComparison(null);
-    setDebugText("");
     try {
       const sourceUri = image.uri;
-      const rawBase64 = await readImageBase64FromUri(sourceUri);
       const processedImage = preprocessEnabled
         ? await preprocessContractImage({
             uri: sourceUri,
@@ -123,24 +89,15 @@ const handleTestResults = () => {
           })
         : null;
 
-      const processedBase64 = processedImage?.base64 ?? rawBase64;
+      const finalBase64 = processedImage?.base64 ?? (await readImageBase64FromUri(sourceUri));
       const mimeType = processedImage?.mimeType ?? 'image/jpeg';
       const prompt = buildPreprocessPrompt(selectedType);
-      const rawResult = await B_callGeminiAPI(rawBase64, mimeType, selectedType);
-    
-      let processedResult = null;
-      if (preprocessEnabled) {
-        processedResult = await B_callGeminiAPI(processedBase64, mimeType, selectedType, prompt);
-      }
+      const nextResult = await B_callGeminiAPI(finalBase64, mimeType, selectedType, prompt);
 
-      const nextResult = processedResult ?? rawResult;
-      setComparison(processedResult ? compareAnalysisResults(rawResult, processedResult) : null);
-      setDebugText(prompt.slice(0, 180));
-
+      setResults(nextResult);
       if (!nextResult.items.length) {
-        Alert.alert('분석 실패', '계약서를 인식하지 못했습니다. 더 선명한 사진을 사용해 주세요.');
-      } else {
-        setResults(nextResult);
+        const alertMessage = nextResult.documentSummary || '위험 조항을 찾지 못했습니다.';
+        Alert.alert('알림', alertMessage);
       }
     } catch (err) {
       Alert.alert('오류', err.message ?? '분석 중 오류가 발생했습니다.');
@@ -149,35 +106,8 @@ const handleTestResults = () => {
     }
   };
 
-  const runSampleComparison = async () => {
-    setLoading(true);
-    setSampleReport([]);
-    try {
-      const report = SAMPLE_SCENARIOS.map((scenario) => {
-        const noisyText = `${scenario.rawText}\n\n\nPage 1 / 3\n-----\n2026-07-10`;
-        const cleanedText = normalizeContractAnalysisText(noisyText);
-        const rawLines = noisyText.split('\n').filter(Boolean).length;
-        const cleanedLines = cleanedText.split('\n').filter(Boolean).length;
-        const riskHintsBefore = (noisyText.match(/해지|귀속|제한|60일|7일|무기한/g) ?? []).length;
-        const riskHintsAfter = (cleanedText.match(/해지|귀속|제한|60일|7일|무기한/g) ?? []).length;
-
-        return {
-          title: scenario.label,
-          before: rawLines,
-          after: cleanedLines,
-          beforeRisk: riskHintsBefore,
-          afterRisk: riskHintsAfter,
-        };
-      });
-
-      setSampleReport(report);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <ScrollView style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -190,7 +120,8 @@ const handleTestResults = () => {
         <Text style={styles.appName}>Themis</Text>
       </View>
 
-      <View style={styles.body}>
+      <ScrollView>
+        <View style={styles.body}>
         {/* 계약 유형 토글 */}
         <Text style={styles.label}>계약 유형</Text>
         <View style={styles.toggleRow}>
@@ -217,15 +148,7 @@ const handleTestResults = () => {
           onPress={() => setPreprocessEnabled((value) => !value)}
           style={[styles.toggleBtn, styles.preprocessToggle, { backgroundColor: preprocessEnabled ? "#0f766e" : "#334155" }]}
         >
-          <Text style={styles.toggleText}>{preprocessEnabled ? "전처리 ON" : "전처리 OFF"}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={runSampleComparison}
-          disabled={loading}
-          style={[styles.sampleBtn, loading ? styles.sampleBtnDisabled : null]}
-        >
-          <Text style={styles.sampleBtnText}>{loading ? "샘플 분석 중..." : "샘플 3장 테스트"}</Text>
+          <Text style={styles.toggleText}>{preprocessEnabled ? "회전·크기 보정 ON" : "보정 OFF"}</Text>
         </TouchableOpacity>
 
         {/* 사진 영역 */}
@@ -237,6 +160,8 @@ const handleTestResults = () => {
             <Text style={styles.uploadText}>계약서를 촬영하거나 불러오세요</Text>
           </View>
         )}
+
+        <Text style={styles.captureGuide}>촬영 팁: 문서를 화면 프레임에 꽉 차게 맞추고, 그림자 없이 수평으로 촬영하세요.</Text>
 
         {/* 버튼 2개 */}
         <View style={styles.btnRow}>
@@ -264,35 +189,17 @@ const handleTestResults = () => {
           </TouchableOpacity>
         )}
 
-       
-        <TouchableOpacity onPress={handleTestResults} style={[styles.analyzeBtn, {backgroundColor: "#334155", marginTop: 8}]}>
-         <Text style={styles.analyzeBtnText}>🧪 UI 테스트</Text>
-        </TouchableOpacity>
-
-
-        {comparison && (
-          <View style={styles.comparisonBox}>
-            <Text style={styles.comparisonTitle}>전처리 전/후 비교</Text>
-            <Text style={styles.comparisonText}>조항 수: {comparison.beforeCount} → {comparison.afterCount}</Text>
-            <Text style={styles.comparisonText}>위험 조항: {comparison.beforeRiskCount} → {comparison.afterRiskCount}</Text>
-            <Text style={styles.comparisonText}>프롬프트 참고: {debugText}</Text>
-          </View>
-        )}
-
-        {sampleReport.length > 0 && (
-          <View style={styles.sampleReportBox}>
-            <Text style={styles.comparisonTitle}>샘플 3장 테스트</Text>
-            {sampleReport.map((row) => (
-              <Text key={row.title} style={styles.sampleReportText}>
-                {row.title}: 줄 수 {row.before} → {row.after}, 위험 신호 {row.beforeRisk} → {row.afterRisk}
-              </Text>
-            ))}
-          </View>
-        )}
-
         {/* 결과 */}
         {results && (
           <View>
+
+            {results.documentSummary ? (
+              <View style={styles.comparisonBox}>
+                <Text style={styles.comparisonTitle}>📄 인식된 문서</Text>
+                <Text style={styles.comparisonText}>{results.documentSummary}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.summaryBanner}>
               <Text style={styles.summaryText}>{results.summary}</Text>
             </View>
@@ -320,19 +227,23 @@ const handleTestResults = () => {
               본 분석은 법률 정보 제공이며 법률 조언이 아닙니다. 정확한 판단은 전문가와 상담하세요.
             </Text>
 
-            <TouchableOpacity style={styles.expertBtn}>
+            <TouchableOpacity
+              style={styles.expertBtn}
+              onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_UPLOAD)}
+            >
               <Text style={styles.expertBtnText}>전문가에게 계약서 검토 요청하기</Text>
             </TouchableOpacity>
           </View>
         )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0b1220" },
-  header: { backgroundColor: "#1E3A5F", padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  header: { backgroundColor: "#1E3A5F", paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { color: "#fff", fontSize: 28, marginRight: 8 },
   headerTitle: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   headerSub: { color: "#8da3c1", fontSize: 11, marginTop: 2 },
@@ -349,6 +260,7 @@ const styles = StyleSheet.create({
   uploadBox: { backgroundColor: "#1a2942", borderRadius: 12, padding: 40, alignItems: "center", marginBottom: 12 },
   uploadIcon: { fontSize: 40, marginBottom: 8 },
   uploadText: { color: "#8da3c1", fontSize: 13 },
+  captureGuide: { color: "#93C5FD", fontSize: 12, marginBottom: 10, lineHeight: 18 },
   preview: { width: "100%", height: 200, borderRadius: 12, marginBottom: 12 },
   btnRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
   halfBtn: { flex: 1, backgroundColor: "#1a2942", padding: 12, borderRadius: 8, alignItems: "center" },

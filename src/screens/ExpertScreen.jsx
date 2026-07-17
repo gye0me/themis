@@ -142,7 +142,10 @@ export function ExpertScreen({ navigation }) {
 
       {/* 네비바 */}
       <View style={styles.navbar}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}
+        >
           <Text style={styles.navIcon}>✏️</Text>
           <Text style={styles.navLabel}>기록</Text>
         </TouchableOpacity>

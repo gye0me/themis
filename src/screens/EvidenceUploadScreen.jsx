@@ -120,7 +120,7 @@ export function EvidenceUploadScreen({ navigation }) {
         <Text style={styles.sectionTitle}>기록 유형 선택</Text>
 
         {/* 계약서 분석 큰 카드 */}
-        <TouchableOpacity style={styles.contractCard} onPress={() => navigation.push('ContractAnalysis')}>
+        <TouchableOpacity style={styles.contractCard} onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS)}>
           <Text style={styles.contractIcon}>📋</Text>
           <View>
             <Text style={styles.contractTitle}>계약서 분석</Text>
@@ -174,7 +174,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
-            onPress={() => navigation.navigate('UploadScreen')}
+            onPress={() => navigation.navigate(APP_ROUTES.UPLOAD_SCREEN)}
           >
             <Text style={styles.cardIcon}>📝</Text>
             <Text style={styles.cardTitle}>상세 기록</Text>
@@ -220,8 +220,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.timelineBtn}
-          // 'EvidenceTimeline' 화면이 없으므로, 우선 아무 동작도 하지 않도록 비워둡니다.
-          onPress={() => Alert.alert('준비 중', '전체 타임라인 기능은 준비 중입니다.')}
+          onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_TIMELINE)}
         >
           <Text style={styles.timelineBtnText}>증거 타임라인 전체 보기 →</Text>
         </TouchableOpacity>
@@ -243,7 +242,10 @@ export function EvidenceUploadScreen({ navigation }) {
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}
+        >
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>

@@ -5,26 +5,25 @@ const GEMINI_API_URL =
 
 const OUTPUT_FORMAT = `
 [출력 규칙 — 반드시 준수]
-- 아래 JSON 형식으로만 답변하세요. 다른 설명·마크다운 코드블록 없이 JSON만 출력하세요.
-- level: danger(위험) / warning(주의) / safe(양호) 세 값만 허용
-- score: "N조 위험" / "N조 주의" / "N조 양호" 형식 (N은 계약서 내 조항 번호, 없으면 순번)
-- title: 15자 이내
-- desc: 피해자 입장에서 왜 위험한지 1~2문장, 전문 용어는 괄호로 쉬운 말 병기
-- example: 해당 조항을 유리하게 수정할 때 쓰는 문구 예시. 수정 불필요면 null
-- items: 최대 6개 (danger 우선 정렬)
-- 계약서를 읽을 수 없거나 해당 유형 계약서가 아니면 items를 빈 배열로
+* 아래 JSON 형식으로만 답변하세요. 다른 설명·마크다운 코드블록 없이 JSON만 출력하세요.
+
+* documentSummary: 사진 속 계약서 내용을 2~3줄로 항상 요약. 문서 종류, 핵심 조건(금액·기간·당사자 등), 특이사항을 포함할 것 (예: "전세 임대차계약서. 보증금 5천만원, 계약기간 2년(2026.08~2028.08). 임차인: 홍길동, 임대인: 김철수."). 문서를 읽을 수 없으면 왜 못 읽었는지(흐림/잘림/조명 등) 구체적으로 서술
+* level: danger(위험) / warning(주의) / safe(양호) 세 값만 허용
+* score: "N조 위험" / "N조 주의" / "N조 양호" 형식 (N은 계약서 내 조항 번호, 없으면 순번)
+* title: 15자 이내
+* desc: 피해자 입장에서 왜 위험한지 1~2문장, 전문 용어는 괄호로 쉬운 말 병기
+* example: 해당 조항을 유리하게 수정할 때 쓰는 문구 예시. 수정 불필요면 null
+* items: 최대 6개 (danger 우선 정렬)
+
+* 선택된 계약 유형과 실제 문서 유형이 다르더라도 items를 비우지 마세요. documentSummary에 실제 유형을 밝히고, 계약서 일반 원칙(공정성·대금지급·해지조건·책임소재 등) 기준으로 최선을 다해 위험 조항을 분석하세요.
+
+* 이미지 자체가 계약서/문서가 아니면(풍경, 인물 사진 등) 그때만 items를 빈 배열로 하고 documentSummary에 사유를 적으세요.
 
 {
+  "documentSummary": "인식한 문서 내용 요약",
+  "extractedText": "이미지에서 읽은 계약서 원문 전체 (조항 구분 유지)",
   "summary": "위험 조항 N개 · 주의 조항 N개 · 양호 조항 N개 발견",
-  "items": [
-    {
-      "level": "danger",
-      "score": "N조 위험",
-      "title": "조항 이름",
-      "desc": "왜 위험한지 설명",
-      "example": "수정 예시 문구 또는 null"
-    }
-  ]
+  "items": []
 }`.trim();
 
 // ─── 유형별 전문 프롬프트 ────────────────────────────────────────────────────
@@ -236,6 +235,8 @@ function parseGeminiResponse(rawText) {
 
 function buildResult(parsed) {
   const items = sanitizeItems(parsed.items);
+  const extractedText = typeof parsed.extractedText === 'string' ? parsed.extractedText.trim() : '';
+  const documentSummary = cleanStringValue(parsed.documentSummary) || '';
   const danger = items.filter((i) => i.level === 'danger').length;
   const warning = items.filter((i) => i.level === 'warning').length;
   const safe = items.filter((i) => i.level === 'safe').length;
@@ -244,13 +245,52 @@ function buildResult(parsed) {
     cleanStringValue(parsed.summary) ||
     `위험 조항 ${danger}개 · 주의 조항 ${warning}개 · 양호 조항 ${safe}개 발견`;
 
-  return { summary, items };
+  return { summary, items, extractedText, documentSummary };
 }
 
 export function buildPreprocessPrompt(contractType) {
   const basePrompt = PROMPT_TEMPLATE(contractType);
 
   return `${basePrompt}\n\n추가 규칙:\n- OCR 노이즈처럼 보이는 반복 문자, 페이지 번호, 머리말/꼬리말은 제외하세요.\n- 줄바꿈이 깨져 있어도 조항 단위로 자연스럽게 복원하세요.\n- 근거가 약한 추정은 줄이고, 확실한 위험 조항 위주로 답하세요.`;
+}
+
+export async function testGeminiConnection() {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
+  }
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey.trim(),
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: '반드시 한 단어 OK만 출력하세요.' },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 8,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    if (response.status === 429) {
+      throw new Error('Gemini 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도하세요.');
+    }
+    throw new Error(`Gemini 테스트 오류 ${response.status}: ${errText.slice(0, 120)}`);
+  }
+
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'OK';
 }
 
 export function normalizeContractAnalysisText(text) {
@@ -308,7 +348,8 @@ export const B_callGeminiAPI = async (
     ],
     generationConfig: {
       temperature: 0.2,      // 낮은 온도로 일관성 확보
-      maxOutputTokens: 1024,
+      maxOutputTokens: 3072,
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
@@ -323,6 +364,9 @@ export const B_callGeminiAPI = async (
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
+    if (response.status === 429) {
+      throw new Error('Gemini API 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도하세요.');
+    }
     throw new Error(`Gemini API 오류 ${response.status}: ${errText.slice(0, 200)}`);
   }
 

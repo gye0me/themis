@@ -1,5 +1,11 @@
 import { createContext, useEffect, useState } from 'react';
-import { getUserProfile, onAuthChange } from '../services/firebaseService';
+import {
+  getUserProfile,
+  onAuthChange,
+  signIn as firebaseSignIn,
+  signUp as firebaseSignUp,
+  logout as firebaseLogout,
+} from '../services/firebaseService';
 
 function normalizeProfile(userProfile, currentUser) {
   return userProfile ?? {
@@ -79,12 +85,20 @@ export function AuthProvider({ children }) {
     return userProfile;
   };
 
+  // firebaseService의 인증 함수들을 AuthContext 값으로 제공
+  const login = (email, password) => firebaseSignIn(email, password);
+  const signup = (email, password, displayName) => firebaseSignUp(email, password, displayName);
+  const logout = () => firebaseLogout();
+
   const value = {
     user,
     setUser,
     profile,
     setProfile,
     loading,
+    login,
+    signup,
+    logout,
     error,
     setError,
     refreshProfile,
