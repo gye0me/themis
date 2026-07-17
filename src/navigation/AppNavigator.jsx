@@ -86,8 +86,8 @@ function RecordsNavigator() {
   return (
     <RecordsStack.Navigator screenOptions={screenOptions}>
       <RecordsStack.Screen
-        name={RECORD_ROUTES.START}
-        component={NewCaseScreen}
+        name={RECORD_ROUTES.EVIDENCE_UPLOAD}
+        component={EvidenceUploadScreen}
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen
@@ -96,8 +96,8 @@ function RecordsNavigator() {
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen
-        name={RECORD_ROUTES.EVIDENCE_UPLOAD}
-        component={EvidenceUploadScreen}
+        name={RECORD_ROUTES.START}
+        component={NewCaseScreen}
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen

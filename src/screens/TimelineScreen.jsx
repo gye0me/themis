@@ -98,7 +98,7 @@ export function TimelineScreen({ navigation }) {
           <Text style={styles.emptyText}>로그인 후 증거 타임라인을 확인할 수 있습니다.</Text>
           <TouchableOpacity
             style={styles.uploadBtn}
-            onPress={() => navigation.navigate('Login')}
+            onPress={() => navigation.navigate('App')}
           >
             <Text style={styles.uploadBtnText}>로그인하러 가기 →</Text>
           </TouchableOpacity>
@@ -241,7 +241,7 @@ export function TimelineScreen({ navigation }) {
       {/* 플로팅 버튼 */}
       <TouchableOpacity
         style={styles.floatingBtn}
-        onPress={() => navigation.navigate('ResponseGuide')}
+        onPress={() => {}}
       >
         <Text style={styles.floatingBtnText}>?</Text>
       </TouchableOpacity>

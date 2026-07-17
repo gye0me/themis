@@ -1,10 +1,10 @@
 import { useContext, useEffect, useState } from 'react';
+import { APP_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
-import { APP_ROUTES } from '../navigation/routes';
 import { createEvidenceRecord, getEvidenceRecords, transcribeAudio } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
@@ -243,7 +243,7 @@ export function EvidenceUploadScreen({ navigation }) {
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.navItem} // 이 부분은 다른 화면으로 이동하는 기능이므로 active 스타일을 적용하지 않습니다.
+          style={styles.navItem}
           onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}
         >
           <Text style={styles.navIcon}>🏠</Text>

@@ -144,7 +144,7 @@ export function ExpertScreen({ navigation }) {
       <View style={styles.navbar}>
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_UPLOAD)}
+          onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}
         >
           <Text style={styles.navIcon}>✏️</Text>
           <Text style={styles.navLabel}>기록</Text>
@@ -153,12 +153,11 @@ export function ExpertScreen({ navigation }) {
           <Text style={styles.navIcon}>👥</Text>
           <Text style={styles.navLabelActive}>전문가</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS)}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.HOME)}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}>
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
