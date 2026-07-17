@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
+import { APP_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -234,18 +235,15 @@ export function EvidenceUploadScreen({ navigation }) {
           <Text style={styles.navIconActive}>✏️</Text>
           <Text style={styles.navLabelActive}>기록</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}>
           <Text style={styles.navIcon}>👥</Text>
           <Text style={styles.navLabel}>전문가</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem} // 이 부분은 다른 화면으로 이동하는 기능이므로 active 스타일을 적용하지 않습니다.
-          onPress={() => navigation.navigate('App')}
-        >
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}>
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
