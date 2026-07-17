@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "843199908993",
+    "project_id": "themis-f7a1f",
+    "storage_bucket": "themis-f7a1f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:843199908993:android:4cff0081e7f7f923315180",
+        "android_client_info": {
+          "package_name": "com.themis.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYeoSJ5pEt0j2IbZFDixFP2NAKJkCWb2s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

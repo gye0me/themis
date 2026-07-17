@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "themis",
+    "slug": "themis",
+    "scheme": "themis",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "platforms": ["ios", "android", "web"],
+    "ios": {
+      "supportsTablet": true
+    }
+  }
+}
