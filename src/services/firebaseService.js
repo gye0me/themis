@@ -351,6 +351,7 @@ export async function createEvidenceRecord({
   evidenceType = 'text',
   file = null,
   location = null,
+  extra = {}, // 계약서 분석 결과처럼 타입별 추가 데이터를 넣을 때 사용 (선택)
 }) {
   try {
     const capturedAt = Timestamp.now();
@@ -387,6 +388,7 @@ export async function createEvidenceRecord({
       location,
       capturedAt,
       createdAt: capturedAt,
+      ...extra,
     });
 
     return {
@@ -404,6 +406,7 @@ export async function createEvidenceRecord({
       downloadURL,
       location,
       capturedAt,
+      ...extra,
     };
   } catch (error) {
     console.error('증거 저장 오류:', error);
