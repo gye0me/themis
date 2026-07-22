@@ -8,11 +8,12 @@ import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, getEvidenceRecords, transcribeAudio } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
-  image:  { icon: '📷', color: '#EA580C' },
-  audio:  { icon: '🎙️', color: '#7C3AED' },
-  video:  { icon: '🎥', color: '#16A34A' },
-  text:   { icon: '📝', color: '#3B82F6' },
-  default:{ icon: '📄', color: '#94A3B8' },
+  image:    { icon: '📷', color: '#EA580C' },
+  audio:    { icon: '🎙️', color: '#7C3AED' },
+  video:    { icon: '🎥', color: '#16A34A' },
+  text:     { icon: '📝', color: '#3B82F6' },
+  contract: { icon: '📑', color: '#0EA5E9' }, // contract 타입 추가
+  default:  { icon: '📄', color: '#94A3B8' },
 };
 
 function formatDate(capturedAt) {
@@ -44,10 +45,17 @@ export function EvidenceUploadScreen({ navigation }) {
 
   useEffect(() => {
     if (!user) return;
-    getEvidenceRecords(user.uid)
-      .then((data) => setRecentRecords(data.slice(0, 3)))
-      .catch(() => {});
-  }, [user]);
+    const load = () => { // 화면에 포커스될 때마다 실행될 함수
+      getEvidenceRecords(user.uid)
+        .then((data) => setRecentRecords(data.slice(0, 1)))
+        .catch(() => {});
+    };
+    load();
+    // 다른 화면(계약서 분석 등)에서 기록을 새로 남기고 돌아왔을 때도
+    // 최신 상태로 갱신하기 위해 focus 리스너 추가
+    const unsubscribe = navigation.addListener('focus', load);
+    return unsubscribe;
+  }, [user, navigation]);
 
   const handleUpload = async (evidenceType) => {
     const cfg = UPLOAD_TYPES[evidenceType];

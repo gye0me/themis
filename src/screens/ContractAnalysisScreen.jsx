@@ -1,18 +1,19 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from "react-native";
 import { APP_ROUTES } from "../navigation/routes";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { AuthContext } from "../context/AuthContext";
 import {
   B_callGeminiAPI,
   buildPreprocessPrompt,
-  compareAnalysisResults,
-  normalizeContractAnalysisText,
 } from "../services/geminiService";
 import {
   preprocessContractImage,
   readImageBase64FromUri,
 } from "../services/imagePreprocess";
+import { createEvidenceRecord } from "../services/firebaseService";
+import { buildChecklistFromText } from "../services/requiredClauseChecklist";
 
 const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
 
@@ -33,7 +34,42 @@ const levelLabel = {
   safe: "양호",
 };
 
+function buildAnalysisNote(result) {
+  const counts = { danger: 0, warning: 0, safe: 0 };
+  result.items.forEach((item) => {
+    if (counts[item.level] !== undefined) counts[item.level] += 1;
+  });
+  const summaryLine = result.summary || `위험 ${counts.danger} · 주의 ${counts.warning} · 양호 ${counts.safe}`;
+  return result.documentSummary ? `${result.documentSummary}\n${summaryLine}` : summaryLine;
+}
+
+// 계약서 분석 결과를 evidenceRecords에 기록해 타임라인에 남긴다.
+// 필수 조항 체크리스트도 이 시점에 같이 계산해서 저장해두면,
+// 타임라인 화면의 "?" 아이콘에서는 재계산/재호출 없이 바로 꺼내 보여줄 수 있다.
+async function saveAnalysisToTimeline({ userId, contractType, image, result }) {
+  // TODO: 팀원의 Gemini 필수조항 체크 프롬프트가 나오면
+  // buildChecklistFromText(...) 대신 buildChecklist(contractType, geminiRawResults)로 교체
+  const checklist = buildChecklistFromText(contractType, result.extractedText ?? '');
+
+  await createEvidenceRecord({
+    userId,
+    caseId: 'case_12345',
+    title: `${contractType} 계약서 분석`,
+    note: buildAnalysisNote(result),
+    evidenceType: 'contract',
+    file: image ?? null,
+    extra: {
+      contractType,
+      analysisSummary: result.summary ?? null,
+      analysisItems: result.items ?? [],
+      requiredClauseChecklist: checklist.items,
+      requiredClauseProgress: checklist.progress,
+    },
+  });
+}
+
 export default function ContractAnalysisScreen({ navigation }) {
+  const { user } = useContext(AuthContext);
   const [selectedType, setSelectedType] = useState("전월세");
   const [image, setImage] = useState(null);
   const [results, setResults] = useState(null);
@@ -98,6 +134,13 @@ export default function ContractAnalysisScreen({ navigation }) {
       if (!nextResult.items.length) {
         const alertMessage = nextResult.documentSummary || '위험 조항을 찾지 못했습니다.';
         Alert.alert('알림', alertMessage);
+      }
+
+      // 분석 결과를 타임라인에 자동 기록 (실패해도 화면 결과 표시는 그대로 진행)
+      try {
+        await saveAnalysisToTimeline({ userId: user?.uid ?? null, contractType: selectedType, image, result: nextResult });
+      } catch (saveErr) {
+        console.warn('타임라인 저장 실패:', saveErr.message);
       }
     } catch (err) {
       Alert.alert('오류', err.message ?? '분석 중 오류가 발생했습니다.');

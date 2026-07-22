@@ -1,14 +1,15 @@
 import { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { getEvidenceRecords } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
-  image:  { icon: '📷', color: '#EA580C', label: '사진' },
-  audio:  { icon: '🎙️', color: '#7C3AED', label: '음성' },
-  video:  { icon: '🎥', color: '#16A34A', label: '영상' },
-  text:   { icon: '📝', color: '#3B82F6', label: '메모' },
-  default:{ icon: '📄', color: '#94A3B8', label: '기타' },
+  image:    { icon: '📷', color: '#EA580C', label: '사진' },
+  audio:    { icon: '🎙️', color: '#7C3AED', label: '음성' },
+  video:    { icon: '🎥', color: '#16A34A', label: '영상' },
+  text:     { icon: '📝', color: '#3B82F6', label: '메모' },
+  contract: { icon: '📑', color: '#0EA5E9', label: '계약분석' },
+  default:  { icon: '📄', color: '#94A3B8', label: '기타' },
 };
 
 const FILTER_OPTIONS = [
@@ -17,7 +18,12 @@ const FILTER_OPTIONS = [
   { key: 'audio', label: '음성' },
   { key: 'video', label: '영상' },
   { key: 'text', label: '메모' },
+  { key: 'contract', label: '계약분석' },
 ];
+
+// 계약서 분석기(ContractAnalysisScreen)와 동일한 신호등 스타일
+const LEVEL_COLOR = { danger: '#EF4444', warning: '#F59E0B', safe: '#10B981' };
+const LEVEL_ICON = { danger: '🔴', warning: '🟡', safe: '🟢' };
 
 function formatDate(capturedAt) {
   if (!capturedAt) return '';
@@ -46,6 +52,7 @@ export function TimelineScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
     if (!user) {
@@ -191,13 +198,20 @@ export function TimelineScreen({ navigation }) {
               {filteredRecords.map((item, index) => {
                 const cfg = TYPE_CONFIG[item.evidenceType] ?? TYPE_CONFIG.default;
                 const isLast = index === filteredRecords.length - 1;
+                const isContract = item.evidenceType === 'contract';
+                const isExpanded = expandedId === item.id;
                 return (
                   <View key={item.id} style={styles.timelineItem}>
                     <View style={styles.timelineLeft}>
                       <View style={[styles.dot, { backgroundColor: cfg.color }]} />
                       {!isLast && <View style={styles.line} />}
                     </View>
-                    <View style={styles.timelineCard}>
+                    <TouchableOpacity
+                      activeOpacity={isContract ? 0.7 : 1}
+                      disabled={!isContract}
+                      onPress={() => setExpandedId(isExpanded ? null : item.id)}
+                      style={styles.timelineCard}
+                    >
                       <View style={styles.cardHeader}>
                         <Text style={styles.cardDate}>{formatDate(item.capturedAt)}</Text>
                         {item.location && (
@@ -209,14 +223,50 @@ export function TimelineScreen({ navigation }) {
                       <View style={styles.typeRow}>
                         <Text style={styles.typeIcon}>{cfg.icon}</Text>
                         <Text style={styles.cardTitle}>{item.title || cfg.label}</Text>
+                        {isContract && (
+                          <Text style={styles.expandHint}>{isExpanded ? '접기 ▲' : '자세히 ▼'}</Text>
+                        )}
                       </View>
                       {item.note ? (
-                        <Text style={styles.cardSub}>{item.note}</Text>
+                        <Text style={styles.cardSub} numberOfLines={isExpanded ? undefined : 2}>
+                          {item.note}
+                        </Text>
                       ) : null}
                       {item.originalFileName ? (
                         <Text style={styles.fileName}>{item.originalFileName}</Text>
                       ) : null}
-                    </View>
+
+                      {/* 계약서 분석 상세: 사진 + AI 분석 결과 */}
+                      {isContract && isExpanded && (
+                        <View style={styles.contractDetail}>
+                          {item.downloadURL ? (
+                            <Image
+                              source={{ uri: item.downloadURL }}
+                              style={styles.contractImage}
+                              resizeMode="cover"
+                            />
+                          ) : null}
+
+                          {(item.analysisItems ?? []).map((detail, i) => (
+                            <View
+                              key={i}
+                              style={[styles.detailCard, { borderLeftColor: LEVEL_COLOR[detail.level] ?? '#94A3B8' }]}
+                            >
+                              <View style={styles.detailTop}>
+                                <Text style={styles.detailLevelIcon}>{LEVEL_ICON[detail.level] ?? '⚪'}</Text>
+                                {detail.score ? (
+                                  <View style={[styles.detailBadge, { backgroundColor: LEVEL_COLOR[detail.level] ?? '#94A3B8' }]}>
+                                    <Text style={styles.detailBadgeText}>{detail.score}</Text>
+                                  </View>
+                                ) : null}
+                                <Text style={styles.detailTitle}>{detail.title}</Text>
+                              </View>
+                              <Text style={styles.detailDesc}>{detail.desc}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </TouchableOpacity>
                   </View>
                 );
               })}
@@ -311,6 +361,16 @@ const styles = StyleSheet.create({
   cardTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' },
   cardSub: { color: '#64748B', fontSize: 10 },
   fileName: { color: '#94A3B8', fontSize: 9, fontStyle: 'italic' },
+  expandHint: { color: '#3B7DD8', fontSize: 10, marginLeft: 'auto' },
+  contractDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', gap: 8 },
+  contractImage: { width: '100%', height: 180, borderRadius: 8, backgroundColor: '#E2E8F0' },
+  detailCard: { backgroundColor: '#F8FAFC', borderRadius: 6, padding: 8, borderLeftWidth: 3 },
+  detailTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  detailLevelIcon: { fontSize: 12 },
+  detailBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 20 },
+  detailBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
+  detailTitle: { color: '#0F172A', fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  detailDesc: { color: '#64748B', fontSize: 10, marginTop: 2 },
   hashCard: { backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10, marginBottom: 8 },
   hashLabel: { color: '#94A3B8', fontSize: 9 },
   hashValue: { color: '#3B7DD8', fontSize: 9 },
