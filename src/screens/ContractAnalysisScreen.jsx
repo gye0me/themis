@@ -7,13 +7,14 @@ import { AuthContext } from "../context/AuthContext";
 import {
   B_callGeminiAPI,
   buildPreprocessPrompt,
+  callGeminiChecklistAPI,
 } from "../services/geminiService";
 import {
   preprocessContractImage,
   readImageBase64FromUri,
 } from "../services/imagePreprocess";
 import { createEvidenceRecord } from "../services/firebaseService";
-import { buildChecklistFromText } from "../services/requiredClauseChecklist";
+import { buildChecklist } from "../services/requiredClauseChecklist";
 
 const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
 
@@ -43,13 +44,8 @@ function buildAnalysisNote(result) {
   return result.documentSummary ? `${result.documentSummary}\n${summaryLine}` : summaryLine;
 }
 
-// 계약서 분석 결과를 evidenceRecords에 기록해 타임라인에 남긴다.
-// 필수 조항 체크리스트도 이 시점에 같이 계산해서 저장해두면,
-// 타임라인 화면의 "?" 아이콘에서는 재계산/재호출 없이 바로 꺼내 보여줄 수 있다.
-async function saveAnalysisToTimeline({ userId, contractType, image, result }) {
-  // TODO: 팀원의 Gemini 필수조항 체크 프롬프트가 나오면
-  // buildChecklistFromText(...) 대신 buildChecklist(contractType, geminiRawResults)로 교체
-  const checklist = buildChecklistFromText(contractType, result.extractedText ?? '');
+async function saveAnalysisToTimeline({ userId, contractType, image, result, geminiRawResults = [] }) {
+  const checklist = buildChecklist(contractType, geminiRawResults);
 
   await createEvidenceRecord({
     userId,
@@ -128,7 +124,15 @@ export default function ContractAnalysisScreen({ navigation }) {
       const finalBase64 = processedImage?.base64 ?? (await readImageBase64FromUri(sourceUri));
       const mimeType = processedImage?.mimeType ?? 'image/jpeg';
       const prompt = buildPreprocessPrompt(selectedType);
-      const nextResult = await B_callGeminiAPI(finalBase64, mimeType, selectedType, prompt);
+
+      // 독소조항 분석 + 필수 조항 체크리스트를 병렬 호출
+      const [nextResult, geminiRawResults] = await Promise.all([
+        B_callGeminiAPI(finalBase64, mimeType, selectedType, prompt),
+        callGeminiChecklistAPI(finalBase64, mimeType, selectedType).catch((e) => {
+          console.warn('체크리스트 분석 실패:', e.message);
+          return [];
+        }),
+      ]);
 
       setResults(nextResult);
       if (!nextResult.items.length) {
@@ -138,7 +142,7 @@ export default function ContractAnalysisScreen({ navigation }) {
 
       // 분석 결과를 타임라인에 자동 기록 (실패해도 화면 결과 표시는 그대로 진행)
       try {
-        await saveAnalysisToTimeline({ userId: user?.uid ?? null, contractType: selectedType, image, result: nextResult });
+        await saveAnalysisToTimeline({ userId: user?.uid ?? null, contractType: selectedType, image, result: nextResult, geminiRawResults });
       } catch (saveErr) {
         console.warn('타임라인 저장 실패:', saveErr.message);
       }

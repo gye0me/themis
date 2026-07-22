@@ -1,3 +1,5 @@
+import { getRequiredClauses } from './requiredClauseChecklist';
+
 const GEMINI_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
 
@@ -382,3 +384,97 @@ export const B_callGeminiAPI = async (
 
   return parseGeminiResponse(rawText);
 };
+
+// ─── 필수 조항 체크리스트 API ────────────────────────────────────────────────
+
+function buildChecklistPrompt(contractType) {
+  const clauses = getRequiredClauses(contractType);
+  const clauseList = clauses
+    .map((c) => `- id: "${c.id}" | 항목: ${c.title} | 확인 기준: ${c.description}`)
+    .join('\n');
+
+  return `당신은 계약서 필수 조항 확인 전문가입니다.
+이 계약서 이미지에 아래 각 항목이 실제로 명시되어 있는지 확인하세요.
+
+[확인 대상 필수 조항]
+${clauseList}
+
+[출력 규칙]
+* 반드시 아래 JSON 형식으로만 답하세요. 마크다운·설명 없이 JSON만 출력하세요.
+* found: 해당 조항이 계약서에 명시되어 있으면 true, 없거나 불명확하면 false
+* evidence: found가 true일 때 계약서의 해당 조항 원문 또는 조항 번호 (없으면 null)
+* id 값은 반드시 제시된 값 그대로 사용하세요 (변경 금지).
+
+{
+  "results": [
+    { "id": "id값", "found": true, "evidence": "제X조: ..." },
+    { "id": "id값2", "found": false, "evidence": null }
+  ]
+}`.trim();
+}
+
+function parseChecklistResponse(rawText) {
+  const cleaned = cleanRawText(rawText);
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed.results)) return parsed.results;
+  } catch (_) {}
+
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[0]);
+      if (Array.isArray(parsed.results)) return parsed.results;
+    } catch (_) {}
+  }
+
+  return [];
+}
+
+export async function callGeminiChecklistAPI(base64Img, mimeType = 'image/jpeg', contractType = '전월세') {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
+  }
+
+  const body = {
+    contents: [
+      {
+        parts: [
+          { text: buildChecklistPrompt(contractType) },
+          { inlineData: { mimeType, data: base64Img } },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  };
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey.trim(),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    if (response.status === 429) {
+      throw new Error('Gemini API 요청이 일시적으로 제한되었습니다. 잠시 후 다시 시도하세요.');
+    }
+    throw new Error(`Gemini 체크리스트 API 오류 ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  if (!rawText) return [];
+
+  return parseChecklistResponse(rawText);
+}
