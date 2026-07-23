@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { APP_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
@@ -279,7 +280,7 @@ export function TimelineScreen({ navigation }) {
 
               {/* PDF 버튼 */}
               <TouchableOpacity style={styles.pdfBtn}>
-                <Text style={styles.pdfBtnText}>⬇ PDF 보고서 다운로드</Text>
+                <Text style={styles.pdfBtnText}>⬇ 증거정리 HTML 다운로드</Text>
               </TouchableOpacity>
             </>
           )}
@@ -291,7 +292,10 @@ export function TimelineScreen({ navigation }) {
       {/* 플로팅 버튼 */}
       <TouchableOpacity
         style={styles.floatingBtn}
-        onPress={() => {}}
+        onPress={() => {
+          const contractRecord = records.find(r => r.evidenceType === 'contract');
+          navigation.navigate('ResponseGuide', { record: contractRecord ?? null });
+        }}
       >
         <Text style={styles.floatingBtnText}>?</Text>
       </TouchableOpacity>

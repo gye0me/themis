@@ -134,7 +134,8 @@ export default function ContractAnalysisScreen({ navigation }) {
         }),
       ]);
 
-      setResults(nextResult);
+      const checklist = buildChecklist(selectedType, geminiRawResults);
+      setResults({ ...nextResult, checklistItems: checklist.items });
       if (!nextResult.items.length) {
         const alertMessage = nextResult.documentSummary || '위험 조항을 찾지 못했습니다.';
         Alert.alert('알림', alertMessage);
@@ -250,6 +251,24 @@ export default function ContractAnalysisScreen({ navigation }) {
             <View style={styles.summaryBanner}>
               <Text style={styles.summaryText}>{results.summary}</Text>
             </View>
+            {(results?.checklistItems ?? []).filter(i => !i.completed).length > 0 && (
+              <View style={styles.warningBanner}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Text style={styles.warningTitle}>특약 누락 경고</Text>
+                  </View>
+                  <Text style={styles.warningDesc}>
+                    필수 조항 {(results?.checklistItems ?? []).filter(i => !i.completed).length}개가 계약서에 없습니다
+                  </Text>
+                  {(results?.checklistItems ?? []).filter(i => !i.completed).map((item, i) => (
+                    <View key={i} style={styles.warningItem}>
+                      <Text style={styles.warningItemText}>• {item.title}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {results.items.map((item, i) => (
               <View
@@ -332,4 +351,15 @@ const styles = StyleSheet.create({
   comparisonText: { color: "#CBD5E1", fontSize: 12, marginTop: 2 },
   sampleReportBox: { backgroundColor: "#111827", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#334155" },
   sampleReportText: { color: "#CBD5E1", fontSize: 12, marginTop: 4 },
+  warningBanner: {
+  backgroundColor: '#FEF3C7', borderRadius: 10,
+  padding: 14, marginBottom: 12,
+  flexDirection: 'row', alignItems: 'center', gap: 10,
+  borderLeftWidth: 4, borderLeftColor: '#F59E0B',
+  },
+  warningIcon: { fontSize: 24 },
+  warningTitle: { color: '#92400E', fontSize: 13, fontWeight: '700' },
+  warningDesc: { color: '#92400E', fontSize: 11, marginTop: 2 },
+  warningItem: { marginTop: 4 },
+  warningItemText: { color: '#92400E', fontSize: 11 },
 });

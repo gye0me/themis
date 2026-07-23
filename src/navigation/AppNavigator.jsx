@@ -16,6 +16,7 @@ import { ExpertScreen } from '../screens/ExpertScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { ChatRoomScreen } from '../screens/ChatRoomScreen';
 import { AuthContext } from '../context/AuthContext';
+import ResponseGuideScreen from '../screens/ResponseGuideScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -174,7 +175,7 @@ function AppStack() {
       <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} />
       <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
-      <RootStack.Screen name="ContractAnalysis" component={ContractAnalysisScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );
 }
