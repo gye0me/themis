@@ -9,8 +9,8 @@ import {
 
 export default function ResponseGuideScreen({ navigation, route }) {
   const record = route?.params?.record ?? null;
-  const initialItems = record?.extra?.requiredClauseChecklist ?? [];
-  const contractType = record?.extra?.contractType ?? '전월세';
+  const initialItems = record?.requiredClauseChecklist ?? []; // extra. 제거
+  const contractType = record?.contractType ?? '전월세'; // extra. 제거
 
   const [items, setItems] = useState(initialItems);
   const [newTitle, setNewTitle] = useState('');

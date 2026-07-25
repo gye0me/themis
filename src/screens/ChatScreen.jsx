@@ -1,25 +1,7 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
-import { testGeminiConnection } from '../services/geminiService';
 
 export function ChatScreen({ navigation }) {
-  const [checkingGemini, setCheckingGemini] = useState(false);
-
-  const handleGeminiCheck = async () => {
-    if (checkingGemini) return;
-
-    setCheckingGemini(true);
-    try {
-      const result = await testGeminiConnection();
-      Alert.alert('Gemini 연결 확인', `응답: ${result || 'OK'}`);
-    } catch (error) {
-      Alert.alert('Gemini 연결 실패', error.message ?? '알 수 없는 오류가 발생했습니다.');
-    } finally {
-      setCheckingGemini(false);
-    }
-  };
-
   return (
     <View style={styles.wrapper}>
       {/* 상태바 */}
@@ -52,18 +34,6 @@ export function ChatScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-
-        <TouchableOpacity style={styles.geminiTestCard} onPress={handleGeminiCheck} disabled={checkingGemini}>
-          <View style={styles.geminiTestTextWrap}>
-            <Text style={styles.geminiTestTitle}>Gemini 연결 테스트</Text>
-            <Text style={styles.geminiTestDesc}>짧은 텍스트 1회 호출로만 확인합니다</Text>
-          </View>
-          {checkingGemini ? (
-            <ActivityIndicator color="#F1F5F9" />
-          ) : (
-            <Text style={styles.geminiTestArrow}>→</Text>
-          )}
-        </TouchableOpacity>
 
         {/* 추천 피해방 */}
         <View style={styles.sectionHeader}>
@@ -269,22 +239,6 @@ const styles = StyleSheet.create({
   },
 
   content: { flex: 1, padding: 16 },
-
-  geminiTestCard: {
-    backgroundColor: '#0F1F3D',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#1F3355',
-  },
-  geminiTestTextWrap: { flex: 1, paddingRight: 12 },
-  geminiTestTitle: { color: '#F8FAFC', fontSize: 14, fontWeight: '700' },
-  geminiTestDesc: { color: '#94A3B8', fontSize: 12, marginTop: 4 },
-  geminiTestArrow: { color: '#8FB7FF', fontSize: 18, fontWeight: '700' },
 
   sectionHeader: {
     flexDirection: 'row',
