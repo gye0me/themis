@@ -437,6 +437,46 @@ export async function getEvidenceRecords(userId, caseId = null) {
   }
 }
 
+// ==================== 사건(Case) & 대응 퀘스트 ====================
+
+/**
+ * 새 사건 생성 (사건 유형 선택 → 타임라인 생성 시 호출).
+ * caseType: '전세사기' | '금전사기' | '괴롭힘' | '신변위협'
+ */
+export async function createCase({ userId, caseType, title = '' }) {
+  const caseId = await addDocument('cases', {
+    userId,
+    caseType,
+    title: title || '새 사건',
+    questSteps: [], // 대응 퀘스트 진행 상태 (id, completed, note)
+  });
+  return caseId;
+}
+
+/**
+ * 사용자의 사건 목록 조회
+ */
+export async function getCasesByUser(userId) {
+  return queryDocuments('cases', 'userId', '==', userId);
+}
+
+/**
+ * 사건 하나 조회 (퀘스트 진행 상태 포함)
+ */
+export async function getCaseById(caseId) {
+  const docRef = doc(db, 'cases', caseId);
+  const snap = await getDoc(docRef);
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * 대응 퀘스트 진행 상태(완료 여부 + 질문/메모 기록) 저장.
+ * items는 responseGuideSteps.buildQuestSteps(...)가 반환한 items 배열을 그대로 넘기면 됨.
+ */
+export async function saveCaseQuestSteps(caseId, items) {
+  return updateDocument('cases', caseId, { questSteps: items });
+}
+
 /**
  * Whisper API로 음성 파일 텍스트 변환
  */

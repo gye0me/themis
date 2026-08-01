@@ -1,25 +1,86 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
 import {
   toggleClauseCompleted,
   addUserClause,
   removeUserClause,
   getChecklistProgress,
 } from '../services/requiredClauseChecklist';
+import {
+  buildQuestSteps,
+  toggleQuestStepCompleted,
+  updateQuestStepNote,
+} from '../services/responseGuideSteps';
+import { getCaseById, saveCaseQuestSteps } from '../services/firebaseService';
 
 export default function ResponseGuideScreen({ navigation, route }) {
+  // 계약서 조항 체크리스트 흐름 (기존)
   const record = route?.params?.record ?? null;
+<<<<<<< Updated upstream
   const initialItems = record?.requiredClauseChecklist ?? []; // extra. 제거
   const contractType = record?.contractType ?? '전월세'; // extra. 제거
+=======
+  const initialItems = record?.requiredClauseChecklist ?? [];
+const contractType = record?.contractType ?? '전월세';
+
+  // 피해 유형별 대응 퀘스트 흐름 (신규: 전세사기/금전사기/괴롭힘/신변위협)
+  const caseId = route?.params?.caseId ?? null;
+  const routeCaseType = route?.params?.caseType ?? null;
+  const isQuestMode = Boolean(caseId);
+>>>>>>> Stashed changes
 
   const [items, setItems] = useState(initialItems);
   const [newTitle, setNewTitle] = useState('');
   const [showInput, setShowInput] = useState(false);
+  const [savingId, setSavingId] = useState(null);
+  const [loading, setLoading] = useState(isQuestMode);
+
+  useEffect(() => {
+    if (!isQuestMode) return;
+    (async () => {
+      try {
+        const caseDoc = await getCaseById(caseId);
+        const { items: questItems } = buildQuestSteps(
+          caseDoc?.caseType ?? routeCaseType,
+          caseDoc?.questSteps ?? []
+        );
+        setItems(questItems);
+      } catch (err) {
+        console.error('사건 퀘스트 조회 오류:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [caseId]);
 
   const progress = getChecklistProgress(items);
 
   const handleToggle = (id) => {
+    if (isQuestMode) {
+      setItems((prev) => {
+        const next = toggleQuestStepCompleted(prev, id);
+        saveCaseQuestSteps(caseId, next).catch((err) => console.error('퀘스트 저장 오류:', err));
+        return next;
+      });
+      return;
+    }
     setItems((prev) => toggleClauseCompleted(prev, id));
+  };
+
+  const handleNoteChange = (id, note) => {
+    setItems((prev) => updateQuestStepNote(prev, id, note));
+  };
+
+  const handleNoteSave = async (id) => {
+    if (!isQuestMode) return;
+    setSavingId(id);
+    try {
+      await saveCaseQuestSteps(caseId, items);
+    } catch (err) {
+      console.error('메모 저장 오류:', err);
+    } finally {
+      setSavingId(null);
+    }
   };
 
   const handleAdd = () => {
@@ -42,11 +103,18 @@ export default function ResponseGuideScreen({ navigation, route }) {
         </TouchableOpacity>
         <View>
           <Text style={styles.title}>대응 가이드</Text>
-          <Text style={styles.subtitle}>단계별 법적 대응 안내</Text>
+          <Text style={styles.subtitle}>
+            {isQuestMode ? `${routeCaseType ?? ''} 단계별 대응 안내` : '단계별 법적 대응 안내'}
+          </Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
 
+      {loading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#3B7DD8" />
+        </View>
+      ) : (
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* 진행률 */}
@@ -90,49 +158,80 @@ export default function ResponseGuideScreen({ navigation, route }) {
                   <Text style={styles.doneBadge}>완료</Text>
                 )}
               </View>
-              {item.description ? (
-                <Text style={styles.questDesc}>{item.description}</Text>
-              ) : null}
-              {item.evidence ? (
-                <Text style={styles.questEvidence}>📄 {item.evidence}</Text>
-              ) : !item.completed ? (
-                <Text style={styles.questMissing}>⚠️ 해당 조항 없음</Text>
-              ) : null}
-              {item.legalBasis ? (
-                <Text style={styles.questLegal}>근거: {item.legalBasis}</Text>
-              ) : null}
-              {item.source === 'user' && (
-                <TouchableOpacity onPress={() => handleRemove(item.id)} style={styles.removeBtn}>
-                  <Text style={styles.removeBtnText}>삭제</Text>
-                </TouchableOpacity>
+              {isQuestMode ? (
+                <>
+                  {(item.requiredDocs || item.duration) ? (
+                    <Text style={styles.questDesc}>
+                      {item.requiredDocs ? `필요 서류: ${item.requiredDocs}` : ''}
+                      {item.requiredDocs && item.duration ? '  ·  ' : ''}
+                      {item.duration ? `소요: ${item.duration}` : ''}
+                    </Text>
+                  ) : null}
+                  {item.link ? <Text style={styles.questEvidence}>🔗 {item.link}</Text> : null}
+                  {item.phone ? <Text style={styles.questEvidence}>📞 {item.phone}</Text> : null}
+
+                  <TextInput
+                    style={styles.noteInput}
+                    placeholder="질문이나 메모를 기록해 두세요..."
+                    placeholderTextColor="#94A3B8"
+                    value={item.note}
+                    onChangeText={(text) => handleNoteChange(item.id, text)}
+                    onBlur={() => handleNoteSave(item.id)}
+                    multiline
+                  />
+                  {savingId === item.id && (
+                    <Text style={styles.savingText}>저장 중...</Text>
+                  )}
+                </>
+              ) : (
+                <>
+                  {item.description ? (
+                    <Text style={styles.questDesc}>{item.description}</Text>
+                  ) : null}
+                  {item.evidence ? (
+                    <Text style={styles.questEvidence}>📄 {item.evidence}</Text>
+                  ) : !item.completed ? (
+                    <Text style={styles.questMissing}>⚠️ 해당 조항 없음</Text>
+                  ) : null}
+                  {item.legalBasis ? (
+                    <Text style={styles.questLegal}>근거: {item.legalBasis}</Text>
+                  ) : null}
+                  {item.source === 'user' && (
+                    <TouchableOpacity onPress={() => handleRemove(item.id)} style={styles.removeBtn}>
+                      <Text style={styles.removeBtnText}>삭제</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
           </TouchableOpacity>
         ))}
 
-        {/* 항목 추가 */}
-        {showInput ? (
-          <View style={styles.inputCard}>
-            <TextInput
-              style={styles.input}
-              placeholder="추가할 항목 입력..."
-              placeholderTextColor="#94A3B8"
-              value={newTitle}
-              onChangeText={setNewTitle}
-            />
-            <View style={styles.inputBtnRow}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowInput(false)}>
-                <Text style={styles.cancelBtnText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
-                <Text style={styles.addBtnText}>추가</Text>
-              </TouchableOpacity>
+        {/* 항목 추가 (계약 체크리스트 모드에서만) */}
+        {!isQuestMode && (
+          showInput ? (
+            <View style={styles.inputCard}>
+              <TextInput
+                style={styles.input}
+                placeholder="추가할 항목 입력..."
+                placeholderTextColor="#94A3B8"
+                value={newTitle}
+                onChangeText={setNewTitle}
+              />
+              <View style={styles.inputBtnRow}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowInput(false)}>
+                  <Text style={styles.cancelBtnText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+                  <Text style={styles.addBtnText}>추가</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowInput(true)}>
-            <Text style={styles.addItemBtnText}>+ 항목 추가하기</Text>
-          </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowInput(true)}>
+              <Text style={styles.addItemBtnText}>+ 항목 추가하기</Text>
+            </TouchableOpacity>
+          )
         )}
 
         {/* 전문가 연결 */}
@@ -142,6 +241,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
 
         <View style={{ height: 80 }} />
       </ScrollView>
+      )}
     </View>
   );
 }
@@ -157,6 +257,13 @@ const styles = StyleSheet.create({
   title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
   subtitle: { color: '#7B9EC5', fontSize: 11 },
   content: { flex: 1, padding: 16 },
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  noteInput: {
+    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8,
+    padding: 8, fontSize: 11, color: '#0F172A', marginTop: 6,
+    minHeight: 40, textAlignVertical: 'top',
+  },
+  savingText: { color: '#94A3B8', fontSize: 9, marginTop: 2 },
   progressCard: {
     backgroundColor: '#FFFFFF', borderRadius: 10,
     padding: 14, marginBottom: 16,

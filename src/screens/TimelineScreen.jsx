@@ -294,7 +294,11 @@ export function TimelineScreen({ navigation }) {
         style={styles.floatingBtn}
         onPress={() => {
           const contractRecord = records.find(r => r.evidenceType === 'contract');
-          navigation.navigate('ResponseGuide', { record: contractRecord ?? null });
+          navigation.navigate('ResponseGuide', {
+          record: contractRecord ?? null,
+          caseId: null,
+          caseType: null,
+      });
         }}
       >
         <Text style={styles.floatingBtnText}>?</Text>
