@@ -16,18 +16,13 @@ import { getCaseById, saveCaseQuestSteps } from '../services/firebaseService';
 export default function ResponseGuideScreen({ navigation, route }) {
   // 계약서 조항 체크리스트 흐름 (기존)
   const record = route?.params?.record ?? null;
-<<<<<<< Updated upstream
-  const initialItems = record?.requiredClauseChecklist ?? []; // extra. 제거
-  const contractType = record?.contractType ?? '전월세'; // extra. 제거
-=======
   const initialItems = record?.requiredClauseChecklist ?? [];
-const contractType = record?.contractType ?? '전월세';
+  const contractType = record?.contractType ?? '전월세';
 
   // 피해 유형별 대응 퀘스트 흐름 (신규: 전세사기/금전사기/괴롭힘/신변위협)
   const caseId = route?.params?.caseId ?? null;
   const routeCaseType = route?.params?.caseType ?? null;
   const isQuestMode = Boolean(caseId);
->>>>>>> Stashed changes
 
   const [items, setItems] = useState(initialItems);
   const [newTitle, setNewTitle] = useState('');
