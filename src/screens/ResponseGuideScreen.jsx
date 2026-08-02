@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { CASE_QUEST_STEPS } from '../services/responseGuideSteps';
+import { callCaseAssistant } from '../services/caseAssistantService';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
 import {
   toggleClauseCompleted,
@@ -16,10 +18,11 @@ import { getCaseById, saveCaseQuestSteps } from '../services/firebaseService';
 export default function ResponseGuideScreen({ navigation, route }) {
   // 계약서 조항 체크리스트 흐름 (기존)
   const record = route?.params?.record ?? null;
-  const initialItems = record?.requiredClauseChecklist ?? [];
-  const contractType = record?.contractType ?? '전월세';
+  const caseType = record?.caseType ?? record?.extra?.caseType ?? null;
+  const initialItems = caseType && CASE_QUEST_STEPS[caseType]
+  ? CASE_QUEST_STEPS[caseType]
+  : (record?.extra?.requiredClauseChecklist ?? []);
 
-  // 피해 유형별 대응 퀘스트 흐름 (신규: 전세사기/금전사기/괴롭힘/신변위협)
   const caseId = route?.params?.caseId ?? null;
   const routeCaseType = route?.params?.caseType ?? null;
   const isQuestMode = Boolean(caseId);
@@ -29,6 +32,10 @@ export default function ResponseGuideScreen({ navigation, route }) {
   const [showInput, setShowInput] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [loading, setLoading] = useState(isQuestMode);
+  const [expandedId, setExpandedId] = useState(null);
+  const [aiInput, setAiInput] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (!isQuestMode) return;
@@ -61,6 +68,19 @@ export default function ResponseGuideScreen({ navigation, route }) {
     }
     setItems((prev) => toggleClauseCompleted(prev, id));
   };
+  const handleAiSend = async () => {
+  if (!aiInput.trim()) return;
+  setAiLoading(true);
+  try {
+    const response = await callCaseAssistant(caseType ?? '기타', aiInput);
+    setAiResponse(response);
+  } catch {
+    setAiResponse('오류가 발생했습니다. 다시 시도해주세요.');
+  } finally {
+    setAiLoading(false);
+    setAiInput('');
+  }
+};
 
   const handleNoteChange = (id, note) => {
     setItems((prev) => updateQuestStepNote(prev, id, note));
@@ -77,6 +97,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
       setSavingId(null);
     }
   };
+  
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -136,7 +157,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
           <TouchableOpacity
             key={item.id}
             style={[styles.questCard, item.completed && styles.questCardDone]}
-            onPress={() => handleToggle(item.id)}
+            onPress={() => setExpandedId(expandedId === item.id ? null : item.id)}
             activeOpacity={0.8}
           >
             <View style={styles.questLeft}>
@@ -153,7 +174,8 @@ export default function ResponseGuideScreen({ navigation, route }) {
                   <Text style={styles.doneBadge}>완료</Text>
                 )}
               </View>
-              {isQuestMode ? (
+              {expandedId === item.id && (
+              isQuestMode ? (
                 <>
                   {(item.requiredDocs || item.duration) ? (
                     <Text style={styles.questDesc}>
@@ -164,7 +186,6 @@ export default function ResponseGuideScreen({ navigation, route }) {
                   ) : null}
                   {item.link ? <Text style={styles.questEvidence}>🔗 {item.link}</Text> : null}
                   {item.phone ? <Text style={styles.questEvidence}>📞 {item.phone}</Text> : null}
-
                   <TextInput
                     style={styles.noteInput}
                     placeholder="질문이나 메모를 기록해 두세요..."
@@ -197,7 +218,8 @@ export default function ResponseGuideScreen({ navigation, route }) {
                     </TouchableOpacity>
                   )}
                 </>
-              )}
+              )
+            )}
             </View>
           </TouchableOpacity>
         ))}
@@ -228,6 +250,30 @@ export default function ResponseGuideScreen({ navigation, route }) {
             </TouchableOpacity>
           )
         )}
+        {/* AI 질문창 */}
+        <View style={styles.aiCard}>
+          <Text style={styles.aiTitle}>Themis AI</Text>
+          <Text style={styles.aiDesc}>현재 단계에 대해 궁금한 점을 질문하세요</Text>
+          <View style={styles.aiInputRow}>
+            <TextInput
+              style={styles.aiInput}
+              placeholder="예) 내용증명 혼자 작성할 수 있나요?"
+              placeholderTextColor="#94A3B8"
+              value={aiInput}
+              onChangeText={setAiInput}
+            />
+            <TouchableOpacity style={styles.aiSendBtn} onPress={handleAiSend} disabled={aiLoading}>
+              <Text style={styles.aiSendBtnText}>{aiLoading ? '...' : '→'}</Text>
+            </TouchableOpacity>
+          </View>
+          {aiResponse ? (
+            <View style={styles.aiResponse}>
+              <Text style={styles.aiResponseLabel}>Themis AI</Text>
+              <Text style={styles.aiResponseText}>{aiResponse}</Text>
+              <Text style={styles.aiDisclaimer}>본 내용은 법률 정보이며 조언이 아닙니다. 전문가 상담을 권장합니다.</Text>
+            </View>
+          ) : null}
+        </View>
 
         {/* 전문가 연결 */}
         <TouchableOpacity style={styles.expertBtn}>
@@ -340,4 +386,15 @@ const styles = StyleSheet.create({
     padding: 14, alignItems: 'center',
   },
   expertBtnText: { color: '#F1F5F9', fontSize: 13, fontWeight: '500' },
+  aiCard: { backgroundColor: '#FFFFFF', borderRadius: 10, padding: 14, marginBottom: 12 },
+  aiTitle: { color: '#1E3A5F', fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  aiDesc: { color: '#94A3B8', fontSize: 11, marginBottom: 10 },
+  aiInputRow: { flexDirection: 'row', gap: 8 },
+  aiInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, fontSize: 12, color: '#0F172A' },
+  aiSendBtn: { backgroundColor: '#3B7DD8', borderRadius: 8, width: 40, alignItems: 'center', justifyContent: 'center' },
+  aiSendBtnText: { color: '#FFFFFF', fontSize: 16 },
+  aiResponse: { marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10 },
+  aiResponseLabel: { color: '#3B7DD8', fontSize: 11, fontWeight: '700' },
+  aiResponseText: { color: '#0F172A', fontSize: 12, lineHeight: 18 },
+  aiDisclaimer: { color: '#EF4444', fontSize: 10, marginTop: 4 },
 });
