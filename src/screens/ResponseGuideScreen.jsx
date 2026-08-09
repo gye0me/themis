@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { CASE_QUEST_STEPS } from '../services/responseGuideSteps';
-import { callCaseAssistant } from '../services/caseAssistantService';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
 import {
   toggleClauseCompleted,
@@ -12,20 +10,23 @@ import {
   buildQuestSteps,
   toggleQuestStepCompleted,
   updateQuestStepNote,
+  addUserQuestStep,
+  removeUserQuestStep,
 } from '../services/responseGuideSteps';
-import { getCaseById, saveCaseQuestSteps } from '../services/firebaseService';
+import { getCaseById, saveCaseQuestSteps, saveCaseAiHistory } from '../services/firebaseService';
+import { askCaseAssistant } from '../services/caseAssistantService';
 
 export default function ResponseGuideScreen({ navigation, route }) {
   // 계약서 조항 체크리스트 흐름 (기존)
   const record = route?.params?.record ?? null;
-  const caseType = record?.caseType ?? record?.extra?.caseType ?? null;
-  const initialItems = caseType && CASE_QUEST_STEPS[caseType]
-  ? CASE_QUEST_STEPS[caseType]
-  : (record?.extra?.requiredClauseChecklist ?? []);
+  const contractType = record?.contractType ?? '전월세';
 
+  // 피해 유형별 대응 퀘스트 흐름 (신규: 전세사기/금전사기/괴롭힘/신변위협)
   const caseId = route?.params?.caseId ?? null;
   const routeCaseType = route?.params?.caseType ?? null;
   const isQuestMode = Boolean(caseId);
+
+  const initialItems = isQuestMode ? [] : (record?.requiredClauseChecklist ?? []);
 
   const [items, setItems] = useState(initialItems);
   const [newTitle, setNewTitle] = useState('');
@@ -36,6 +37,8 @@ export default function ResponseGuideScreen({ navigation, route }) {
   const [aiInput, setAiInput] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiHistory, setAiHistory] = useState([]); // [{ question, answer, createdAt }]
+  const [showAiHistory, setShowAiHistory] = useState(false);
 
   useEffect(() => {
     if (!isQuestMode) return;
@@ -47,6 +50,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
           caseDoc?.questSteps ?? []
         );
         setItems(questItems);
+        setAiHistory(Array.isArray(caseDoc?.aiHistory) ? caseDoc.aiHistory : []);
       } catch (err) {
         console.error('사건 퀘스트 조회 오류:', err);
       } finally {
@@ -68,19 +72,38 @@ export default function ResponseGuideScreen({ navigation, route }) {
     }
     setItems((prev) => toggleClauseCompleted(prev, id));
   };
+
   const handleAiSend = async () => {
-  if (!aiInput.trim()) return;
-  setAiLoading(true);
-  try {
-    const response = await callCaseAssistant(caseType ?? '기타', aiInput);
-    setAiResponse(response);
-  } catch {
-    setAiResponse('오류가 발생했습니다. 다시 시도해주세요.');
-  } finally {
-    setAiLoading(false);
-    setAiInput('');
-  }
-};
+    if (!aiInput.trim()) return;
+    const questionText = aiInput.trim();
+    setAiLoading(true);
+    try {
+      const effectiveCaseType = isQuestMode ? routeCaseType : contractType;
+      const currentStep = expandedId ? items.find((i) => i.id === expandedId) : null;
+      const response = await askCaseAssistant({
+        caseType: effectiveCaseType ?? '기타',
+        questStep: currentStep,
+        question: questionText,
+      });
+      setAiResponse(response);
+
+      // 사건 모드일 때만 사건 문서에 질문/답변 기록을 누적 저장한다 (계약 체크리스트 모드는 사건 개념이 없어 저장 생략)
+      if (isQuestMode) {
+        const entry = { question: questionText, answer: response, createdAt: new Date().toISOString() };
+        setAiHistory((prev) => {
+          const next = [...prev, entry];
+          saveCaseAiHistory(caseId, next).catch((err) => console.error('AI 기록 저장 오류:', err));
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('AI 질문 오류:', err);
+      setAiResponse('오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setAiLoading(false);
+      setAiInput('');
+    }
+  };
 
   const handleNoteChange = (id, note) => {
     setItems((prev) => updateQuestStepNote(prev, id, note));
@@ -97,16 +120,31 @@ export default function ResponseGuideScreen({ navigation, route }) {
       setSavingId(null);
     }
   };
-  
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
-    setItems((prev) => addUserClause(prev, { title: newTitle.trim() }));
+    if (isQuestMode) {
+      setItems((prev) => {
+        const next = addUserQuestStep(prev, { title: newTitle.trim() });
+        saveCaseQuestSteps(caseId, next).catch((err) => console.error('항목 추가 저장 오류:', err));
+        return next;
+      });
+    } else {
+      setItems((prev) => addUserClause(prev, { title: newTitle.trim() }));
+    }
     setNewTitle('');
     setShowInput(false);
   };
 
   const handleRemove = (id) => {
+    if (isQuestMode) {
+      setItems((prev) => {
+        const next = removeUserQuestStep(prev, id);
+        saveCaseQuestSteps(caseId, next).catch((err) => console.error('항목 삭제 저장 오류:', err));
+        return next;
+      });
+      return;
+    }
     setItems((prev) => removeUserClause(prev, id));
   };
 
@@ -161,9 +199,17 @@ export default function ResponseGuideScreen({ navigation, route }) {
             activeOpacity={0.8}
           >
             <View style={styles.questLeft}>
-              <View style={[styles.checkbox, item.completed && styles.checkboxDone]}>
-                {item.completed && <Text style={styles.checkmark}>✓</Text>}
-              </View>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleToggle(item.id);
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <View style={[styles.checkbox, item.completed && styles.checkboxDone]}>
+                  {item.completed && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+              </TouchableOpacity>
             </View>
             <View style={styles.questBody}>
               <View style={styles.questTitleRow}>
@@ -198,6 +244,11 @@ export default function ResponseGuideScreen({ navigation, route }) {
                   {savingId === item.id && (
                     <Text style={styles.savingText}>저장 중...</Text>
                   )}
+                  {item.source === 'user' && (
+                    <TouchableOpacity onPress={() => handleRemove(item.id)} style={styles.removeBtn}>
+                      <Text style={styles.removeBtnText}>삭제</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               ) : (
                 <>
@@ -224,32 +275,31 @@ export default function ResponseGuideScreen({ navigation, route }) {
           </TouchableOpacity>
         ))}
 
-        {/* 항목 추가 (계약 체크리스트 모드에서만) */}
-        {!isQuestMode && (
-          showInput ? (
-            <View style={styles.inputCard}>
-              <TextInput
-                style={styles.input}
-                placeholder="추가할 항목 입력..."
-                placeholderTextColor="#94A3B8"
-                value={newTitle}
-                onChangeText={setNewTitle}
-              />
-              <View style={styles.inputBtnRow}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowInput(false)}>
-                  <Text style={styles.cancelBtnText}>취소</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
-                  <Text style={styles.addBtnText}>추가</Text>
-                </TouchableOpacity>
-              </View>
+        {/* 항목 추가 (계약 체크리스트 모드 + 퀘스트 모드 공통) */}
+        {showInput ? (
+          <View style={styles.inputCard}>
+            <TextInput
+              style={styles.input}
+              placeholder="추가할 항목 입력..."
+              placeholderTextColor="#94A3B8"
+              value={newTitle}
+              onChangeText={setNewTitle}
+            />
+            <View style={styles.inputBtnRow}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowInput(false)}>
+                <Text style={styles.cancelBtnText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+                <Text style={styles.addBtnText}>추가</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowInput(true)}>
-              <Text style={styles.addItemBtnText}>+ 항목 추가하기</Text>
-            </TouchableOpacity>
-          )
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowInput(true)}>
+            <Text style={styles.addItemBtnText}>+ 항목 추가하기</Text>
+          </TouchableOpacity>
         )}
+
         {/* AI 질문창 */}
         <View style={styles.aiCard}>
           <Text style={styles.aiTitle}>Themis AI</Text>
@@ -273,6 +323,27 @@ export default function ResponseGuideScreen({ navigation, route }) {
               <Text style={styles.aiDisclaimer}>본 내용은 법률 정보이며 조언이 아닙니다. 전문가 상담을 권장합니다.</Text>
             </View>
           ) : null}
+
+          {/* 지난 질문 기록 (사건 모드에서만, 평소엔 접혀 있음) */}
+          {isQuestMode && aiHistory.length > 0 && (
+            <View style={styles.aiHistorySection}>
+              <TouchableOpacity onPress={() => setShowAiHistory((v) => !v)} style={styles.aiHistoryToggle}>
+                <Text style={styles.aiHistoryToggleText}>
+                  {showAiHistory ? '지난 질문 접기 ▲' : `지난 질문 ${aiHistory.length}개 보기 ▼`}
+                </Text>
+              </TouchableOpacity>
+              {showAiHistory && (
+                <View style={styles.aiHistoryList}>
+                  {[...aiHistory].reverse().map((entry, idx) => (
+                    <View key={idx} style={styles.aiHistoryItem}>
+                      <Text style={styles.aiHistoryQuestion}>Q. {entry.question}</Text>
+                      <Text style={styles.aiHistoryAnswer}>{entry.answer}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* 전문가 연결 */}
@@ -397,4 +468,11 @@ const styles = StyleSheet.create({
   aiResponseLabel: { color: '#3B7DD8', fontSize: 11, fontWeight: '700' },
   aiResponseText: { color: '#0F172A', fontSize: 12, lineHeight: 18 },
   aiDisclaimer: { color: '#EF4444', fontSize: 10, marginTop: 4 },
+  aiHistorySection: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 10 },
+  aiHistoryToggle: { alignSelf: 'flex-start' },
+  aiHistoryToggleText: { color: '#3B7DD8', fontSize: 11, fontWeight: '600' },
+  aiHistoryList: { marginTop: 8, gap: 10 },
+  aiHistoryItem: { backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10 },
+  aiHistoryQuestion: { color: '#1E3A5F', fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  aiHistoryAnswer: { color: '#475569', fontSize: 11, lineHeight: 16 },
 });

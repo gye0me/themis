@@ -1,14 +1,41 @@
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { createCase } from '../services/firebaseService';
+import { createCase, getCasesByUser } from '../services/firebaseService';
 import { CASE_TYPES, CASE_TYPE_META } from '../services/responseGuideSteps';
+import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 
-export function NewCaseScreen({ navigation }) {
+export function NewCaseScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
+  const force = route?.params?.force ?? false; // "+새 사건" 등으로 명시적으로 들어온 경우 true
   const [selectedType, setSelectedType] = useState(null);
   const [title, setTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [checking, setChecking] = useState(!force);
+
+  // 기록 탭으로 들어왔을 때, 진행 중인 사건이 있으면 그 사건 타임라인으로 바로 이동
+  useEffect(() => {
+    if (force || !user) {
+      setChecking(false);
+      return;
+    }
+    (async () => {
+      try {
+        const cases = await getCasesByUser(user.uid);
+        if (cases.length > 0) {
+          const latest = [...cases].sort(
+            (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+          )[0];
+          navigation.replace(RECORD_ROUTES.EVIDENCE_TIMELINE, { caseId: latest.id });
+          return;
+        }
+      } catch (err) {
+        console.error('사건 조회 오류:', err);
+      } finally {
+        setChecking(false);
+      }
+    })();
+  }, [user, force]);
 
   const handleStart = async () => {
     if (!selectedType || submitting) return;
@@ -28,6 +55,14 @@ export function NewCaseScreen({ navigation }) {
     }
   };
 
+  if (checking) {
+    return (
+      <View style={[styles.wrapper, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#1E3A5F" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.appbar}>
@@ -37,7 +72,7 @@ export function NewCaseScreen({ navigation }) {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.navigate('App');
+              navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK);
             }
           }}
         >

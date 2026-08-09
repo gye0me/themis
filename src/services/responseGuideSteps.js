@@ -67,20 +67,22 @@ export function getResponseSteps(caseType) {
   return RESPONSE_STEPS[caseType] ?? RESPONSE_STEPS_FALLBACK;
 }
 
-// ─── 3. 퀘스트 리스트 빌드 (저장된 진행 상태와 병합) ─────────────────────────
+// ─── 3. 퀘스트 리스트 빌드 (저장된 진행 상태 + 사용자 추가 항목과 병합) ────────
 //
 // savedSteps: Firestore에 저장돼 있던 이전 상태 배열
-//   [{ id, completed, note }]
-// 정의(definitions)를 기준으로 화면에 뿌릴 수 있는 퀘스트 아이템 리스트를 만든다.
+//   [{ id, completed, note, source? }]
+// 정의(definitions)를 기준으로 화면에 뿌릴 수 있는 퀘스트 아이템 리스트를 만들고,
+// definitions에 없는(=사용자가 직접 추가한) 항목도 함께 살려서 돌려준다.
 
 export function buildQuestSteps(caseType, savedSteps = []) {
   const definitions = getResponseSteps(caseType);
+  const savedList = Array.isArray(savedSteps) ? savedSteps : [];
   const savedMap = new Map();
-  (Array.isArray(savedSteps) ? savedSteps : []).forEach((s) => {
+  savedList.forEach((s) => {
     if (s && typeof s.id === 'string') savedMap.set(s.id, s);
   });
 
-  const items = definitions.map((def) => {
+  const fixedItems = definitions.map((def) => {
     const saved = savedMap.get(def.id);
     return {
       id: def.id,
@@ -90,19 +92,40 @@ export function buildQuestSteps(caseType, savedSteps = []) {
       link: def.link ?? null,
       phone: def.phone ?? null,
       completed: Boolean(saved?.completed),
+      completedAt: saved?.completedAt ?? null,
       note: saved?.note ?? '', // 사용자가 기록한 질문/메모
+      source: 'ai',
     };
   });
 
+  const definitionIds = new Set(definitions.map((d) => d.id));
+  const userItems = savedList
+    .filter((s) => s && s.source === 'user' && !definitionIds.has(s.id))
+    .map((s) => ({
+      id: s.id,
+      title: s.title,
+      requiredDocs: s.requiredDocs ?? null,
+      duration: s.duration ?? null,
+      link: s.link ?? null,
+      phone: s.phone ?? null,
+      completed: Boolean(s.completed),
+      completedAt: s.completedAt ?? null,
+      note: s.note ?? '',
+      source: 'user',
+    }));
+
+  const items = [...fixedItems, ...userItems];
   return { items, progress: getQuestProgress(items) };
 }
 
 // ─── 4. 퀘스트 상태 변경 ──────────────────────────────────────────────────
 
 export function toggleQuestStepCompleted(items, id) {
-  return items.map((item) =>
-    item.id === id ? { ...item, completed: !item.completed } : item
-  );
+  return items.map((item) => {
+    if (item.id !== id) return item;
+    const completed = !item.completed;
+    return { ...item, completed, completedAt: completed ? new Date().toISOString() : null };
+  });
 }
 
 /**
@@ -120,4 +143,39 @@ export function getQuestProgress(items) {
   const completed = items.filter((item) => item.completed).length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
   return { completed, total, percent, label: `${completed} / ${total} 완료` };
+}
+
+// ─── 5. 사용자 커스텀 퀘스트 항목 추가/삭제 ─────────────────────────────────
+// requiredClauseChecklist.js의 addUserClause/removeUserClause와 동일한 패턴.
+// AI(고정 목록) 항목은 절대 건드리지 않고, source: 'user'인 항목만 추가/삭제한다.
+
+let userQuestSeq = 0;
+
+/**
+ * @param {Array} items - buildQuestSteps(...)의 items
+ * @param {{ title: string, requiredDocs?: string, duration?: string }} input
+ * @returns {Array} 새 항목이 추가된 items 배열 (원본은 변경하지 않음)
+ */
+export function addUserQuestStep(items, { title, requiredDocs = '', duration = '' }) {
+  userQuestSeq += 1;
+  const newItem = {
+    id: `user_${Date.now()}_${userQuestSeq}`,
+    title,
+    requiredDocs: requiredDocs || null,
+    duration: duration || null,
+    link: null,
+    phone: null,
+    completed: false,
+    completedAt: null,
+    note: '',
+    source: 'user',
+  };
+  return [...items, newItem];
+}
+
+/**
+ * 사용자 항목만 삭제 가능 (source: 'ai' 고정 항목은 id를 넘겨도 삭제되지 않음).
+ */
+export function removeUserQuestStep(items, id) {
+  return items.filter((item) => !(item.id === id && item.source === 'user'));
 }

@@ -478,6 +478,14 @@ export async function saveCaseQuestSteps(caseId, items) {
 }
 
 /**
+ * Themis AI 질문/답변 기록 저장 (사건별로 누적).
+ * history: [{ question, answer, createdAt }]
+ */
+export async function saveCaseAiHistory(caseId, history) {
+  return updateDocument('cases', caseId, { aiHistory: history });
+}
+
+/**
  * Whisper API로 음성 파일 텍스트 변환
  */
 export async function transcribeAudio(fileUri, mimeType = 'audio/m4a') {

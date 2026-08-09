@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { APP_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -133,6 +133,18 @@ export function EvidenceUploadScreen({ navigation }) {
           <View>
             <Text style={styles.contractTitle}>계약서 분석</Text>
             <Text style={styles.contractDesc}>독소조항 자동 탐지</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 사건 유형별 대응 퀘스트 카드 */}
+        <TouchableOpacity
+          style={[styles.contractCard, { borderTopColor: '#3B7DD8' }]}
+          onPress={() => navigation.push(RECORD_ROUTES.START)}
+        >
+          <Text style={styles.contractIcon}>🧭</Text>
+          <View>
+            <Text style={styles.contractTitle}>사건 대응 퀘스트</Text>
+            <Text style={styles.contractDesc}>피해 유형별 단계별 대응 안내</Text>
           </View>
         </TouchableOpacity>
 

@@ -1,8 +1,11 @@
 import { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Platform, Share, Alert } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import { AuthContext } from '../context/AuthContext';
-import { APP_ROUTES } from '../navigation/routes';
-import { getEvidenceRecords } from '../services/firebaseService';
+import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
+import { getEvidenceRecords, getCaseById } from '../services/firebaseService';
+import { buildQuestSteps } from '../services/responseGuideSteps';
+import { buildCaseReportHtml } from '../services/reportHtml';
 
 const TYPE_CONFIG = {
   image:    { icon: '📷', color: '#EA580C', label: '사진' },
@@ -47,13 +50,16 @@ function buildSummary(records) {
   return counts;
 }
 
-export function TimelineScreen({ navigation }) {
+export function TimelineScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
+  const caseId = route?.params?.caseId ?? null;
   const [records, setRecords] = useState([]);
+  const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -67,13 +73,58 @@ export function TimelineScreen({ navigation }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await getEvidenceRecords(user.uid);
+      const [data, caseDoc] = await Promise.all([
+        getEvidenceRecords(user.uid, caseId),
+        caseId ? getCaseById(caseId) : Promise.resolve(null),
+      ]);
       setRecords(data);
+      setCaseData(caseDoc);
     } catch (err) {
       console.error(err);
       setError('증거를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDownloadReport() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const { items: questItems } = caseData
+        ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? [])
+        : { items: [] };
+
+      const html = buildCaseReportHtml({
+        caseData: {
+          title: caseData?.title || '증거 정리 보고서',
+          caseType: caseData?.caseType || null,
+          createdAt: caseData?.createdAt ?? records[records.length - 1]?.capturedAt,
+        },
+        records,
+        questItems,
+      });
+
+      const fileName = `themis-report-${Date.now()}.html`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
+        await Share.share({ url: fileUri, title: fileName });
+      }
+    } catch (err) {
+      console.error('HTML 보고서 생성 오류:', err);
+      Alert.alert('오류', '보고서를 생성하지 못했습니다.');
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -88,16 +139,24 @@ export function TimelineScreen({ navigation }) {
     <View style={styles.wrapper}>
       {/* 앱바 */}
       <View style={styles.appbar}>
-        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('App')}>
+        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK)}>
           <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
         <View>
           <Text style={styles.title}>증거 타임라인</Text>
           <Text style={styles.subtitle}>수집된 증거 {totalCount}건</Text>
         </View>
-        <TouchableOpacity style={styles.shareBtn}>
-          <Text style={styles.shareBtnText}>↗</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            style={styles.newCaseBtn}
+            onPress={() => navigation.navigate(RECORD_ROUTES.START, { force: true })}
+          >
+            <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.shareBtn}>
+            <Text style={styles.shareBtnText}>↗</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {!user && !loading ? (
@@ -279,8 +338,12 @@ export function TimelineScreen({ navigation }) {
               </View>
 
               {/* PDF 버튼 */}
-              <TouchableOpacity style={styles.pdfBtn}>
-                <Text style={styles.pdfBtnText}>⬇ 증거정리 HTML 다운로드</Text>
+              <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadReport} disabled={downloading}>
+                {downloading ? (
+                  <ActivityIndicator color="#F1F5F9" />
+                ) : (
+                  <Text style={styles.pdfBtnText}>⬇ 증거정리 HTML 다운로드</Text>
+                )}
               </TouchableOpacity>
             </>
           )}
@@ -319,6 +382,8 @@ const styles = StyleSheet.create({
   subtitle: { color: '#7B9EC5', fontSize: 11 },
   shareBtn: { padding: 4 },
   shareBtnText: { color: '#7B9EC5', fontSize: 18 },
+  newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#3B7DD8' },
+  newCaseBtnText: { color: '#7B9EC5', fontSize: 11 },
   content: { flex: 1, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: '#94A3B8', fontSize: 13 },

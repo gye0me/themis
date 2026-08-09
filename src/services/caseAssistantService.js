@@ -5,7 +5,10 @@
 // 현재 보고 있는 퀘스트 단계를 문맥으로 넣어 Gemini에게 답변을 받아온다.
 //
 // responseGuideSteps.js(퀘스트 데이터) / geminiService.js(계약서 분석 프롬프트)의 자매 모듈.
-// 이 파일은 텍스트 Q&A 프롬프트 + API 호출만 담당한다 (UI 없음, Firestore 저장 없음).
+// lawApiService.js(법제처 Open API)에서 사건 유형별 핵심 법령의 최신 정보를 조회해
+// 답변 근거로 함께 붙인다.
+
+import { searchLaw, formatLawContext } from './lawApiService';
 
 const GEMINI_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
@@ -18,6 +21,7 @@ const COMMON_RULES = `
 * 마크다운 기호(*, #, ** 등)나 목록 기호 없이 자연스러운 문장으로 답변하세요.
 * 확실하지 않은 사실은 단정하지 말고 "~일 가능성이 있습니다", "~를 확인해 보세요"처럼 표현하세요.
 * 관련 법령·기관·연락처가 있다면 구체적으로 언급하세요.
+* [국가법령정보센터 최신 조회 결과]가 주어지면 그 시행일자·소관부처 정보를 답변에 자연스럽게 반영하세요.
 * 이 답변은 법률 자문이 아닌 참고 정보이며, 정확한 판단은 변호사·법률구조공단 등 전문가 상담이 필요함을 답변 끝에 짧게 덧붙이세요.
 * 사용자가 겪는 상황에 공감하는 태도를 유지하되, 불필요한 위로 문구로 답변을 늘리지 마세요.`.trim();
 
@@ -100,6 +104,35 @@ export function getCaseAssistantPrompt(caseType) {
   return CASE_ASSISTANT_PROMPTS[caseType] ?? CASE_ASSISTANT_PROMPT_FALLBACK;
 }
 
+// ─── 2-1. 사건 유형별 핵심 법령 (법제처 Open API 조회용) ─────────────────────
+// 질문마다 자유 키워드로 검색하면 결과가 들쑥날쑥해서, 유형당 핵심 법령 1~2개를
+// 고정으로 조회해 "최신 시행일자·소관부처"를 근거로 붙이는 방식을 쓴다.
+
+const CASE_TYPE_LAW_QUERIES = {
+  전세사기: ['주택임대차보호법'],
+  금전사기: ['통신사기피해환급법'],
+  괴롭힘: ['근로기준법'],
+  신변위협: ['스토킹범죄의 처벌 등에 관한 법률'],
+};
+
+/**
+ * 사건 유형에 매핑된 핵심 법령을 법제처 API로 조회해 프롬프트용 컨텍스트 문자열로 만든다.
+ * API 실패 시에도 AI 답변 자체는 계속 진행되도록 빈 문자열을 반환한다.
+ */
+async function getLawContext(caseType) {
+  const queries = CASE_TYPE_LAW_QUERIES[caseType];
+  if (!queries) return '';
+
+  try {
+    const results = await Promise.all(queries.map((q) => searchLaw(q, 1)));
+    const laws = results.flat();
+    return formatLawContext(laws);
+  } catch (err) {
+    console.warn('법령 컨텍스트 조회 실패:', err.message);
+    return '';
+  }
+}
+
 // ─── 3. 질문 프롬프트 조립 (사건 유형 + 현재 퀘스트 단계 문맥 + 사용자 질문) ────
 
 /**
@@ -107,8 +140,9 @@ export function getCaseAssistantPrompt(caseType) {
  * @param {object} questStep  - 현재 화면에 열려 있는 퀘스트 단계 (선택)
  *   { title, requiredDocs, duration }
  * @param {string} question   - 사용자가 하단 질문창에 입력한 질문
+ * @param {string} [lawContext] - lawApiService에서 조회한 법령 컨텍스트 (선택)
  */
-export function buildCaseAssistantPrompt(caseType, questStep, question) {
+export function buildCaseAssistantPrompt(caseType, questStep, question, lawContext = '') {
   const systemPrompt = getCaseAssistantPrompt(caseType);
 
   const contextLines = [];
@@ -126,8 +160,10 @@ export function buildCaseAssistantPrompt(caseType, questStep, question) {
     ? `\n[사용자가 보고 있는 화면 정보]\n${contextLines.join('\n')}\n`
     : '';
 
+  const lawBlock = lawContext ? `\n${lawContext}\n` : '';
+
   return `${systemPrompt}
-${contextBlock}
+${contextBlock}${lawBlock}
 [사용자 질문]
 ${question.trim()}`;
 }
@@ -166,7 +202,8 @@ export async function askCaseAssistant({ caseType, questStep = null, question })
     throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
   }
 
-  const prompt = buildCaseAssistantPrompt(caseType, questStep, trimmed);
+  const lawContext = await getLawContext(caseType);
+  const prompt = buildCaseAssistantPrompt(caseType, questStep, trimmed, lawContext);
 
   const body = {
     contents: [
