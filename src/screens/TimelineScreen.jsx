@@ -1,11 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Platform, Share, Alert } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById } from '../services/firebaseService';
-import { buildQuestSteps } from '../services/responseGuideSteps';
-import { buildCaseReportHtml } from '../services/reportHtml';
 
 const TYPE_CONFIG = {
   image:    { icon: '📷', color: '#EA580C', label: '사진' },
@@ -59,7 +56,6 @@ export function TimelineScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -87,45 +83,8 @@ export function TimelineScreen({ navigation, route }) {
     }
   }
 
-  async function handleDownloadReport() {
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      const { items: questItems } = caseData
-        ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? [])
-        : { items: [] };
-
-      const html = buildCaseReportHtml({
-        caseData: {
-          title: caseData?.title || '증거 정리 보고서',
-          caseType: caseData?.caseType || null,
-          createdAt: caseData?.createdAt ?? records[records.length - 1]?.capturedAt,
-        },
-        records,
-        questItems,
-      });
-
-      const fileName = `themis-report-${Date.now()}.html`;
-
-      if (Platform.OS === 'web') {
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
-        await Share.share({ url: fileUri, title: fileName });
-      }
-    } catch (err) {
-      console.error('HTML 보고서 생성 오류:', err);
-      Alert.alert('오류', '보고서를 생성하지 못했습니다.');
-    } finally {
-      setDownloading(false);
-    }
+  function handleOpenReport() {
+    navigation.navigate(RECORD_ROUTES.REPORT_PREVIEW, { caseData, records });
   }
 
   const filteredRecords = activeFilter === 'all'
@@ -337,13 +296,9 @@ export function TimelineScreen({ navigation, route }) {
                 <Text style={styles.hashValue}>a3f8c2d1...e9b4 · 검증됨 ✓</Text>
               </View>
 
-              {/* PDF 버튼 */}
-              <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadReport} disabled={downloading}>
-                {downloading ? (
-                  <ActivityIndicator color="#F1F5F9" />
-                ) : (
-                  <Text style={styles.pdfBtnText}>⬇ 증거정리 HTML 다운로드</Text>
-                )}
+              {/* 보고서 미리보기 + 다운로드 화면으로 이동 */}
+              <TouchableOpacity style={styles.pdfBtn} onPress={handleOpenReport}>
+                <Text style={styles.pdfBtnText}>📄 증거정리 보고서 보기 · 다운로드</Text>
               </TouchableOpacity>
             </>
           )}

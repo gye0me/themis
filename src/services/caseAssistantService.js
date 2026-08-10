@@ -169,15 +169,31 @@ ${question.trim()}`;
 }
 
 // ─── 4. JSON이 아닌 순수 텍스트 응답 정리 ────────────────────────────────────
-
+//
+// [답변 규칙]에서 마크다운을 쓰지 말라고 지시해도 모델이 종종 헤더(#), 굵게(**),
+// 목록 기호(-, *, 1.)를 섞어 보내는 경우가 있어, 화면에 자연스러운 문장으로
+// 보이도록 후처리로 한 번 더 벗겨낸다.
 function cleanAnswerText(text) {
   return text
     .replace(/```[a-z]*\s*/gi, '')
     .replace(/```/g, '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*\*/g, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
     .replace(/\r\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+// 응답이 토큰 한도(MAX_TOKENS)에 걸려 문장 중간에서 잘린 경우, 어색하게 끊긴
+// 마지막 반쪽 문장을 버리고 마지막으로 완결된 문장까지만 보여준다.
+function trimIncompleteTrailingSentence(text) {
+  const lastEnd = Math.max(text.lastIndexOf('.'), text.lastIndexOf('다'), text.lastIndexOf('요'));
+  // 끊긴 부분이 전체 답변의 극히 일부라면(문장 하나도 못 만든 경우) 원문을 그대로 둔다.
+  if (lastEnd <= 0 || lastEnd < text.length * 0.4) return text;
+  return text.slice(0, lastEnd + 1).trim();
 }
 
 // ─── 5. 메인 공개 함수 ──────────────────────────────────────────────────────
@@ -213,19 +229,27 @@ export async function askCaseAssistant({ caseType, questStep = null, question })
     ],
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 512,
+      // 3~5문장이라도 사건 설명 + 법령 컨텍스트가 붙으면 512 토큰으로는 문장 중간에
+      // 잘리는 경우가 잦아(finishReason: MAX_TOKENS) "오류처럼 보이는" 반쪽 답변이
+      // 나갔다. 여유를 두어 실제로 답이 끝까지 나오도록 한다.
+      maxOutputTokens: 1024,
       thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey.trim(),
-    },
-    body: JSON.stringify(body),
-  });
+  let response;
+  try {
+    response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey.trim(),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error('AI 서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.', { cause: err });
+  }
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -236,11 +260,18 @@ export async function askCaseAssistant({ caseType, questStep = null, question })
   }
 
   const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const candidate = data?.candidates?.[0];
+  const rawText = candidate?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
 
   if (!rawText) {
+    // 후보 자체가 없거나(candidates 빈 배열) 안전 필터에 걸려 텍스트 없이 차단된 경우
+    const blockReason = data?.promptFeedback?.blockReason;
+    if (blockReason || candidate?.finishReason === 'SAFETY') {
+      throw new Error('안전 정책으로 인해 답변을 생성하지 못했습니다. 표현을 바꿔 다시 질문해 주세요.');
+    }
     throw new Error('AI가 답변을 생성하지 못했습니다. 다시 시도해주세요.');
   }
 
-  return cleanAnswerText(rawText);
+  const cleaned = cleanAnswerText(rawText);
+  return candidate?.finishReason === 'MAX_TOKENS' ? trimIncompleteTrailingSentence(cleaned) : cleaned;
 }

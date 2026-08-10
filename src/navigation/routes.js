@@ -27,6 +27,7 @@ export const RECORD_ROUTES = {
   CONTRACT_ANALYSIS: 'ContractAnalysis',
   EVIDENCE_UPLOAD: 'EvidenceUpload',
   EVIDENCE_TIMELINE: 'EvidenceTimeline',
+  REPORT_PREVIEW: 'ReportPreview',
 };
 
 export const EXPERT_ROUTES = {
