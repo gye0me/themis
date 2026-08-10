@@ -86,25 +86,25 @@ function HomeNavigator() {
 
 function RecordsNavigator() {
   return (
-    <RecordsStack.Navigator screenOptions={screenOptions}>
-      <RecordsStack.Screen
-        name={RECORD_ROUTES.EVIDENCE_UPLOAD}
-        component={EvidenceUploadScreen}
-        options={{ headerShown: false }}
-      />
-      <RecordsStack.Screen
-        name={RECORD_ROUTES.CONTRACT_ANALYSIS}
-        component={ContractAnalysisScreen}
-        options={{ headerShown: false }}
-      />
+    <RecordsStack.Navigator screenOptions={{ headerShown: false }}>
       <RecordsStack.Screen
         name={RECORD_ROUTES.START}
         component={NewCaseScreen}
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen
+        name={RECORD_ROUTES.EVIDENCE_UPLOAD}
+        component={EvidenceUploadScreen}
+        options={{ headerShown: false }}
+      />
+      <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_TIMELINE}
         component={TimelineScreen}
+        options={{ headerShown: false }}
+      />
+      <RecordsStack.Screen
+        name={RECORD_ROUTES.CONTRACT_ANALYSIS}
+        component={ContractAnalysisScreen}
         options={{ headerShown: false }}
       />
     </RecordsStack.Navigator>

@@ -38,22 +38,32 @@ export function NewCaseScreen({ navigation, route }) {
   }, [user, force]);
 
   const handleStart = async () => {
-    if (!selectedType || submitting) return;
+  if (!title.trim()) {
+    Alert.alert('알림', '기록 이름을 입력해주세요.');
+    return;
+  }
+  if (!selectedType) {
+    Alert.alert('알림', '사건 유형을 선택해주세요.');
+    return;
+  }
+  if (!user) {
+    Alert.alert('알림', '로그인이 필요합니다.');
+    return;
+  }
+  try {
     setSubmitting(true);
-    try {
-      const caseId = await createCase({
-        userId: user?.uid ?? null,
-        caseType: selectedType,
-        title: title.trim(),
-      });
-      navigation.navigate('ResponseGuide', { caseId, caseType: selectedType });
-    } catch (err) {
-      console.error('사건 생성 오류:', err);
-      Alert.alert('오류', '사건을 생성하지 못했습니다. 다시 시도해주세요.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const caseId = await createCase({
+      name: title.trim(),
+      caseType: selectedType,
+      userId: user.uid,
+    });
+    navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: selectedType });
+  } catch (e) {
+    Alert.alert('오류', '기록 생성에 실패했습니다.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (checking) {
     return (
