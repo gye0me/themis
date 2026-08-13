@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Platform, Share, Alert } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { AuthContext } from '../context/AuthContext';
-import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById } from '../services/firebaseService';
 import { buildQuestSteps } from '../services/responseGuideSteps';
 import { buildCaseReportHtml } from '../services/reportHtml';
@@ -149,7 +149,7 @@ export function TimelineScreen({ navigation, route }) {
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
             style={styles.newCaseBtn}
-            onPress={() => navigation.navigate(RECORD_ROUTES.START, { force: true })}
+            onPress={() => navigation.navigate(RECORD_ROUTES.START, { openForm: true })}
           >
             <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
           </TouchableOpacity>
@@ -239,7 +239,7 @@ export function TimelineScreen({ navigation, route }) {
               {activeFilter === 'all' && (
                 <TouchableOpacity
                   style={styles.uploadBtn}
-                  onPress={() => navigation.navigate('EvidenceUpload')}
+                  onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null })}
                 >
                   <Text style={styles.uploadBtnText}>증거 업로드하러 가기 →</Text>
                 </TouchableOpacity>
@@ -353,15 +353,27 @@ export function TimelineScreen({ navigation, route }) {
       )}
 
       {/* 플로팅 버튼 */}
+      {caseId && (
+        <TouchableOpacity
+          style={styles.floatingUploadBtn}
+          onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null })}
+        >
+          <Text style={styles.floatingUploadBtnText}>+ 증거</Text>
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
         style={styles.floatingBtn}
         onPress={() => {
+          if (caseId) {
+            navigation.navigate(EXPERT_ROUTES.GUIDE, { caseId, caseType: caseData?.caseType ?? null });
+            return;
+          }
           const contractRecord = records.find(r => r.evidenceType === 'contract');
-          navigation.navigate('ResponseGuide', {
-          record: contractRecord ?? null,
-          caseId: null,
-          caseType: null,
-      });
+          navigation.navigate(EXPERT_ROUTES.GUIDE, {
+            record: contractRecord ?? null,
+            caseId: null,
+            caseType: null,
+          });
         }}
       >
         <Text style={styles.floatingBtnText}>?</Text>
@@ -460,4 +472,11 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   floatingBtnText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
+  floatingUploadBtn: {
+    position: 'absolute', right: 16, bottom: 92,
+    backgroundColor: '#1E3A5F', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 10,
+    zIndex: 999,
+  },
+  floatingUploadBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
 });

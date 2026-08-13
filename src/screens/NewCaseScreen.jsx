@@ -1,43 +1,61 @@
-import { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { useCallback, useContext, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { createCase, getCasesByUser } from '../services/firebaseService';
 import { CASE_TYPES, CASE_TYPE_META } from '../services/responseGuideSteps';
 import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 
+function formatCaseDate(createdAt) {
+  const date = createdAt?.toDate ? createdAt.toDate() : createdAt ? new Date(createdAt) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function NewCaseScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
-  const force = route?.params?.force ?? false; // "+새 사건" 등으로 명시적으로 들어온 경우 true
+  const [cases, setCases] = useState([]);
+  const [loadingCases, setLoadingCases] = useState(true);
+  const [showForm, setShowForm] = useState(!!route?.params?.openForm);
   const [selectedType, setSelectedType] = useState(null);
   const [title, setTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [checking, setChecking] = useState(!force);
 
-  // 기록 탭으로 들어왔을 때, 진행 중인 사건이 있으면 그 사건 타임라인으로 바로 이동
+  // 다른 화면(타임라인/증거업로드)의 "+ 새 사건"에서 openForm: true로 들어온 경우,
+  // 이미 마운트되어 있던 화면 인스턴스라도 폼이 바로 열리도록 params 변화를 감지
   useEffect(() => {
-    if (force || !user) {
-      setChecking(false);
+    if (route?.params?.openForm) {
+      setShowForm(true);
+      navigation.setParams({ openForm: undefined });
+    }
+  }, [route?.params?.openForm]);
+
+  const loadCases = useCallback(() => {
+    if (!user) {
+      setLoadingCases(false);
       return;
     }
-    (async () => {
-      try {
-        const cases = await getCasesByUser(user.uid);
-        if (cases.length > 0) {
-          const latest = [...cases].sort(
-            (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
-          )[0];
-          navigation.replace(RECORD_ROUTES.EVIDENCE_TIMELINE, { caseId: latest.id });
-          return;
-        }
-      } catch (err) {
-        console.error('사건 조회 오류:', err);
-      } finally {
-        setChecking(false);
-      }
-    })();
-  }, [user, force]);
+    setLoadingCases(true);
+    getCasesByUser(user.uid)
+      .then((list) => {
+        const sorted = [...list].sort(
+          (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+        );
+        setCases(sorted);
+      })
+      .catch((err) => console.error('사건 목록 조회 오류:', err))
+      .finally(() => setLoadingCases(false));
+  }, [user]);
+
+  // 화면에 다시 돌아올 때마다(새 사건 생성 후 등) 목록 갱신
+  useFocusEffect(
+    useCallback(() => {
+      loadCases();
+    }, [loadCases])
+  );
 
   const handleStart = async () => {
+<<<<<<< Updated upstream
     if (!selectedType || submitting) return;
     setSubmitting(true);
     try {
@@ -50,10 +68,40 @@ export function NewCaseScreen({ navigation, route }) {
     } catch (err) {
       console.error('사건 생성 오류:', err);
       Alert.alert('오류', '사건을 생성하지 못했습니다. 다시 시도해주세요.');
+=======
+    if (!title.trim()) {
+      Alert.alert('알림', '기록 이름을 입력해주세요.');
+      return;
+    }
+    if (!selectedType) {
+      Alert.alert('알림', '사건 유형을 선택해주세요.');
+      return;
+    }
+    if (!user) {
+      Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const caseId = await createCase({
+        userId: user.uid,
+        caseType: selectedType,
+        title: title.trim(),
+      });
+      setShowForm(false);
+      setSelectedType(null);
+      setTitle('');
+      // 생성 직후 바로 그 사건의 증거 업로드로 진입
+      navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: selectedType });
+    } catch (err) {
+      console.error('사건 생성 오류:', err);
+      Alert.alert('오류', '사건 생성에 실패했습니다.');
+>>>>>>> Stashed changes
     } finally {
       setSubmitting(false);
     }
   };
+<<<<<<< Updated upstream
 
   if (checking) {
     return (
@@ -62,68 +110,129 @@ export function NewCaseScreen({ navigation, route }) {
       </View>
     );
   }
+=======
+>>>>>>> Stashed changes
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.appbar}>
+        <View>
+          <Text style={styles.title}>내 사건</Text>
+          <Text style={styles.subtitle}>{cases.length > 0 ? `${cases.length}건 진행 중` : '기록을 시작해 보세요'}</Text>
+        </View>
         <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK);
-            }
-          }}
+          style={styles.newBtn}
+          onPress={() => setShowForm((v) => !v)}
         >
-          <Text style={styles.back}>‹ 뒤로</Text>
+          <Text style={styles.newBtnText}>{showForm ? '취소' : '+ 새 사건'}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>새 기록 시작하기</Text>
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.sectionLabel}>어떤 피해를 겪고 계신가요?</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* 새 사건 추가 폼 (토글) */}
+        {showForm && (
+          <View style={styles.formCard}>
+            <Text style={styles.sectionLabel}>어떤 피해를 겪고 계신가요?</Text>
+            <View style={styles.typeGrid}>
+              {CASE_TYPES.map((type) => {
+                const meta = CASE_TYPE_META[type];
+                const isSelected = selectedType === type;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.typeCard, isSelected && styles.typeCardSelected]}
+                    onPress={() => setSelectedType(type)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.typeIcon}>{meta.icon}</Text>
+                    <Text style={[styles.typeLabel, isSelected && styles.typeLabelSelected]}>
+                      {meta.label}
+                    </Text>
+                    <Text style={styles.typeDesc}>{meta.desc}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-        <View style={styles.typeGrid}>
-          {CASE_TYPES.map((type) => {
-            const meta = CASE_TYPE_META[type];
-            const isSelected = selectedType === type;
+            <Text style={styles.sectionLabel}>사건 이름</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="예: OO빌라 전세 계약"
+              placeholderTextColor="#94A3B8"
+              value={title}
+              onChangeText={setTitle}
+            />
+
+            <TouchableOpacity
+              style={[styles.startBtn, (!selectedType || !title.trim()) && styles.startBtnDisabled]}
+              onPress={handleStart}
+              disabled={!selectedType || !title.trim() || submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#F1F5F9" />
+              ) : (
+                <Text style={styles.startBtnText}>사건 생성하기 →</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 사건 카드 목록 */}
+        {loadingCases ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#1E3A5F" />
+          </View>
+        ) : cases.length === 0 && !showForm ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyIcon}>📂</Text>
+            <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowForm(true)}>
+              <Text style={styles.emptyBtnText}>+ 첫 사건 만들기</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          cases.map((c) => {
+            const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁', label: c.caseType ?? '기타' };
             return (
               <TouchableOpacity
-                key={type}
-                style={[styles.typeCard, isSelected && styles.typeCardSelected]}
-                onPress={() => setSelectedType(type)}
+                key={c.id}
+                style={styles.caseCard}
+                onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_TIMELINE, { caseId: c.id })}
                 activeOpacity={0.8}
               >
-                <Text style={styles.typeIcon}>{meta.icon}</Text>
-                <Text style={[styles.typeLabel, isSelected && styles.typeLabelSelected]}>
-                  {meta.label}
-                </Text>
-                <Text style={styles.typeDesc}>{meta.desc}</Text>
+                <Text style={styles.caseIcon}>{meta.icon}</Text>
+                <View style={styles.caseBody}>
+                  <Text style={styles.caseTitle}>{c.title || '이름 없는 사건'}</Text>
+                  <Text style={styles.caseMeta}>
+                    {meta.label}{formatCaseDate(c.createdAt) ? ` · ${formatCaseDate(c.createdAt)}` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.caseArrow}>›</Text>
               </TouchableOpacity>
             );
-          })}
-        </View>
+          })
+        )}
 
-        <Text style={styles.sectionLabel}>사건 이름 (선택)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="예: OO빌라 전세 계약"
-          placeholderTextColor="#94A3B8"
-          value={title}
-          onChangeText={setTitle}
-        />
+        <View style={{ height: 100 }} />
+      </ScrollView>
 
-        <TouchableOpacity
-          style={[styles.startBtn, !selectedType && styles.startBtnDisabled]}
-          onPress={handleStart}
-          disabled={!selectedType || submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#F1F5F9" />
-          ) : (
-            <Text style={styles.startBtnText}>시작하기 →</Text>
-          )}
+      {/* 하단 네비바 */}
+      <View style={styles.navbar}>
+        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
+          <Text style={styles.navIconActive}>✏️</Text>
+          <Text style={styles.navLabelActive}>기록</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}>
+          <Text style={styles.navIcon}>👥</Text>
+          <Text style={styles.navLabel}>전문가</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
+          <Text style={styles.navIcon}>💬</Text>
+          <Text style={styles.navLabel}>채팅</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}>
+          <Text style={styles.navIcon}>🏠</Text>
+          <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -132,15 +241,20 @@ export function NewCaseScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#F1F5F9' },
-  appbar: { backgroundColor: '#1E3A5F', padding: 16, paddingTop: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn: { paddingVertical: 8, paddingRight: 16 },
-  back: { color: '#7B9EC5', fontSize: 16 },
-  title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
+  appbar: {
+    backgroundColor: '#1E3A5F', padding: 16, paddingTop: 44,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  title: { color: '#F1F5F9', fontSize: 17, fontWeight: '600' },
+  subtitle: { color: '#7B9EC5', fontSize: 11, marginTop: 2 },
+  newBtn: { backgroundColor: '#3B7DD8', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8 },
+  newBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   content: { flex: 1, padding: 16 },
   sectionLabel: { color: '#334155', fontSize: 13, fontWeight: '600', marginBottom: 10, marginTop: 8 },
+  formCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 16 },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
   typeCard: {
-    width: '48%', backgroundColor: '#FFFFFF', borderRadius: 12,
+    width: '48%', backgroundColor: '#F8FAFC', borderRadius: 12,
     padding: 14, borderWidth: 1.5, borderColor: '#E2E8F0', gap: 4,
   },
   typeCardSelected: { borderColor: '#1E3A5F', backgroundColor: '#EFF6FF' },
@@ -150,13 +264,36 @@ const styles = StyleSheet.create({
   typeDesc: { color: '#64748B', fontSize: 10 },
   input: {
     borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8,
-    padding: 12, fontSize: 13, color: '#0F172A', backgroundColor: '#FFFFFF',
-    marginBottom: 24,
+    padding: 12, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC',
+    marginBottom: 16,
   },
-  startBtn: {
-    backgroundColor: '#1E3A5F', borderRadius: 10,
-    padding: 15, alignItems: 'center',
-  },
+  startBtn: { backgroundColor: '#1E3A5F', borderRadius: 10, padding: 15, alignItems: 'center' },
   startBtnDisabled: { backgroundColor: '#CBD5E1' },
   startBtnText: { color: '#F1F5F9', fontSize: 14, fontWeight: '600' },
+  loadingBox: { alignItems: 'center', paddingVertical: 40 },
+  emptyBox: { alignItems: 'center', paddingVertical: 48, gap: 10 },
+  emptyIcon: { fontSize: 40 },
+  emptyText: { color: '#94A3B8', fontSize: 13 },
+  emptyBtn: { backgroundColor: '#1E3A5F', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, marginTop: 4 },
+  emptyBtnText: { color: '#F1F5F9', fontSize: 12, fontWeight: '600' },
+  caseCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  caseIcon: { fontSize: 26 },
+  caseBody: { flex: 1 },
+  caseTitle: { color: '#0F172A', fontSize: 14, fontWeight: '700' },
+  caseMeta: { color: '#94A3B8', fontSize: 11, marginTop: 2 },
+  caseArrow: { color: '#CBD5E1', fontSize: 20 },
+  navbar: {
+    flexDirection: 'row', backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5, borderTopColor: '#E2E8F0',
+    paddingVertical: 8, paddingHorizontal: 8,
+  },
+  navItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
+  navItemActive: { backgroundColor: '#0F1F3D', borderRadius: 8, paddingVertical: 6 },
+  navIcon: { fontSize: 20 },
+  navIconActive: { fontSize: 20 },
+  navLabel: { fontSize: 10, color: '#94A3B8' },
+  navLabelActive: { fontSize: 10, color: '#FFFFFF', fontWeight: '500' },
 });
