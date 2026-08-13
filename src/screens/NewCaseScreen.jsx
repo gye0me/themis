@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
@@ -12,23 +12,14 @@ function formatCaseDate(createdAt) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function NewCaseScreen({ navigation, route }) {
+export function NewCaseScreen({ navigation }) {
   const { user } = useContext(AuthContext);
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(true);
-  const [showForm, setShowForm] = useState(!!route?.params?.openForm);
+  const [showForm, setShowForm] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
   const [title, setTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  // 다른 화면(타임라인/증거업로드)의 "+ 새 사건"에서 openForm: true로 들어온 경우,
-  // 이미 마운트되어 있던 화면 인스턴스라도 폼이 바로 열리도록 params 변화를 감지
-  useEffect(() => {
-    if (route?.params?.openForm) {
-      setShowForm(true);
-      navigation.setParams({ openForm: undefined });
-    }
-  }, [route?.params?.openForm]);
 
   const loadCases = useCallback(() => {
     if (!user) {
@@ -55,20 +46,6 @@ export function NewCaseScreen({ navigation, route }) {
   );
 
   const handleStart = async () => {
-<<<<<<< Updated upstream
-    if (!selectedType || submitting) return;
-    setSubmitting(true);
-    try {
-      const caseId = await createCase({
-        userId: user?.uid ?? null,
-        caseType: selectedType,
-        title: title.trim(),
-      });
-      navigation.navigate('ResponseGuide', { caseId, caseType: selectedType });
-    } catch (err) {
-      console.error('사건 생성 오류:', err);
-      Alert.alert('오류', '사건을 생성하지 못했습니다. 다시 시도해주세요.');
-=======
     if (!title.trim()) {
       Alert.alert('알림', '기록 이름을 입력해주세요.');
       return;
@@ -96,22 +73,10 @@ export function NewCaseScreen({ navigation, route }) {
     } catch (err) {
       console.error('사건 생성 오류:', err);
       Alert.alert('오류', '사건 생성에 실패했습니다.');
->>>>>>> Stashed changes
     } finally {
       setSubmitting(false);
     }
   };
-<<<<<<< Updated upstream
-
-  if (checking) {
-    return (
-      <View style={[styles.wrapper, { alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color="#1E3A5F" />
-      </View>
-    );
-  }
-=======
->>>>>>> Stashed changes
 
   return (
     <View style={styles.wrapper}>
