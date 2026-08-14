@@ -72,7 +72,7 @@ function buildEvidenceCard(record) {
     mediaHtml = `<video controls class="thumb" src="${escapeHtml(record.downloadURL)}"></video>`;
   }
 
-  const transcript = record.transcript ?? record.whisperText ?? null;
+  const transcript = record.transcript ?? record.transcribedText ?? null;
   const aiSummary = record.aiSummary ?? record.analysisSummary ?? null;
 
   return `
@@ -80,7 +80,7 @@ function buildEvidenceCard(record) {
     <div class="card-meta">📅 ${escapeHtml(dateStr)} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
     <div class="card-type">${typeLabel}${record.title ? ` — ${escapeHtml(record.title)}` : ''}</div>
     ${mediaHtml ? `<div class="media">${mediaHtml}</div>` : ''}
-    ${transcript ? `<div class="transcript">📝 Whisper 텍스트: ${escapeHtml(transcript)}</div>` : ''}
+    ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
     ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
     ${!aiSummary && record.note ? `<div class="summary">📝 메모: ${escapeHtml(record.note)}</div>` : ''}
     <div class="hash">🔐 SHA-256(문서 무결성): ${evidenceHash(record)}</div>

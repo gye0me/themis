@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord, getEvidenceRecords, transcribeAudio } from '../services/firebaseService';
+import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
+import { transcribeAudioClova } from '../services/clovaSpeechService';
 
 const TYPE_CONFIG = {
   image:    { icon: '📷', color: '#EA580C' },
@@ -81,9 +82,9 @@ export function EvidenceUploadScreen({ navigation }) {
       let note = '';
       if (evidenceType === 'audio') {
         try {
-          note = await transcribeAudio(file.uri, file.mimeType);
+          note = await transcribeAudioClova(file.uri, file.mimeType);
         } catch (e) {
-          console.warn('Whisper 변환 실패:', e.message);
+          console.warn('클로바 변환 실패:', e.message);
         }
       }
 
