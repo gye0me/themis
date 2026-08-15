@@ -1,7 +1,9 @@
-import { useCallback, useContext, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
+import * as SMS from 'expo-sms';
 import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
 import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
@@ -13,6 +15,20 @@ const EVIDENCE_TILES = [
   { type: 'video', label: '영상', bg: '#FFF7ED', color: '#C2410C' },
   { type: 'contract', label: '계약서', bg: '#F0FDF4', color: '#15803D' },
 ];
+
+// 데드맨 스위치: 앱이 켜져있는(포그라운드) 동안만 정확히 동작한다.
+// Expo Go 환경에서는 진짜 백그라운드 타이머(TaskManager 등)를 쓸 수 없어
+// 앱이 완전히 백그라운드/종료된 동안의 시간은 다음에 앱을 열었을 때(포커스 시점)
+// 한 번에 몰아서 확인하는 방식으로 최대한 보완한다 — 완벽한 대체는 아니다.
+const DEADMAN_TIMEOUT_MS = 30 * 60 * 1000;
+
+function formatCountdown(ms) {
+  const clamped = Math.max(0, ms);
+  const totalSec = Math.floor(clamped / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 function formatJoinDate(ts) {
   if (!ts) return null;
@@ -40,6 +56,122 @@ export function HomeScreen({ navigation }) {
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [savingContact, setSavingContact] = useState(false);
+  const [lastCheckIn, setLastCheckIn] = useState(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const triggeringRef = useRef(false);
+
+  const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '사용자';
+  const joinDate = formatJoinDate(profile?.createdAt ?? profile?.joined_at);
+
+  const toggleDeadman = async (next) => {
+    setDeadmanEnabled(next);
+    if (next && !contactName.trim()) {
+      // 켜는 순간 보호자 연락처가 없으면 바로 입력창을 띄운다
+      setEditingContact(true);
+      return;
+    }
+    if (!user) return;
+    const checkInAt = next ? Date.now() : lastCheckIn;
+    if (next) setLastCheckIn(checkInAt);
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: {
+          enabled: next,
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim(),
+          lastCheckIn: checkInAt,
+        },
+      });
+      await refreshProfile?.();
+    } catch (err) {
+      console.error('데드맨 스위치 저장 오류:', err);
+      Alert.alert('오류', '설정을 저장하지 못했습니다.');
+    }
+  };
+
+  const saveContact = async () => {
+    if (!user) return;
+    if (!contactName.trim() || !contactPhone.trim()) {
+      Alert.alert('알림', '보호자 이름과 연락처를 입력해주세요.');
+      return;
+    }
+    setSavingContact(true);
+    const checkInAt = Date.now();
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: {
+          enabled: deadmanEnabled,
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim(),
+          lastCheckIn: checkInAt,
+        },
+      });
+      setLastCheckIn(checkInAt);
+      await refreshProfile?.();
+      setEditingContact(false);
+    } catch (err) {
+      console.error('보호자 연락처 저장 오류:', err);
+      Alert.alert('오류', '저장하지 못했습니다.');
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
+  // "저 괜찮아요" 체크인 — 카운트다운을 30분으로 다시 채운다.
+  const checkIn = async () => {
+    const checkInAt = Date.now();
+    setLastCheckIn(checkInAt);
+    if (!user) return;
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: { enabled: deadmanEnabled, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn: checkInAt },
+      });
+    } catch (err) {
+      console.error('체크인 저장 오류:', err);
+    }
+  };
+
+  // 30분 무응답 시간 초과 — GPS 위치를 담아 보호자에게 보낼 문자를 미리 채워서 연다.
+  // (OS 정책상 앱이 사용자 동의 없이 문자를 "완전 자동"으로 보낼 수는 없어, 마지막 전송 버튼만 사용자가 누르면 된다.)
+  const triggerDeadmanAlert = async () => {
+    if (triggeringRef.current) return;
+    triggeringRef.current = true;
+    try {
+      // 재발동 방지를 위해 즉시 끄고 저장 (사용자가 다시 켜면 재무장)
+      setDeadmanEnabled(false);
+      if (user) {
+        await updateUserProfile(user.uid, {
+          deadmanSwitch: { enabled: false, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn },
+        }).catch((err) => console.error('데드맨 스위치 비활성화 저장 오류:', err));
+      }
+
+      let locationLine = '위치 정보 없음';
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          locationLine = `https://maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
+        }
+      } catch (err) {
+        console.warn('위치 조회 실패:', err.message);
+      }
+
+      const message = `[Themis 위급 알림] ${displayName}님이 30분간 앱에 응답이 없습니다.\n마지막 위치: ${locationLine}\n확인 부탁드립니다.`;
+
+      const available = await SMS.isAvailableAsync();
+      if (!available || !contactPhone) {
+        Alert.alert(
+          '무응답 감지됨',
+          `30분간 체크인이 없었어요.\n\n${message}\n\n(이 기기에서 문자 전송을 사용할 수 없어 자동으로 열지 못했습니다.)`
+        );
+        return;
+      }
+      await SMS.sendSMSAsync([contactPhone], message);
+      Alert.alert('알림 발송 준비 완료', '문자 앱에서 전송 버튼을 눌러 마무리해주세요. 데드맨 스위치는 안전을 위해 꺼졌습니다 — 필요하면 다시 켜주세요.');
+    } finally {
+      triggeringRef.current = false;
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -88,12 +220,39 @@ export function HomeScreen({ navigation }) {
       setDeadmanEnabled(Boolean(saved?.enabled));
       setContactName(saved?.contactName ?? '');
       setContactPhone(saved?.contactPhone ?? '');
+      const savedCheckIn = saved?.lastCheckIn?.toMillis ? saved.lastCheckIn.toMillis() : (saved?.lastCheckIn ?? null);
+      setLastCheckIn(savedCheckIn);
+      setNowTick(Date.now());
 
       return () => {
         active = false;
       };
     }, [user, profile?.deadmanSwitch])
   );
+
+  // 앱이 완전히 꺼졌다/백그라운드였다가 다시 켜졌을 때 — 그동안 흐른 시간을 한 번에 확인한다.
+  // (앱이 실제로 꺼져있는 동안엔 이 감지 자체가 동작하지 않는다 — 다시 열었을 때만 뒤늦게 확인 가능)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNowTick(Date.now());
+    });
+    return () => sub.remove();
+  }, []);
+
+  // 1초마다 카운트다운 갱신 + 시간 초과 시 알림 발동 (앱이 포그라운드일 때만 동작)
+  useEffect(() => {
+    if (!deadmanEnabled || !lastCheckIn) return;
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [deadmanEnabled, lastCheckIn]);
+
+  useEffect(() => {
+    if (!deadmanEnabled || !lastCheckIn) return;
+    if (nowTick - lastCheckIn >= DEADMAN_TIMEOUT_MS) {
+      triggerDeadmanAlert();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nowTick, deadmanEnabled, lastCheckIn]);
 
   const handleLogout = () => {
     Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
@@ -116,49 +275,6 @@ export function HomeScreen({ navigation }) {
   const totalEvidence = Object.values(evidenceByCase).reduce((sum, v) => sum + (v?.total ?? 0), 0);
   const activeCase = cases[0] ?? null;
   const restCases = cases.slice(1);
-
-  const toggleDeadman = async (next) => {
-    setDeadmanEnabled(next);
-    if (next && !contactName.trim()) {
-      // 켜는 순간 보호자 연락처가 없으면 바로 입력창을 띄운다
-      setEditingContact(true);
-      return;
-    }
-    if (!user) return;
-    try {
-      await updateUserProfile(user.uid, {
-        deadmanSwitch: { enabled: next, contactName: contactName.trim(), contactPhone: contactPhone.trim() },
-      });
-      await refreshProfile?.();
-    } catch (err) {
-      console.error('데드맨 스위치 저장 오류:', err);
-      Alert.alert('오류', '설정을 저장하지 못했습니다.');
-    }
-  };
-
-  const saveContact = async () => {
-    if (!user) return;
-    if (!contactName.trim() || !contactPhone.trim()) {
-      Alert.alert('알림', '보호자 이름과 연락처를 입력해주세요.');
-      return;
-    }
-    setSavingContact(true);
-    try {
-      await updateUserProfile(user.uid, {
-        deadmanSwitch: { enabled: deadmanEnabled, contactName: contactName.trim(), contactPhone: contactPhone.trim() },
-      });
-      await refreshProfile?.();
-      setEditingContact(false);
-    } catch (err) {
-      console.error('보호자 연락처 저장 오류:', err);
-      Alert.alert('오류', '저장하지 못했습니다.');
-    } finally {
-      setSavingContact(false);
-    }
-  };
-
-  const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '사용자';
-  const joinDate = formatJoinDate(profile?.createdAt ?? profile?.joined_at);
 
   return (
     <SafeAreaView style={styles.wrapper}>
@@ -343,7 +459,17 @@ export function HomeScreen({ navigation }) {
         <View style={styles.deadman}>
           <View style={styles.deadmanLeft}>
             <Text style={styles.deadmanTitle}>위급 상황 자동 알림</Text>
-            <Text style={styles.deadmanSub}>30분 무응답 시 보호자에게 GPS + 증거 자동 전송</Text>
+            <Text style={styles.deadmanSub}>30분간 "체크인"이 없으면 보호자에게 위치와 함께 문자 전송을 준비해요</Text>
+            {deadmanEnabled && !editingContact && (
+              <View style={styles.deadmanCountdownRow}>
+                <Text style={styles.deadmanCountdown}>
+                  {formatCountdown(DEADMAN_TIMEOUT_MS - (nowTick - (lastCheckIn ?? nowTick)))}
+                </Text>
+                <TouchableOpacity style={styles.checkInBtn} onPress={checkIn}>
+                  <Text style={styles.checkInBtnText}>저 괜찮아요 ✓</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {editingContact ? (
               <View style={styles.deadmanEditBox}>
                 <TextInput
@@ -380,7 +506,11 @@ export function HomeScreen({ navigation }) {
                 </TouchableOpacity>
               </>
             )}
-            <Text style={styles.deadmanNote}>* 연락처 저장까지 지원돼요. 무응답 감지·자동 SMS 발송은 개발 중입니다.</Text>
+            <Text style={styles.deadmanNote}>
+              * 앱이 켜져있는 동안 실제로 카운트다운돼요. 시간 초과 시 문자 앱이 위치와 함께 미리 채워져 열리고,
+              마지막 전송은 직접 눌러야 해요(운영체제 정책). 앱을 완전히 꺼두면 그동안은 감지가 안 되고,
+              다시 열었을 때 몰아서 확인해요 — 완전한 백그라운드 감지는 아직 지원하지 않습니다.
+            </Text>
           </View>
           <TouchableOpacity
             style={deadmanEnabled ? styles.toggleOn : styles.toggleOff}
@@ -539,6 +669,15 @@ const styles = StyleSheet.create({
   deadmanTitle: { color: '#F87171', fontSize: 12, fontWeight: '600' },
   deadmanSub: { color: '#4A6FA5', fontSize: 10 },
   deadmanContact: { color: '#4A6FA5', fontSize: 10, marginTop: 2 },
+  deadmanCountdownRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 4 },
+  deadmanCountdown: {
+    color: '#F1F5F9', fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'],
+  },
+  checkInBtn: {
+    backgroundColor: '#16A34A', borderRadius: 14,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  checkInBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   deadmanChange: { color: '#3B7DD8', fontSize: 10, marginTop: 4, fontWeight: '600' },
   deadmanCancel: { color: '#8595AC', fontSize: 10, marginTop: 4 },
   deadmanNote: { color: '#4A6FA5', fontSize: 9, marginTop: 8, fontStyle: 'italic' },
