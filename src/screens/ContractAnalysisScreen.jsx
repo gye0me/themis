@@ -309,7 +309,7 @@ export default function ContractAnalysisScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0b1220" },
-  header: { backgroundColor: "#1E3A5F", paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  header: { backgroundColor: "#1E3A5F", paddingHorizontal: 16, paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { color: "#fff", fontSize: 28, marginRight: 8 },
   headerTitle: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   headerSub: { color: "#8da3c1", fontSize: 11, marginTop: 2 },

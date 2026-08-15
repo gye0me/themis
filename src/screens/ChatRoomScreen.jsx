@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import {
   StyleSheet, Text, View, ScrollView,
-  TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
+  TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const MESSAGES = [
+const INITIAL_MESSAGES = [
   {
     id: 1,
     sender: '딱',
@@ -50,9 +52,26 @@ export function ChatRoomScreen({ navigation, route }) {
   const roomName = route?.params?.roomName ?? '전세사기 피해자 모임';
   const memberCount = route?.params?.memberCount ?? 247;
 
+  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const [draft, setDraft] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+
+  const sendMessage = () => {
+    const text = draft.trim();
+    if (!text) return;
+    const now = new Date();
+    const hour = now.getHours();
+    const ampm = hour < 12 ? '오전' : '오후';
+    const hour12 = hour % 12 || 12;
+    const time = `${ampm} ${hour12}:${String(now.getMinutes()).padStart(2, '0')}`;
+    setMessages((prev) => [...prev, { id: prev.length + 1, text, time, isMine: true }]);
+    setDraft('');
+  };
+
   return (
+    <SafeAreaView style={styles.wrapper}>
     <KeyboardAvoidingView
-      style={styles.wrapper}
+      style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
@@ -97,7 +116,7 @@ export function ChatRoomScreen({ navigation, route }) {
         </View>
 
         {/* 메시지 목록 */}
-        {MESSAGES.map((msg) => {
+        {messages.map((msg) => {
           if (msg.isMine) {
             return (
               <View key={msg.id} style={styles.myMsgRow}>
@@ -149,8 +168,8 @@ export function ChatRoomScreen({ navigation, route }) {
           <View style={styles.infoCardRow}>
             <Text style={styles.infoCardLabel}>같은 집주인 피해자</Text>
             <Text style={styles.infoCardSub}>표로 10명</Text>
-            <TouchableOpacity style={styles.confirmBtn}>
-              <Text style={styles.confirmBtnText}>3명 확인</Text>
+            <TouchableOpacity style={styles.confirmBtn} onPress={() => setConfirmed(true)}>
+              <Text style={styles.confirmBtnText}>{confirmed ? '확인됨 ✓' : '3명 확인'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -158,7 +177,7 @@ export function ChatRoomScreen({ navigation, route }) {
         {/* 유사 판례 */}
         <View style={styles.infoCard}>
           <Text style={styles.infoCardTitle}>유사 판례 5건 발견</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert('유사 판례', '판례 상세 화면은 아직 준비 중이에요. 국가법령정보 API 연동 후 제공될 예정입니다.')}>
             <Text style={styles.precedentLink}>비슷한 사례에서 피해자가 승소한 판례를 확인하세요 →</Text>
           </TouchableOpacity>
         </View>
@@ -172,13 +191,17 @@ export function ChatRoomScreen({ navigation, route }) {
           style={styles.input}
           placeholder="메시지 입력..."
           placeholderTextColor="#94A3B8"
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={sendMessage}
           multiline
         />
-        <TouchableOpacity style={styles.sendBtn}>
+        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} disabled={!draft.trim()}>
           <Text style={styles.sendIcon}>▶</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

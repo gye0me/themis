@@ -1,5 +1,7 @@
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById } from '../services/firebaseService';
@@ -57,13 +59,17 @@ export function TimelineScreen({ navigation, route }) {
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    fetchRecords();
-  }, [user]);
+  // 화면에 다시 돌아올 때마다(증거 업로드 후 뒤로가기 등) 목록을 새로 불러온다.
+  // useEffect(마운트 1회)만 쓰면 업로드 후 뒤로가기로 돌아왔을 때 기존 목록이 그대로 남아있는 문제가 있었다.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      fetchRecords();
+    }, [user, caseId])
+  );
 
   async function fetchRecords() {
     setLoading(true);
@@ -93,12 +99,21 @@ export function TimelineScreen({ navigation, route }) {
 
   const summary = buildSummary(records);
   const totalCount = records.length;
+  const hashedCount = records.filter((r) => r.contentHash).length;
 
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper}>
+      <View style={styles.statusbar}>
+        <Text style={styles.statusTime}>9:41</Text>
+        <Text style={styles.statusApp}>Themis</Text>
+      </View>
       {/* 앱바 */}
       <View style={styles.appbar}>
-        <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK)}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
+          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK)}
+        >
           <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
         <View>
@@ -112,7 +127,11 @@ export function TimelineScreen({ navigation, route }) {
           >
             <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shareBtn}>
+          <TouchableOpacity
+            style={styles.shareBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={handleOpenReport}
+          >
             <Text style={styles.shareBtnText}>↗</Text>
           </TouchableOpacity>
         </View>
@@ -292,8 +311,12 @@ export function TimelineScreen({ navigation, route }) {
 
               {/* SHA-256 */}
               <View style={styles.hashCard}>
-                <Text style={styles.hashLabel}>무결성 해시 (SHA-256) — 수정 불가 보관</Text>
-                <Text style={styles.hashValue}>a3f8c2d1...e9b4 · 검증됨 ✓</Text>
+                <Text style={styles.hashLabel}>무결성 해시 (SHA-256) — 파일별 자동 계산</Text>
+                <Text style={styles.hashValue}>
+                  {totalCount === 0
+                    ? '증거 없음'
+                    : `${hashedCount}/${totalCount}건 해시 확인됨${hashedCount === totalCount ? ' ✓' : ''}`}
+                </Text>
               </View>
 
               {/* 보고서 미리보기 + 다운로드 화면으로 이동 */}
@@ -333,17 +356,24 @@ export function TimelineScreen({ navigation, route }) {
       >
         <Text style={styles.floatingBtnText}>?</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
+  statusbar: {
+    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  statusTime: { color: '#6B84A8', fontSize: 12 },
+  statusApp: { color: '#6B84A8', fontSize: 12 },
   appbar: {
-    backgroundColor: '#1E3A5F', paddingTop: 44, paddingBottom: 12,
+    backgroundColor: '#1E3A5F', paddingTop: 16, paddingBottom: 14,
     paddingHorizontal: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'space-between',
   },
+  backBtn: { paddingVertical: 4, paddingRight: 6 },
   back: { color: '#7B9EC5', fontSize: 24 },
   title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
   subtitle: { color: '#7B9EC5', fontSize: 11 },
