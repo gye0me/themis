@@ -4,10 +4,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
+import * as Notifications from 'expo-notifications';
 import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
 import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
 import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
+import {
+  syncDeadmanLocalState,
+  readDeadmanTriggeredFlag,
+  registerDeadmanBackgroundTask,
+  unregisterDeadmanBackgroundTask,
+} from '../services/deadmanBackgroundTask';
+
+// 앱이 백그라운드에 있어도 알림이 뜨도록 설정 (데드맨 스위치 초과 알림용)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 const EVIDENCE_TILES = [
   { type: 'image', label: '사진', bg: '#EFF6FF', color: '#1D4ED8' },
@@ -16,10 +34,11 @@ const EVIDENCE_TILES = [
   { type: 'contract', label: '계약서', bg: '#F0FDF4', color: '#15803D' },
 ];
 
-// 데드맨 스위치: 앱이 켜져있는(포그라운드) 동안만 정확히 동작한다.
-// Expo Go 환경에서는 진짜 백그라운드 타이머(TaskManager 등)를 쓸 수 없어
-// 앱이 완전히 백그라운드/종료된 동안의 시간은 다음에 앱을 열었을 때(포커스 시점)
-// 한 번에 몰아서 확인하는 방식으로 최대한 보완한다 — 완벽한 대체는 아니다.
+// 데드맨 스위치: 포그라운드에서는 1초 단위로 정확히 카운트다운한다.
+// 앱이 백그라운드에 있는 동안은 deadmanBackgroundTask.js에 등록된 백그라운드 작업(EAS 개발
+// 빌드에서만 동작, Expo Go에서는 무시됨)이 최소 15분 간격으로 깨어나 초과 여부를 확인하고,
+// 초과 시 알림을 띄운다 — OS가 타이밍을 보장하지 않아 "정확히 30분"은 아니고,
+// 앱이 완전히 종료된 동안엔 그마저도 안 돌 수 있다는 한계는 여전히 남아있다.
 const DEADMAN_TIMEOUT_MS = 30 * 60 * 1000;
 
 function formatCountdown(ms) {
@@ -83,6 +102,19 @@ export function HomeScreen({ navigation }) {
         },
       });
       await refreshProfile?.();
+      await syncDeadmanLocalState({ enabled: next, lastCheckIn: checkInAt, contactName, contactPhone });
+      if (next) {
+        await Notifications.requestPermissionsAsync().catch(() => {});
+        const ok = await registerDeadmanBackgroundTask();
+        if (!ok) {
+          Alert.alert(
+            '알림',
+            'Expo Go에서는 백그라운드 감지가 동작하지 않아요. 앱이 켜져있는 동안만 카운트다운돼요.\n(EAS 개발 빌드로 실행하면 백그라운드에서도 감지됩니다.)'
+          );
+        }
+      } else {
+        await unregisterDeadmanBackgroundTask();
+      }
     } catch (err) {
       console.error('데드맨 스위치 저장 오류:', err);
       Alert.alert('오류', '설정을 저장하지 못했습니다.');
@@ -108,6 +140,11 @@ export function HomeScreen({ navigation }) {
       });
       setLastCheckIn(checkInAt);
       await refreshProfile?.();
+      await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone });
+      if (deadmanEnabled) {
+        await Notifications.requestPermissionsAsync().catch(() => {});
+        await registerDeadmanBackgroundTask();
+      }
       setEditingContact(false);
     } catch (err) {
       console.error('보호자 연락처 저장 오류:', err);
@@ -121,6 +158,7 @@ export function HomeScreen({ navigation }) {
   const checkIn = async () => {
     const checkInAt = Date.now();
     setLastCheckIn(checkInAt);
+    await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone });
     if (!user) return;
     try {
       await updateUserProfile(user.uid, {
@@ -139,6 +177,8 @@ export function HomeScreen({ navigation }) {
     try {
       // 재발동 방지를 위해 즉시 끄고 저장 (사용자가 다시 켜면 재무장)
       setDeadmanEnabled(false);
+      await unregisterDeadmanBackgroundTask();
+      await syncDeadmanLocalState({ enabled: false, lastCheckIn, contactName, contactPhone });
       if (user) {
         await updateUserProfile(user.uid, {
           deadmanSwitch: { enabled: false, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn },
@@ -230,13 +270,28 @@ export function HomeScreen({ navigation }) {
     }, [user, profile?.deadmanSwitch])
   );
 
-  // 앱이 완전히 꺼졌다/백그라운드였다가 다시 켜졌을 때 — 그동안 흐른 시간을 한 번에 확인한다.
-  // (앱이 실제로 꺼져있는 동안엔 이 감지 자체가 동작하지 않는다 — 다시 열었을 때만 뒤늦게 확인 가능)
+  // 앱이 백그라운드/완전종료 상태였다가 다시 켜졌을 때 — 그 사이 백그라운드 작업이
+  // 이미 초과를 감지해뒀다면(triggered 플래그) 바로 알림 흐름을 이어서 진행한다.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setNowTick(Date.now());
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active') return;
+      setNowTick(Date.now());
+      const alreadyTriggered = await readDeadmanTriggeredFlag().catch(() => false);
+      if (alreadyTriggered) triggerDeadmanAlert();
     });
     return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 알림을 탭해서 앱을 열었을 때도 같은 흐름으로 이어준다 (콜드 스타트 포함).
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.notification.request.content.data?.type === 'deadman-alert') {
+        triggerDeadmanAlert();
+      }
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 1초마다 카운트다운 갱신 + 시간 초과 시 알림 발동 (앱이 포그라운드일 때만 동작)

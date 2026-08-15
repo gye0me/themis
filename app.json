@@ -12,7 +12,8 @@
       "web"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.themis.app"
     },
     "plugins": [
       [
@@ -20,10 +21,20 @@
         {
           "microphonePermission": "증거로 남길 음성을 녹음하기 위해 마이크 접근 권한이 필요합니다."
         }
+      ],
+      "expo-background-task",
+      [
+        "expo-notifications",
+        {
+          "color": "#1E3A5F"
+        }
       ]
     ],
     "android": {
-      "permissions": ["RECORD_AUDIO"]
+      "package": "com.themis.app",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     }
   }
 }
