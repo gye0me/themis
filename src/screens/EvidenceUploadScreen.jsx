@@ -8,6 +8,7 @@ import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecor
 import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
+import { extractTextFromImage } from '../services/ocrService';
 
 const TYPE_CONFIG = {
   image:    { icon: '📷', color: '#EA580C' },
@@ -80,6 +81,12 @@ export function EvidenceUploadScreen({ navigation, route }) {
         } catch (e) {
           console.warn('클로바 변환 실패:', e.message);
           sttError = e.message;
+        }
+      } else if (evidenceType === 'image') {
+        try {
+          note = await extractTextFromImage(file.uri);
+        } catch (e) {
+          console.warn('OCR 변환 실패:', e.message);
         }
       }
 
