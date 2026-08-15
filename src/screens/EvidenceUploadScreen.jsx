@@ -5,7 +5,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord, transcribeAudio } from '../services/firebaseService';
+import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
+import { transcribeAudioClova } from '../services/clovaSpeechService';
+
+const TYPE_CONFIG = {
+  image:    { icon: '📷', color: '#EA580C' },
+  audio:    { icon: '🎙️', color: '#7C3AED' },
+  video:    { icon: '🎥', color: '#16A34A' },
+  text:     { icon: '📝', color: '#3B82F6' },
+  contract: { icon: '📑', color: '#0EA5E9' }, // contract 타입 추가
+  default:  { icon: '📄', color: '#94A3B8' },
+};
+
+function formatDate(capturedAt) {
+  // capturedAt 값이 유효하지 않을 경우를 대비하여 방어 코드 추가
+  if (!capturedAt || (typeof capturedAt.toDate !== 'function' && isNaN(new Date(capturedAt)))) {
+    return '날짜 정보 없음';
+  }
+
+  const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hour = date.getHours();
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hour < 12 ? '오전' : '오후';
+  const hour12 = hour % 12 || 12;
+  return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
+}
 
 const UPLOAD_TYPES = {
   image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
@@ -43,9 +69,9 @@ export function EvidenceUploadScreen({ navigation, route }) {
       let note = '';
       if (evidenceType === 'audio') {
         try {
-          note = await transcribeAudio(file.uri, file.mimeType);
+          note = await transcribeAudioClova(file.uri, file.mimeType);
         } catch (e) {
-          console.warn('Whisper 변환 실패:', e.message);
+          console.warn('클로바 변환 실패:', e.message);
         }
       }
 
