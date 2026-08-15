@@ -1,36 +1,11 @@
-import { useContext, useEffect, useState } from 'react';
-import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
+import { useContext, useState } from 'react';
+import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord, getEvidenceRecords, transcribeAudio } from '../services/firebaseService';
-
-const TYPE_CONFIG = {
-  image:    { icon: '📷', color: '#EA580C' },
-  audio:    { icon: '🎙️', color: '#7C3AED' },
-  video:    { icon: '🎥', color: '#16A34A' },
-  text:     { icon: '📝', color: '#3B82F6' },
-  contract: { icon: '📑', color: '#0EA5E9' }, // contract 타입 추가
-  default:  { icon: '📄', color: '#94A3B8' },
-};
-
-function formatDate(capturedAt) {
-  // capturedAt 값이 유효하지 않을 경우를 대비하여 방어 코드 추가
-  if (!capturedAt || (typeof capturedAt.toDate !== 'function' && isNaN(new Date(capturedAt)))) {
-    return '날짜 정보 없음';
-  }
-
-  const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hour = date.getHours();
-  const min = String(date.getMinutes()).padStart(2, '0');
-  const ampm = hour < 12 ? '오전' : '오후';
-  const hour12 = hour % 12 || 12;
-  return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
-}
+import { createEvidenceRecord, transcribeAudio } from '../services/firebaseService';
 
 const UPLOAD_TYPES = {
   image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
@@ -38,24 +13,11 @@ const UPLOAD_TYPES = {
   video: { mimeType: 'video/*',  title: '영상 증거',        label: '영상' },
 };
 
-export function EvidenceUploadScreen({ navigation }) {
+export function EvidenceUploadScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
+  const caseId = route?.params?.caseId ?? null;
+  const caseType = route?.params?.caseType ?? null;
   const [uploadingType, setUploadingType] = useState(null);
-  const [recentRecords, setRecentRecords] = useState([]);
-
-  useEffect(() => {
-    if (!user) return;
-    const load = () => { // 화면에 포커스될 때마다 실행될 함수
-      getEvidenceRecords(user.uid)
-        .then((data) => setRecentRecords(data.slice(0, 1)))
-        .catch(() => {});
-    };
-    load();
-    // 다른 화면(계약서 분석 등)에서 기록을 새로 남기고 돌아왔을 때도
-    // 최신 상태로 갱신하기 위해 focus 리스너 추가
-    const unsubscribe = navigation.addListener('focus', load);
-    return unsubscribe;
-  }, [user, navigation]);
 
   const handleUpload = async (evidenceType) => {
     const cfg = UPLOAD_TYPES[evidenceType];
@@ -89,7 +51,7 @@ export function EvidenceUploadScreen({ navigation }) {
 
       await createEvidenceRecord({
         userId: user?.uid ?? null,
-        caseId: 'case_12345',
+        caseId: caseId ?? 'general',
         title: cfg.title,
         evidenceType,
         note,
@@ -114,12 +76,18 @@ export function EvidenceUploadScreen({ navigation }) {
     <SafeAreaView style={styles.wrapper}>
       {/* 앱바 */}
       <View style={styles.appbar}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate(APP_ROUTES.HOME_STACK))}
+        >
+          <Text style={styles.back}>‹</Text>
+        </TouchableOpacity>
         <View style={styles.appbarLogo}>
           <Text style={styles.appbarLogoText}>T</Text>
         </View>
         <View>
           <Text style={styles.appbarTitle}>증거 업로드</Text>
-          <Text style={styles.appbarSub}>사건 기록 추가하기</Text>
+          <Text style={styles.appbarSub}>{caseType ? `${caseType} · 사건 기록 추가하기` : '사건 기록 추가하기'}</Text>
         </View>
       </View>
 
@@ -127,26 +95,32 @@ export function EvidenceUploadScreen({ navigation }) {
         {/* 기록 유형 선택 */}
         <Text style={styles.sectionTitle}>기록 유형 선택</Text>
 
-        {/* 계약서 분석 큰 카드 */}
-        <TouchableOpacity style={styles.contractCard} onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS)}>
-          <Text style={styles.contractIcon}>📋</Text>
-          <View>
-            <Text style={styles.contractTitle}>계약서 분석</Text>
-            <Text style={styles.contractDesc}>독소조항 자동 탐지</Text>
-          </View>
-        </TouchableOpacity>
+        {/* 계약서 분석 / 사건 대응 퀘스트 — 나란히 배치 */}
+        <View style={styles.shortcutRow}>
+          <TouchableOpacity
+            style={styles.shortcutCard}
+            onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS)}
+          >
+            <Text style={styles.shortcutIcon}>📋</Text>
+            <Text style={styles.shortcutTitle}>계약서 분석</Text>
+            <Text style={styles.shortcutDesc}>독소조항 자동 탐지</Text>
+          </TouchableOpacity>
 
-        {/* 사건 유형별 대응 퀘스트 카드 */}
-        <TouchableOpacity
-          style={[styles.contractCard, { borderTopColor: '#3B7DD8' }]}
-          onPress={() => navigation.push(RECORD_ROUTES.START)}
-        >
-          <Text style={styles.contractIcon}>🧭</Text>
-          <View>
-            <Text style={styles.contractTitle}>사건 대응 퀘스트</Text>
-            <Text style={styles.contractDesc}>피해 유형별 단계별 대응 안내</Text>
-          </View>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.shortcutCard, { borderTopColor: '#3B7DD8' }]}
+            onPress={() =>
+              caseId
+                ? navigation.navigate(EXPERT_ROUTES.GUIDE, { caseId, caseType })
+                : navigation.push(RECORD_ROUTES.START, { openForm: true })
+            }
+          >
+            <Text style={styles.shortcutIcon}>🧭</Text>
+            <Text style={styles.shortcutTitle}>사건 대응 퀘스트</Text>
+            <Text style={styles.shortcutDesc}>
+              {caseType ? `${caseType} 단계별 안내` : '유형별 단계별 안내'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* 4개 카드 그리드 */}
         <View style={styles.cardGrid}>
@@ -202,50 +176,10 @@ export function EvidenceUploadScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* GPS 안내 */}
-        <View style={styles.gpsNotice}>
-          <Text style={styles.gpsTitle}>📍 GPS + 타임스탬프 자동 저장</Text>
-          <Text style={styles.gpsDesc}>업로드 시 현재 위치와 시간이 자동으로 기록됩니다</Text>
-        </View>
+        {/* GPS 안내 — 캡션 한 줄 */}
+        <Text style={styles.gpsCaption}>📍 업로드 시 위치와 시간이 자동으로 기록돼요</Text>
 
-        {/* 내 타임라인 */}
-        <Text style={styles.sectionTitle2}>내 타임라인</Text>
-
-        {recentRecords.length === 0 ? (
-          <View style={styles.timelineEmpty}>
-            <Text style={styles.timelineEmptyText}>아직 업로드된 증거가 없습니다</Text>
-          </View>
-        ) : (
-          recentRecords.map((item) => {
-            const cfg = TYPE_CONFIG[item.evidenceType] ?? TYPE_CONFIG.default;
-            return (
-              <View key={item.id} style={styles.timelineItem}>
-                <View style={[styles.timelineDot, { backgroundColor: cfg.color }]} />
-                <View style={styles.timelineBody}>
-                  <Text style={styles.timelineDate}>{formatDate(item.capturedAt)}</Text>
-                  <Text style={styles.timelineTitle}>
-                    {cfg.icon} {item.title || cfg.label}
-                  </Text>
-                  {item.originalFileName ? (
-                    <Text style={styles.timelineSub}>{item.originalFileName}</Text>
-                  ) : null}
-                </View>
-                {item.location && (
-                  <Text style={styles.timelineGps}>GPS ✓</Text>
-                )}
-              </View>
-            );
-          })
-        )}
-
-        <TouchableOpacity
-          style={styles.timelineBtn}
-          onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_TIMELINE)}
-        >
-          <Text style={styles.timelineBtnText}>증거 타임라인 전체 보기 →</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 80 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
 
       {/* 하단 네비바 */}
@@ -290,6 +224,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B7DD8',
     alignItems: 'center', justifyContent: 'center',
   },
+  backBtn: { paddingVertical: 4, paddingRight: 6 },
+  back: { color: '#7B9EC5', fontSize: 24 },
   appbarLogoText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
   appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
   appbarSub: { color: '#7B9EC5', fontSize: 11 },
@@ -298,22 +234,25 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '500', color: '#94A3B8',
     letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
   },
-  sectionTitle2: {
-    fontSize: 10, fontWeight: '500', color: '#94A3B8',
-    letterSpacing: 1, marginBottom: 10, marginTop: 8, textTransform: 'uppercase',
-  },
-  contractCard: {
-    backgroundColor: '#1E3A5F',
-    padding: 18,
-    borderRadius: 10,
+  shortcutRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 14,
   },
-  contractIcon: { fontSize: 30 },
-  contractTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  contractDesc: { color: '#7B9EC5', fontSize: 12 },
+  shortcutCard: {
+    flex: 1,
+    backgroundColor: '#1E3A5F',
+    borderRadius: 10,
+    borderTopWidth: 3,
+    borderTopColor: '#5B8FD1',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    gap: 4,
+  },
+  shortcutIcon: { fontSize: 22 },
+  shortcutTitle: { color: '#F1F5F9', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  shortcutDesc: { color: '#7B9EC5', fontSize: 10, textAlign: 'center' },
   cardGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -331,44 +270,11 @@ const styles = StyleSheet.create({
   cardIcon: { fontSize: 28, marginBottom: 6 },
   cardTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600', marginBottom: 2 },
   cardDesc: { color: '#94A3B8', fontSize: 11, textAlign: 'center' },
-  gpsNotice: {
-    backgroundColor: '#EFF6FF',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 0.5,
-    borderColor: '#BFDBFE',
-    marginBottom: 16,
+  gpsCaption: {
+    color: '#94A3B8',
+    fontSize: 11,
+    textAlign: 'center',
   },
-  gpsTitle: { color: '#1D4ED8', fontSize: 12, fontWeight: '500', marginBottom: 2 },
-  gpsDesc: { color: '#3B82F6', fontSize: 11 },
-  timelineItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 8,
-  },
-  timelineDot: {
-    width: 8, height: 8, borderRadius: 4,
-    marginTop: 4,
-  },
-  timelineEmpty: { paddingVertical: 16, alignItems: 'center' },
-  timelineEmptyText: { color: '#94A3B8', fontSize: 12 },
-  timelineBody: { flex: 1 },
-  timelineDate: { color: '#94A3B8', fontSize: 10, marginBottom: 2 },
-  timelineTitle: { color: '#0F172A', fontSize: 12, fontWeight: '500' },
-  timelineSub: { color: '#64748B', fontSize: 10, marginTop: 2 },
-  timelineGps: { color: '#1D4ED8', fontSize: 9, fontWeight: '500' },
-  timelineBtn: {
-    backgroundColor: '#1E3A5F',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  timelineBtnText: { color: '#F1F5F9', fontSize: 13, fontWeight: '500' },
   navbar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
