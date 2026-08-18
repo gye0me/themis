@@ -115,10 +115,18 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
   const now = new Date();
 
   // 반복 타일 워터마크 — SVG를 data URI 배경으로 깔아서 내용 길이와 무관하게 전체 페이지에 반복된다.
+  // 매번 생성할 때마다 회전 각도·글자 위치·타일 크기를 랜덤하게 바꿔서, 같은 자리를 오려내는
+  // 방식으로 지우기 어렵게 한다(위변조 방지 목적 — 매번 패턴이 달라짐).
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const wmRotate = Math.round(rand(-50, -10));
+  const wmX = Math.round(rand(-40, 20));
+  const wmY = Math.round(rand(110, 190));
+  const wmTile = Math.round(rand(220, 300));
+  const wmOpacity = rand(0.05, 0.09).toFixed(2);
   const watermarkSvg =
-    "<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'>" +
-    "<text x='-20' y='150' font-size='24' fill='rgba(30,58,95,0.07)' " +
-    "transform='rotate(-30 130 130)' font-family='sans-serif' font-weight='700'>THEMIS 원본</text>" +
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${wmTile}' height='${wmTile}'>` +
+    `<text x='${wmX}' y='${wmY}' font-size='24' fill='rgba(30,58,95,${wmOpacity})' ` +
+    `transform='rotate(${wmRotate} ${wmTile / 2} ${wmTile / 2})' font-family='sans-serif' font-weight='700'>THEMIS 원본</text>` +
     "</svg>";
   const watermarkDataUri = `data:image/svg+xml,${encodeURIComponent(watermarkSvg)}`;
 
