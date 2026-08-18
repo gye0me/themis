@@ -35,13 +35,6 @@ function formatDateOnly(value) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
 }
 
-function formatServerTimestamp(value) {
-  const d = toDate(value);
-  if (!d) return null;
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 function buildEvidenceCard(record) {
   const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
   const dateStr = formatDateTime(record.capturedAt);
@@ -66,7 +59,6 @@ function buildEvidenceCard(record) {
   const hashLine = record.contentHash
     ? `🔐 SHA-256(파일 무결성): ${escapeHtml(record.contentHash)}`
     : '🔐 SHA-256(파일 무결성): 계산 안 됨';
-  const serverTimeStr = formatServerTimestamp(record.serverRecordedAt);
 
   return `
   <div class="card evidence-card">
@@ -77,7 +69,6 @@ function buildEvidenceCard(record) {
     ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
     ${!aiSummary && record.note ? `<div class="summary">📝 메모: ${escapeHtml(record.note)}</div>` : ''}
     <div class="hash">${hashLine}</div>
-    ${serverTimeStr ? `<div class="hash">🛡️ 서버 접수 확인(위변조 불가): ${escapeHtml(serverTimeStr)}</div>` : ''}
   </div>`;
 }
 

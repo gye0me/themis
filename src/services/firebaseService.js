@@ -416,9 +416,6 @@ export async function createEvidenceRecord({
       location,
       capturedAt,
       createdAt: capturedAt,
-      // Firestore 서버가 실제로 문서를 받은 시각 — 기기 시계와 달리 클라이언트가 조작할 수 없어
-      // "이 증거가 최소한 이 시각 이전에 서버에 도달했다"는 걸 보증하는 무결성 타임스탬프.
-      serverRecordedAt: serverTimestamp(),
       ...extra,
     });
 
