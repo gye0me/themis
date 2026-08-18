@@ -23,8 +23,6 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, deleteObject, getDownloadURL } from 'firebase/storage';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Crypto from 'expo-crypto';
 import { auth, db, storage } from '../config/firebase';
 import {
   THEMIS_COLLECTIONS,
@@ -333,26 +331,6 @@ async function uploadFileFromUri(fileUri, path, contentType, webFile = null) {
   };
 }
 
-/**
- * 파일 실제 내용(바이트)의 SHA-256 해시를 계산한다.
- * 증거 메타데이터(id·경로 등)가 아니라 파일 콘텐츠 자체를 해시해야
- * "이 파일이 업로드 이후 변조되지 않았다"는 걸 증명하는 의미가 생긴다.
- * (웹의 blob: URL 등 FileSystem이 못 읽는 경우도 있어 실패해도 업로드 자체는 막지 않는다.)
- */
-async function hashFileContent(fileUri) {
-  try {
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64, {
-      encoding: Crypto.CryptoEncoding.HEX,
-    });
-  } catch (error) {
-    console.warn('파일 SHA-256 해시 계산 실패:', error.message);
-    return null;
-  }
-}
-
 function sanitizeFileName(fileName = 'evidence') {
   return fileName
     .trim()
@@ -382,7 +360,6 @@ export async function createEvidenceRecord({
     let originalFileName = null;
     let mimeType = null;
     let fileSize = null;
-    let contentHash = null; // 파일 실제 내용의 SHA-256 (무결성 증명용)
 
     if (file?.uri) {
       originalFileName = file.name ?? `${evidenceType}-${Date.now()}`;
@@ -391,13 +368,9 @@ export async function createEvidenceRecord({
       const safeFileName = sanitizeFileName(originalFileName);
       storagePath = `evidence/${caseId}/${Date.now()}-${safeFileName}`;
       // 웹과 앱 모두 완벽하게 업로드되도록 웹 파일 객체(file.file) 전달
-      const [uploadResult, hash] = await Promise.all([
-        uploadFileFromUri(file.uri, storagePath, mimeType, file.file),
-        hashFileContent(file.uri),
-      ]);
+      const uploadResult = await uploadFileFromUri(file.uri, storagePath, mimeType, file.file);
       storagePath = uploadResult.fullPath;
       downloadURL = uploadResult.downloadURL;
-      contentHash = hash;
     }
 
     const docRef = await addDoc(collection(db, 'evidenceRecords'), {
@@ -412,7 +385,6 @@ export async function createEvidenceRecord({
       fileSize,
       storagePath,
       downloadURL,
-      contentHash,
       location,
       capturedAt,
       createdAt: capturedAt,
@@ -432,7 +404,6 @@ export async function createEvidenceRecord({
       fileSize,
       storagePath,
       downloadURL,
-      contentHash,
       location,
       capturedAt,
       ...extra,

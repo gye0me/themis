@@ -54,12 +54,6 @@ function buildEvidenceCard(record) {
   const transcript = record.transcript ?? record.transcribedText ?? null;
   const aiSummary = record.aiSummary ?? record.analysisSummary ?? null;
 
-  // 파일 실제 내용의 SHA-256(업로드 시점에 계산·저장됨). 텍스트 메모처럼 파일이 없는 기록이거나
-  // 예전(이 기능 추가 전) 기록은 해시가 없을 수 있어, 있는 그대로만 정직하게 표시한다.
-  const hashLine = record.contentHash
-    ? `🔐 SHA-256(파일 무결성): ${escapeHtml(record.contentHash)}`
-    : '🔐 SHA-256(파일 무결성): 계산 안 됨';
-
   return `
   <div class="card evidence-card">
     <div class="card-meta">📅 ${escapeHtml(dateStr)} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
@@ -68,7 +62,6 @@ function buildEvidenceCard(record) {
     ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
     ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
     ${!aiSummary && record.note ? `<div class="summary">📝 메모: ${escapeHtml(record.note)}</div>` : ''}
-    <div class="hash">${hashLine}</div>
   </div>`;
 }
 

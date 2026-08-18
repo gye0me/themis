@@ -99,7 +99,6 @@ export function TimelineScreen({ navigation, route }) {
 
   const summary = buildSummary(records);
   const totalCount = records.length;
-  const hashedCount = records.filter((r) => r.contentHash).length;
 
   return (
     <SafeAreaView style={styles.wrapper}>
@@ -308,16 +307,6 @@ export function TimelineScreen({ navigation, route }) {
                   </View>
                 );
               })}
-
-              {/* SHA-256 */}
-              <View style={styles.hashCard}>
-                <Text style={styles.hashLabel}>무결성 해시 (SHA-256) — 파일별 자동 계산</Text>
-                <Text style={styles.hashValue}>
-                  {totalCount === 0
-                    ? '증거 없음'
-                    : `${hashedCount}/${totalCount}건 해시 확인됨${hashedCount === totalCount ? ' ✓' : ''}`}
-                </Text>
-              </View>
 
               {/* 보고서 미리보기 + 다운로드 화면으로 이동 */}
               <TouchableOpacity style={styles.pdfBtn} onPress={handleOpenReport}>
