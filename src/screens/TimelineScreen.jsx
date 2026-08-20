@@ -1,5 +1,8 @@
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useAudioPlayer } from 'expo-audio';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById } from '../services/firebaseService';
@@ -47,6 +50,60 @@ function buildSummary(records) {
   return counts;
 }
 
+// 카드가 펼쳐졌을 때만 마운트되는 독립된 영상 재생기 (카드마다 따로 가짐 → 여러 개 동시에 펼쳐도 서로 안 건드림)
+// 실제 원본 영상은 "재생" 눌렀을 때만 불러옴 — 펼치자마자 스트리밍을 시작하면 그게 느려 보이는 원인이라 그 전까진 5초 스탬프 썸네일만 보여줌
+function InlineVideoPlayer({ uri, thumbnailURL }) {
+  const [started, setStarted] = useState(false);
+
+  if (!started) {
+    return (
+      <TouchableOpacity style={styles.videoPoster} onPress={() => setStarted(true)} activeOpacity={0.85}>
+        {thumbnailURL ? (
+          <Image source={{ uri: thumbnailURL }} style={styles.videoPosterImage} resizeMode="cover" />
+        ) : (
+          <View style={[styles.videoPosterImage, styles.videoPosterFallback]} />
+        )}
+        <View style={styles.videoPosterPlayBtn}>
+          <View style={styles.videoPosterPlayCircle}>
+            <Text style={styles.videoPosterPlayIcon}>▶</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  return <ActualVideoPlayer uri={uri} />;
+}
+
+function ActualVideoPlayer({ uri }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.play();
+  });
+  return <VideoView player={player} style={styles.inlineVideo} nativeControls allowsFullscreen />;
+}
+
+// 카드가 펼쳐졌을 때만 마운트되는 독립된 음성 재생기
+function InlineAudioPlayer({ uri }) {
+  const player = useAudioPlayer(uri);
+  const [isPlaying, setIsPlaying] = useState(false);
+  function toggle() {
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
+    }
+  }
+  return (
+    <TouchableOpacity style={styles.audioPlayBtn} onPress={toggle}>
+      <Text style={styles.audioPlayBtnText}>{isPlaying ? '⏸ 일시정지' : '▶ 재생'}</Text>
+    </TouchableOpacity>
+  );
+}
+
+
 export function TimelineScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
   const caseId = route?.params?.caseId ?? null;
@@ -55,15 +112,27 @@ export function TimelineScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
-  const [expandedId, setExpandedId] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    fetchRecords();
-  }, [user]);
+  function toggleExpand(id) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // 다른 화면(증거업로드 등) 다녀온 뒤 이 화면으로 돌아올 때마다 자동 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      fetchRecords();
+    }, [user, caseId])
+  );
 
   async function fetchRecords() {
     setLoading(true);
@@ -218,7 +287,7 @@ export function TimelineScreen({ navigation, route }) {
                 const cfg = TYPE_CONFIG[item.evidenceType] ?? TYPE_CONFIG.default;
                 const isLast = index === filteredRecords.length - 1;
                 const isContract = item.evidenceType === 'contract';
-                const isExpanded = expandedId === item.id;
+                const isExpanded = expandedIds.has(item.id);
                 return (
                   <View key={item.id} style={styles.timelineItem}>
                     <View style={styles.timelineLeft}>
@@ -226,9 +295,8 @@ export function TimelineScreen({ navigation, route }) {
                       {!isLast && <View style={styles.line} />}
                     </View>
                     <TouchableOpacity
-                      activeOpacity={isContract ? 0.7 : 1}
-                      disabled={!isContract}
-                      onPress={() => setExpandedId(isExpanded ? null : item.id)}
+                      activeOpacity={0.7}
+                      onPress={() => toggleExpand(item.id)}
                       style={styles.timelineCard}
                     >
                       <View style={styles.cardHeader}>
@@ -242,12 +310,10 @@ export function TimelineScreen({ navigation, route }) {
                       <View style={styles.typeRow}>
                         <Text style={styles.typeIcon}>{cfg.icon}</Text>
                         <Text style={styles.cardTitle}>{item.title || cfg.label}</Text>
-                        {isContract && (
-                          <Text style={styles.expandHint}>{isExpanded ? '접기 ▲' : '자세히 ▼'}</Text>
-                        )}
+                        <Text style={styles.expandHint}>{isExpanded ? '접기 ▲' : '자세히 ▼'}</Text>
                       </View>
                       {item.note ? (
-                        <Text style={styles.cardSub} numberOfLines={isExpanded ? undefined : 2}>
+                        <Text style={styles.cardSub} numberOfLines={2}>
                           {item.note}
                         </Text>
                       ) : null}
@@ -283,6 +349,38 @@ export function TimelineScreen({ navigation, route }) {
                               <Text style={styles.detailDesc}>{detail.desc}</Text>
                             </View>
                           ))}
+                        </View>
+                      )}
+
+                      {/* 사진 상세 */}
+                      {item.evidenceType === 'image' && isExpanded && item.downloadURL && (
+                        <View style={styles.contractDetail}>
+                          <Image
+                            source={{ uri: item.downloadURL }}
+                            style={styles.contractImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+
+                      {/* 영상 상세 */}
+                      {item.evidenceType === 'video' && isExpanded && item.downloadURL && (
+                        <View style={styles.contractDetail}>
+                          <InlineVideoPlayer uri={item.downloadURL} thumbnailURL={item.thumbnailURL} />
+                        </View>
+                      )}
+
+                      {/* 음성 상세 */}
+                      {item.evidenceType === 'audio' && isExpanded && item.downloadURL && (
+                        <View style={styles.contractDetail}>
+                          <InlineAudioPlayer uri={item.downloadURL} />
+                        </View>
+                      )}
+
+                      {/* 메모 상세: 위 미리보기는 2줄로 고정, 여기에 전체 내용 표시 */}
+                      {item.evidenceType === 'text' && isExpanded && item.note && (
+                        <View style={styles.contractDetail}>
+                          <Text style={styles.memoDetailText}>{item.note}</Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -434,4 +532,27 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   floatingUploadBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  inlineVideo: { width: '100%', height: 200, borderRadius: 8, backgroundColor: '#000000' },
+  videoPoster: { width: '100%', height: 200, borderRadius: 8, backgroundColor: '#1E293B', overflow: 'hidden' },
+  videoPosterImage: { width: '100%', height: '100%' },
+  videoPosterFallback: { backgroundColor: '#1E293B' },
+  videoPosterPlayBtn: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  videoPosterPlayCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  videoPosterPlayIcon: {
+    color: '#FFFFFF', fontSize: 20,
+    marginLeft: 3, // ▶ 삼각형 글자 자체가 시각적으로 왼쪽으로 치우쳐 보여서 살짝 우측으로 보정
+  },
+  audioPlayBtn: {
+    backgroundColor: '#3B7DD8', borderRadius: 10, padding: 14,
+    alignItems: 'center',
+  },
+  audioPlayBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  memoDetailText: { color: '#334155', fontSize: 13, lineHeight: 20 },
 });

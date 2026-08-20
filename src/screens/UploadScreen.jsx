@@ -21,15 +21,14 @@ const evidenceTypes = [
   { key: 'text', label: '텍스트', icon: '📝' },
 ];
 
-const caseId = 'lease-dispute';
-const caseTitle = '전세보증금 미반환';
-
 function formatDateTime(date) {
   return date ? date.toLocaleString('ko-KR') : '-';
 }
 
-export function UploadScreen({ navigation }) {
+export function UploadScreen({ navigation, route }) {
   const { user } = useAuth();
+  const caseId = route?.params?.caseId ?? 'general';
+  const caseType = route?.params?.caseType ?? null;
   const [evidenceType, setEvidenceType] = useState('image');
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -128,7 +127,7 @@ export function UploadScreen({ navigation }) {
       const savedRecord = await createEvidenceRecord({
         userId: user?.uid ?? null,
         caseId,
-        caseTitle,
+        caseTitle: caseType ?? '',
         title: trimmedTitle,
         note: trimmedNote,
         evidenceType,
@@ -165,7 +164,7 @@ export function UploadScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionCard}>
           <Text style={styles.sectionLabel}>사건</Text>
-          <Text style={styles.caseTitle}>{caseTitle}</Text>
+          <Text style={styles.caseTitle}>{caseType ?? '사건 미지정'}</Text>
           <Text style={styles.helperText}>로그인한 사용자: {user?.email ?? '비로그인'}</Text>
         </View>
 

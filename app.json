@@ -6,9 +6,17 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "ios": {
       "supportsTablet": true
-    }
+    },
+    "plugins": [
+      "expo-video",
+      "expo-audio"
+    ]
   }
 }

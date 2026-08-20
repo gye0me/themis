@@ -1,11 +1,13 @@
 import { useContext, useState } from 'react';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import { useAudioRecorder, useAudioRecorderState, AudioModule, RecordingPresets, setAudioModeAsync } from 'expo-audio';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
+import { createEvidenceRecord, getEvidenceRecords, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
 import { extractTextFromImage } from '../services/ocrService';
 
@@ -34,6 +36,13 @@ function formatDate(capturedAt) {
   return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
 }
 
+function formatTimer(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const sec = String(totalSec % 60).padStart(2, '0');
+  return `${min}:${sec}`;
+}
+
 const UPLOAD_TYPES = {
   image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
   audio: { mimeType: 'audio/*',  title: '음성 녹음 증거',  label: '음성' },
@@ -45,21 +54,16 @@ export function EvidenceUploadScreen({ navigation, route }) {
   const caseId = route?.params?.caseId ?? null;
   const caseType = route?.params?.caseType ?? null;
   const [uploadingType, setUploadingType] = useState(null);
+  const [showRecorder, setShowRecorder] = useState(false);
 
-  const handleUpload = async (evidenceType) => {
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder, 200);
+
+  // 실제 저장 로직 (파일 선택으로 가져온 파일 / 앱에서 직접 녹음한 파일 공통 사용)
+  const saveEvidence = async (evidenceType, file) => {
     const cfg = UPLOAD_TYPES[evidenceType];
-    // 문서 선택기를 호출하기 전에 업로드 상태를 먼저 확인하여 중복 실행을 방지합니다.
-    if (!cfg || uploadingType !== null) return;
-
-    // await 이전에 상태를 먼저 설정하여 동시 클릭 문제를 해결합니다.
     setUploadingType(evidenceType);
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: cfg.mimeType });
-      // 사용자가 파일 선택을 취소하면, 업로드 상태를 초기화하고 함수를 종료합니다.
-      if (result.canceled || !result.assets?.length) { setUploadingType(null); return; }
-
-      const file = result.assets[0];
-
       let location = null;
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
@@ -82,6 +86,18 @@ export function EvidenceUploadScreen({ navigation, route }) {
         }
       }
 
+      // 영상 증거: 5초 지점 프레임을 캡처해 "5초 스탬프"로 함께 저장 (변조 여부 확인용 미리보기)
+      let extra = {};
+      if (evidenceType === 'video') {
+        try {
+          const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(file.uri, { time: 5000 });
+          const { downloadURL: thumbnailURL } = await uploadEvidenceThumbnail(thumbUri);
+          extra = { thumbnailURL, thumbnailStampSec: 5 };
+        } catch (e) {
+          console.warn('영상 5초 스탬프 생성 실패:', e.message);
+        }
+      }
+
       await createEvidenceRecord({
         userId: user?.uid ?? null,
         caseId: caseId ?? 'general',
@@ -90,6 +106,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
         note,
         file,
         location,
+        extra,
       });
 
       const msg = evidenceType === 'audio' && note
@@ -102,6 +119,66 @@ export function EvidenceUploadScreen({ navigation, route }) {
     } finally {
       setUploadingType(null);
     }
+  };
+
+  // 파일 선택기로 기존 파일 가져오기 (사진/영상, 그리고 음성의 "파일에서 가져오기")
+  const handlePickFile = async (evidenceType) => {
+    const cfg = UPLOAD_TYPES[evidenceType];
+    if (!cfg || uploadingType !== null) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: cfg.mimeType });
+      if (result.canceled || !result.assets?.length) return;
+      await saveEvidence(evidenceType, result.assets[0]);
+    } catch (error) {
+      console.error('파일 선택 실패:', error);
+      Alert.alert('오류', error.message);
+    }
+  };
+
+  // "음성" 카드 탭: 새로 녹음할지 / 기존 음성 메모 파일을 가져올지 선택
+  const handleAudioPress = () => {
+    if (uploadingType !== null) return;
+    Alert.alert(
+      '음성 증거 추가',
+      '어떻게 추가할까요?',
+      [
+        { text: '새로 녹음하기', onPress: startRecording },
+        { text: '음성 메모에서 가져오기', onPress: () => handlePickFile('audio') },
+        { text: '취소', style: 'cancel' },
+      ]
+    );
+  };
+
+  const startRecording = async () => {
+    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+    if (!granted) {
+      Alert.alert('권한 필요', '음성 녹음을 위해 마이크 접근 권한이 필요합니다.');
+      return;
+    }
+    // 녹음을 실제로 시작하려면 오디오 모드를 "녹음 허용"으로 켜줘야 함 (안 하면 준비 단계에서 멈춤)
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    setShowRecorder(true);
+    await audioRecorder.prepareToRecordAsync();
+    audioRecorder.record();
+  };
+
+  const cancelRecording = async () => {
+    if (recorderState.isRecording) {
+      await audioRecorder.stop();
+    }
+    setShowRecorder(false);
+  };
+
+  const finishRecording = async () => {
+    await audioRecorder.stop();
+    setShowRecorder(false);
+    const uri = audioRecorder.uri;
+    if (!uri) {
+      Alert.alert('오류', '녹음 파일을 찾을 수 없습니다.');
+      return;
+    }
+    const file = { uri, name: `recording-${Date.now()}.m4a`, mimeType: 'audio/m4a' };
+    await saveEvidence('audio', file);
   };
 
   return (
@@ -132,7 +209,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
         <View style={styles.shortcutRow}>
           <TouchableOpacity
             style={styles.shortcutCard}
-            onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS)}
+            onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS, { caseId, caseType })}
           >
             <Text style={styles.shortcutIcon}>📋</Text>
             <Text style={styles.shortcutTitle}>계약서 분석</Text>
@@ -159,7 +236,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
         <View style={styles.cardGrid}>
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#EA580C' }]}
-            onPress={() => handleUpload('image')}
+            onPress={() => handlePickFile('image')}
             disabled={uploadingType !== null}
           >
             <Text style={styles.cardIcon}>📷</Text>
@@ -173,7 +250,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#7C3AED' }]}
-            onPress={() => handleUpload('audio')}
+            onPress={handleAudioPress}
             disabled={uploadingType !== null}
           >
             <Text style={styles.cardIcon}>🎙️</Text>
@@ -182,12 +259,12 @@ export function EvidenceUploadScreen({ navigation, route }) {
             ) : (
               <Text style={styles.cardTitle}>음성</Text>
             )}
-            <Text style={styles.cardDesc}>녹음 파일 업로드</Text>
+            <Text style={styles.cardDesc}>녹음 또는 음성 메모</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#16A34A' }]}
-            onPress={() => handleUpload('video')}
+            onPress={() => handlePickFile('video')}
             disabled={uploadingType !== null}
           >
             <Text style={styles.cardIcon}>🎥</Text>
@@ -201,7 +278,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
           <TouchableOpacity
             style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
-            onPress={() => navigation.navigate(APP_ROUTES.UPLOAD_SCREEN)}
+            onPress={() => navigation.navigate(APP_ROUTES.UPLOAD_SCREEN, { caseId, caseType })}
           >
             <Text style={styles.cardIcon}>📝</Text>
             <Text style={styles.cardTitle}>상세 기록</Text>
@@ -214,6 +291,25 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* 녹음 중 모달 */}
+      <Modal visible={showRecorder} transparent animationType="fade">
+        <View style={styles.recorderOverlay}>
+          <View style={styles.recorderCard}>
+            <View style={styles.recorderDot} />
+            <Text style={styles.recorderTimer}>{formatTimer(recorderState.durationMillis ?? 0)}</Text>
+            <Text style={styles.recorderLabel}>{recorderState.isRecording ? '녹음 중...' : '준비 중...'}</Text>
+            <View style={styles.recorderBtnRow}>
+              <TouchableOpacity style={styles.recorderCancelBtn} onPress={cancelRecording}>
+                <Text style={styles.recorderCancelBtnText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.recorderStopBtn} onPress={finishRecording}>
+                <Text style={styles.recorderStopBtnText}>■  저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 하단 네비바 */}
       <View style={styles.navbar}>
@@ -308,6 +404,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
+  recorderOverlay: {
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  recorderCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 20,
+    padding: 28, alignItems: 'center', gap: 8, width: '78%',
+  },
+  recorderDot: {
+    width: 14, height: 14, borderRadius: 7, backgroundColor: '#EF4444', marginBottom: 6,
+  },
+  recorderTimer: { fontSize: 32, fontWeight: '700', color: '#0F172A' },
+  recorderLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 12 },
+  recorderBtnRow: { flexDirection: 'row', gap: 10, width: '100%' },
+  recorderCancelBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center',
+  },
+  recorderCancelBtnText: { color: '#64748B', fontSize: 13, fontWeight: '600' },
+  recorderStopBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 10,
+    backgroundColor: '#1E3A5F', alignItems: 'center',
+  },
+  recorderStopBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   navbar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',

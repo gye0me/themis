@@ -44,12 +44,12 @@ function buildAnalysisNote(result) {
   return result.documentSummary ? `${result.documentSummary}\n${summaryLine}` : summaryLine;
 }
 
-async function saveAnalysisToTimeline({ userId, contractType, image, result, geminiRawResults = [] }) {
+async function saveAnalysisToTimeline({ userId, caseId, contractType, image, result, geminiRawResults = [] }) {
   const checklist = buildChecklist(contractType, geminiRawResults);
 
   await createEvidenceRecord({
     userId,
-    caseId: 'case_12345',
+    caseId: caseId ?? 'general',
     title: `${contractType} 계약서 분석`,
     note: buildAnalysisNote(result),
     evidenceType: 'contract',
@@ -64,7 +64,8 @@ async function saveAnalysisToTimeline({ userId, contractType, image, result, gem
   });
 }
 
-export default function ContractAnalysisScreen({ navigation }) {
+export default function ContractAnalysisScreen({ navigation, route }) {
+  const caseId = route?.params?.caseId ?? null;
   const { user } = useContext(AuthContext);
   const [selectedType, setSelectedType] = useState("전월세");
   const [image, setImage] = useState(null);
@@ -143,7 +144,7 @@ export default function ContractAnalysisScreen({ navigation }) {
 
       // 분석 결과를 타임라인에 자동 기록 (실패해도 화면 결과 표시는 그대로 진행)
       try {
-        await saveAnalysisToTimeline({ userId: user?.uid ?? null, contractType: selectedType, image, result: nextResult, geminiRawResults });
+        await saveAnalysisToTimeline({ userId: user?.uid ?? null, caseId, contractType: selectedType, image, result: nextResult, geminiRawResults });
       } catch (saveErr) {
         console.warn('타임라인 저장 실패:', saveErr.message);
       }

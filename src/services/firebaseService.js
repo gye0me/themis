@@ -331,6 +331,15 @@ async function uploadFileFromUri(fileUri, path, contentType, webFile = null) {
   };
 }
 
+/**
+ * 영상 증거의 5초 지점 캡처 이미지를 Storage에 업로드.
+ * (EvidenceUploadScreen에서 expo-video-thumbnails로 뽑은 썸네일 uri를 넘긴다)
+ */
+export async function uploadEvidenceThumbnail(thumbnailUri) {
+  const path = `evidence-thumbnails/${Date.now()}-thumb.jpg`;
+  return uploadFileFromUri(thumbnailUri, path, 'image/jpeg');
+}
+
 function sanitizeFileName(fileName = 'evidence') {
   return fileName
     .trim()
@@ -388,6 +397,9 @@ export async function createEvidenceRecord({
       location,
       capturedAt,
       createdAt: capturedAt,
+      // 클라이언트 기기 시계는 조작 가능하므로, 서버가 실제로 문서를 받은 시점을
+      // 별도로 기록해 무결성 검증 근거로 쓴다 (capturedAt과 별개로 유지).
+      serverVerifiedAt: serverTimestamp(),
       ...extra,
     });
 
