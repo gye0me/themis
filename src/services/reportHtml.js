@@ -35,27 +35,6 @@ function formatDateOnly(value) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
 }
 
-// 파일 재해시가 아닌, 보고서 시점의 문서 무결성 확인용 경량 해시(FNV-1a 64bit 유사) —
-// 별도 crypto 라이브러리 없이도 브라우저/RN(Hermes) 양쪽에서 동작.
-function integrityHash(input) {
-  let h1 = 0xdeadbeef ^ input.length;
-  let h2 = 0x41c6ce57 ^ input.length;
-  for (let i = 0; i < input.length; i++) {
-    const ch = input.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  const hex = (n) => (n >>> 0).toString(16).padStart(8, '0');
-  return `${hex(h1)}${hex(h2)}`;
-}
-
-function evidenceHash(record) {
-  const seed = `${record.id}|${record.storagePath ?? ''}|${record.downloadURL ?? ''}|${record.capturedAt?.seconds ?? record.capturedAt ?? ''}`;
-  return integrityHash(seed);
-}
-
 function buildEvidenceCard(record) {
   const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
   const dateStr = formatDateTime(record.capturedAt);
@@ -83,7 +62,6 @@ function buildEvidenceCard(record) {
     ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
     ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
     ${!aiSummary && record.note ? `<div class="summary">📝 메모: ${escapeHtml(record.note)}</div>` : ''}
-    <div class="hash">🔐 SHA-256(문서 무결성): ${evidenceHash(record)}</div>
   </div>`;
 }
 
@@ -120,20 +98,42 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
   const caseTypeIcon = CASE_TYPE_ICON[caseData.caseType] ?? '📁';
   const now = new Date();
 
+  // 반복 타일 워터마크 — SVG를 data URI 배경으로 깔아서 내용 길이와 무관하게 전체 페이지에 반복된다.
+  // 매번 생성할 때마다 회전 각도·글자 위치·타일 크기를 랜덤하게 바꿔서, 같은 자리를 오려내는
+  // 방식으로 지우기 어렵게 한다(위변조 방지 목적 — 매번 패턴이 달라짐).
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const wmRotate = Math.round(rand(-50, -10));
+  const wmX = Math.round(rand(-40, 20));
+  const wmY = Math.round(rand(110, 190));
+  const wmTile = Math.round(rand(220, 300));
+  const wmOpacity = rand(0.05, 0.09).toFixed(2);
+  const watermarkSvg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${wmTile}' height='${wmTile}'>` +
+    `<text x='${wmX}' y='${wmY}' font-size='24' fill='rgba(30,58,95,${wmOpacity})' ` +
+    `transform='rotate(${wmRotate} ${wmTile / 2} ${wmTile / 2})' font-family='sans-serif' font-weight='700'>THEMIS 원본</text>` +
+    "</svg>";
+  const watermarkDataUri = `data:image/svg+xml,${encodeURIComponent(watermarkSvg)}`;
+
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <title>${escapeHtml(caseData.title || '사건 보고서')} - Themis 증거 보고서</title>
 <style>
-  body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: #F1F5F9; color: #0F172A; margin: 0; padding: 20px; }
-  .container { max-width: 720px; margin: 0 auto; }
+  body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: #F1F5F9; color: #0F172A; margin: 0; padding: 20px; position: relative; }
+  .watermark {
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("${watermarkDataUri}");
+    background-repeat: repeat;
+    pointer-events: none;
+  }
+  .container { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
   .summary-card { background: #1E3A5F; color: #F1F5F9; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
   .summary-card h1 { margin: 0 0 8px; font-size: 20px; }
   .summary-card .meta { font-size: 13px; color: #B9D0EA; margin-bottom: 4px; }
   .summary-card .counts { margin-top: 12px; font-size: 13px; }
-  .card { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
-  .quest-card { background: #ECFDF5; border-left: 4px solid #10B981; }
+  .card { background: rgba(255,255,255,0.92); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .quest-card { background: rgba(236,253,245,0.92); border-left: 4px solid #10B981; }
   .card-meta { font-size: 11px; color: #64748B; margin-bottom: 6px; }
   .card-type { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
   .thumb { max-width: 100%; border-radius: 8px; margin: 6px 0; }
@@ -145,6 +145,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 </style>
 </head>
 <body>
+<div class="watermark"></div>
 <div class="container">
 
   <div class="summary-card">

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { APP_ROUTES } from '../navigation/routes';
 import {
   toggleClauseCompleted,
   addUserClause,
@@ -149,10 +151,18 @@ export default function ResponseGuideScreen({ navigation, route }) {
   };
 
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper}>
+      <View style={styles.statusbar}>
+        <Text style={styles.statusTime}>9:41</Text>
+        <Text style={styles.statusApp}>Themis</Text>
+      </View>
       {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
+          onPress={() => navigation.goBack()}
+        >
           <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
         <View>
@@ -230,7 +240,14 @@ export default function ResponseGuideScreen({ navigation, route }) {
                       {item.duration ? `소요: ${item.duration}` : ''}
                     </Text>
                   ) : null}
-                  {item.link ? <Text style={styles.questEvidence}>🔗 {item.link}</Text> : null}
+                  {item.link ? (
+                    <TouchableOpacity
+                      style={styles.linkBtn}
+                      onPress={() => Linking.openURL(item.link.startsWith('http') ? item.link : `https://${item.link}`)}
+                    >
+                      <Text style={styles.linkBtnText}>🔗 관련 기관 바로가기</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   {item.phone ? <Text style={styles.questEvidence}>📞 {item.phone}</Text> : null}
                   <TextInput
                     style={styles.noteInput}
@@ -347,24 +364,34 @@ export default function ResponseGuideScreen({ navigation, route }) {
         </View>
 
         {/* 전문가 연결 */}
-        <TouchableOpacity style={styles.expertBtn}>
+        <TouchableOpacity
+          style={styles.expertBtn}
+          onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}
+        >
           <Text style={styles.expertBtnText}>전문가 채널 연결하기 ›</Text>
         </TouchableOpacity>
 
         <View style={{ height: 80 }} />
       </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
+  statusbar: {
+    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  statusTime: { color: '#6B84A8', fontSize: 12 },
+  statusApp: { color: '#6B84A8', fontSize: 12 },
   header: {
-    backgroundColor: '#1E3A5F', paddingTop: 44, paddingBottom: 12,
+    backgroundColor: '#1E3A5F', paddingTop: 16, paddingBottom: 14,
     paddingHorizontal: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'space-between',
   },
+  backBtn: { paddingVertical: 4, paddingRight: 6 },
   back: { color: '#7B9EC5', fontSize: 24 },
   title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
   subtitle: { color: '#7B9EC5', fontSize: 11 },
@@ -423,6 +450,11 @@ const styles = StyleSheet.create({
   },
   questDesc: { color: '#64748B', fontSize: 11 },
   questEvidence: { color: '#3B7DD8', fontSize: 10 },
+  linkBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, marginTop: 2,
+  },
+  linkBtnText: { color: '#1D4ED8', fontSize: 10.5, fontWeight: '600' },
   questMissing: { color: '#EF4444', fontSize: 10 },
   questLegal: { color: '#94A3B8', fontSize: 9, fontStyle: 'italic' },
   removeBtn: { alignSelf: 'flex-start', marginTop: 4 },

@@ -6,14 +6,20 @@
 
 // ─── 1. 사건 유형 정의 (NewCaseScreen 선택 UI에서 사용) ─────────────────────
 
-export const CASE_TYPES = ['전세사기', '금전사기', '괴롭힘', '신변위협'];
+export const CASE_TYPES = ['전세사기', '금전사기', '괴롭힘', '신변위협', '기타'];
 
 export const CASE_TYPE_META = {
-  전세사기: { icon: '🏠', label: '전세사기 · 계약피해', desc: '보증금 미반환, 매매사기, 불공정계약 등' },
-  금전사기: { icon: '💸', label: '금전·거래 사기', desc: '중고거래, 보이스피싱, 온라인쇼핑 사기 등' },
-  괴롭힘: { icon: '👥', label: '괴롭힘·폭력', desc: '직장내괴롭힘, 학교폭력, 임금체불 등' },
-  신변위협: { icon: '🚨', label: '신변 위협', desc: '스토킹, 협박, 데이트폭력 등' },
+  전세사기: { icon: '🏠', label: '부동산·계약', desc: '전세사기, 보증금, 계약' },
+  금전사기: { icon: '💸', label: '금전·거래 사기', desc: '중고거래, 보이스피싱' },
+  괴롭힘: { icon: '👥', label: '괴롭힘·폭력', desc: '직장, 학교, 따돌림' },
+  신변위협: { icon: '🚨', label: '신변 위협', desc: '스토킹, 협박, 데이트폭력' },
+  기타: { icon: '🗂️', label: '기타', desc: '위에 해당 없는 경우 · 항목 직접 추가 가능' },
 };
+
+// 기록 시작 화면에서 태그 직접 입력 시 참고용으로 보여주는 추천 태그 (유형 공통 풀)
+export const SUGGESTED_TAGS = [
+  '#전세', '#월세', '#보증금', '#소비자피해', '#프리랜서', '#직장내괴롭힘', '#학교폭력',
+];
 
 // ─── 2. 유형별 대응 퀘스트 단계 정의 ─────────────────────────────────────────
 // id: 고유 키 (저장/매칭용, 변경 금지)
@@ -58,6 +64,14 @@ export const RESPONSE_STEPS = {
     { id: 'threat_lawcenter', title: '법률구조공단 상담', requiredDocs: '신분증, 관련 서류', duration: '당일~1주', phone: '132' },
     { id: 'threat_injunction', title: '접근금지 가처분 신청', requiredDocs: '신분증, 고소장 사본, 증거자료', duration: '수주~수개월' },
     { id: 'threat_support', title: '피해자 지원 기관 연계 (여성긴급전화)', requiredDocs: '-', duration: '즉시', phone: '1366' },
+  ],
+
+  기타: [
+    { id: 'etc_record', title: '날짜·내용 기록', requiredDocs: '메모장 또는 앱 기록', duration: '즉시' },
+    { id: 'etc_evidence', title: '증거 수집', requiredDocs: '문자·녹음·사진 등 관련 자료', duration: '즉시' },
+    { id: 'etc_lawcenter', title: '법률구조공단 무료 상담', requiredDocs: '신분증, 관련 서류', duration: '당일~1주', phone: '132' },
+    { id: 'etc_police', title: '경찰 신고 (필요 시)', requiredDocs: '신분증, 증거자료', duration: '당일' },
+    { id: 'etc_custom', title: '상황에 맞는 대응 항목 직접 추가하기', requiredDocs: '아래 "+ 항목 추가하기"로 나만의 단계를 만들어보세요', duration: '-' },
   ],
 };
 

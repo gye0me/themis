@@ -363,7 +363,7 @@ export async function createEvidenceRecord({
   extra = {}, // 계약서 분석 결과처럼 타입별 추가 데이터를 넣을 때 사용 (선택)
 }) {
   try {
-    const capturedAt = Timestamp.now();
+    const capturedAt = Timestamp.now(); // 표시용 — 기기 시계 기준이라 조작 가능성이 있음
     let storagePath = null;
     let downloadURL = null;
     let originalFileName = null;
@@ -455,11 +455,14 @@ export async function getEvidenceRecords(userId, caseId = null) {
  * 새 사건 생성 (사건 유형 선택 → 타임라인 생성 시 호출).
  * caseType: '전세사기' | '금전사기' | '괴롭힘' | '신변위협'
  */
-export async function createCase({ userId, caseType, title = '' }) {
+export async function createCase({ userId, caseType, title = '', tags = [], visibility = '나만보기', memo = '' }) {
   const caseId = await addDocument('cases', {
     userId,
     caseType,
     title: title || '새 사건',
+    tags, // 자유 태그 (기록 시작 화면에서 직접 입력/선택)
+    visibility, // '나만보기' | '전문가공유' | '공론화'
+    memo, // 간단 메모 (선택)
     questSteps: [], // 대응 퀘스트 진행 상태 (id, completed, note)
   });
   return caseId;

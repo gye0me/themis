@@ -1,9 +1,24 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 
+const ROOMS = [
+  { id: 'jeonse', name: '강남구 전세사기 피해자', members: 247, color: '#1E3A5F' },
+  { id: 'stalking', name: '스토킹 피해자 지원', members: 23, color: '#7C3AED' },
+  { id: 'harass', name: '직장 내 괴롭힘 피해자', members: 18, color: '#EA580C' },
+];
+
 export function ChatScreen({ navigation }) {
+  const [joined, setJoined] = useState({});
+
+  const joinRoom = (room) => {
+    setJoined((prev) => ({ ...prev, [room.id]: true }));
+    navigation.navigate(CHAT_ROUTES.ROOM, { roomName: room.name, memberCount: room.members });
+  };
+
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper}>
       {/* 상태바 */}
       <View style={styles.statusbar}>
         <Text style={styles.statusTime}>9:41</Text>
@@ -38,7 +53,7 @@ export function ChatScreen({ navigation }) {
         {/* 추천 피해방 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>추천 피해방</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert('추천 피해방', '지금은 이 3개 방이 전부예요. 새로운 방이 열리면 여기 더 추가될 예정입니다.')}>
             <Text style={styles.seeAll}>전체 보기 →</Text>
           </TouchableOpacity>
         </View>
@@ -59,8 +74,8 @@ export function ChatScreen({ navigation }) {
               <Text style={styles.roomDesc}>같은 집주인에게 사례 다수 · 집단 고소 준비</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.joinBtn}>
-            <Text style={styles.joinBtnText}>참여하기</Text>
+          <TouchableOpacity style={styles.joinBtn} onPress={() => joinRoom(ROOMS[0])}>
+            <Text style={styles.joinBtnText}>{joined.jeonse ? '참여 중 ✓' : '참여하기'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -80,8 +95,8 @@ export function ChatScreen({ navigation }) {
               <Text style={styles.roomDesc}>피해자 지원센터 연결 · 법적 대응 공유</Text>
             </View>
           </View>
-          <TouchableOpacity style={[styles.joinBtn, { backgroundColor: '#7C3AED' }]}>
-            <Text style={styles.joinBtnText}>참여하기</Text>
+          <TouchableOpacity style={[styles.joinBtn, { backgroundColor: '#7C3AED' }]} onPress={() => joinRoom(ROOMS[1])}>
+            <Text style={styles.joinBtnText}>{joined.stalking ? '참여 중 ✓' : '참여하기'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -101,13 +116,16 @@ export function ChatScreen({ navigation }) {
               <Text style={styles.roomDesc}>증거 수집 방법 공유 · 노동청 신고 안내</Text>
             </View>
           </View>
-          <TouchableOpacity style={[styles.joinBtn, { backgroundColor: '#EA580C' }]}>
-            <Text style={styles.joinBtnText}>참여하기</Text>
+          <TouchableOpacity style={[styles.joinBtn, { backgroundColor: '#EA580C' }]} onPress={() => joinRoom(ROOMS[2])}>
+            <Text style={styles.joinBtnText}>{joined.harass ? '참여 중 ✓' : '참여하기'}</Text>
           </TouchableOpacity>
         </View>
 
         {/* 새 피해자 모임 만들기 */}
-        <TouchableOpacity style={styles.createRoomBtn}>
+        <TouchableOpacity
+          style={styles.createRoomBtn}
+          onPress={() => Alert.alert('새 피해자 모임 만들기', '모임 개설 기능은 아직 준비 중이에요. 조금만 기다려주세요!')}
+        >
           <Text style={styles.createRoomIcon}>+</Text>
           <Text style={styles.createRoomText}>새 피해자 모임 만들기</Text>
         </TouchableOpacity>
@@ -187,7 +205,7 @@ export function ChatScreen({ navigation }) {
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -338,15 +356,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 0.5,
     borderTopColor: '#E2E8F0',
-    paddingVertical: 8, paddingHorizontal: 8,
+    paddingVertical: 14, paddingHorizontal: 8, paddingBottom: 18,
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
   },
-  navItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
+  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6 },
   navItemActive: {
-    backgroundColor: '#0F1F3D', borderRadius: 8, paddingVertical: 6,
+    backgroundColor: '#0F1F3D', borderRadius: 10, paddingVertical: 9,
   },
-  navIcon: { fontSize: 20 },
-  navLabel: { fontSize: 10, color: '#94A3B8' },
-  navLabelActive: { fontSize: 10, color: '#FFFFFF', fontWeight: '500' },
+  navIcon: { fontSize: 22 },
+  navLabel: { fontSize: 11, color: '#94A3B8' },
+  navLabelActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '500' },
 });

@@ -1,9 +1,13 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_ROUTES } from '../navigation/routes';
 
 export function ExpertScreen({ navigation }) {
+  const [adoptedId, setAdoptedId] = useState(null);
+
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper}>
       {/* 상태바 */}
       <View style={styles.statusbar}>
         <Text style={styles.statusTime}>9:41</Text>
@@ -27,7 +31,10 @@ export function ExpertScreen({ navigation }) {
         <Text style={styles.sectionTitle}>지금 주목받는 사건</Text>
 
         {/* 핫 케이스 1 */}
-        <TouchableOpacity style={styles.hotCard}>
+        <TouchableOpacity
+          style={styles.hotCard}
+          onPress={() => Alert.alert('전세보증금 미반환 — 강남구 집중', '같은 집주인에게 피해를 입은 사람이 많습니다. 전문가 12명 · 제보 3건 · 집단 고소 준비 중\n\n상세 페이지는 아직 준비 중이에요.')}
+        >
           <View style={styles.hotCardHeader}>
             <View style={styles.hotBadge}>
               <Text style={styles.hotBadgeText}>🔥 HOT</Text>
@@ -46,7 +53,10 @@ export function ExpertScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* 핫 케이스 2 */}
-        <TouchableOpacity style={[styles.hotCard, { borderLeftColor: '#F97316' }]}>
+        <TouchableOpacity
+          style={[styles.hotCard, { borderLeftColor: '#F97316' }]}
+          onPress={() => Alert.alert('프리랜서 대금 미지급 — IT 업계', '의뢰인으로부터 대금을 받지 못한 프리랜서들이 모이고 있습니다.\n\n상세 페이지는 아직 준비 중이에요.')}
+        >
           <View style={styles.hotCardHeader}>
             <View style={[styles.hotBadge, { backgroundColor: '#FFF7ED' }]}>
               <Text style={[styles.hotBadgeText, { color: '#C2410C' }]}>금상승</Text>
@@ -125,8 +135,11 @@ export function ExpertScreen({ navigation }) {
               <Text style={styles.lawyerRole}>일반직 전문</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.selectBtn}>
-            <Text style={styles.selectBtnText}>채택하기</Text>
+          <TouchableOpacity
+            style={[styles.selectBtn, adoptedId === 'lawyer1' && styles.selectBtnDone]}
+            onPress={() => setAdoptedId((v) => (v === 'lawyer1' ? null : 'lawyer1'))}
+          >
+            <Text style={styles.selectBtnText}>{adoptedId === 'lawyer1' ? '채택됨 ✓' : '채택하기'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -135,7 +148,10 @@ export function ExpertScreen({ navigation }) {
 
       {/* 하단 고정 버튼 */}
       <View style={styles.bottomButtonArea}>
-        <TouchableOpacity style={styles.bottomButton}>
+        <TouchableOpacity
+          style={styles.bottomButton}
+          onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}
+        >
           <Text style={styles.bottomButtonText}>내 타임라인 올리고 질문하기</Text>
         </TouchableOpacity>
       </View>
@@ -162,7 +178,7 @@ export function ExpertScreen({ navigation }) {
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -315,11 +331,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E3A5F', borderRadius: 6,
     paddingHorizontal: 12, paddingVertical: 6,
   },
+  selectBtnDone: { backgroundColor: '#16A34A' },
   selectBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
 
   bottomButtonArea: {
     position: 'absolute',
-    bottom: 64,
+    bottom: 82,
     left: 16,
     right: 16,
   },
@@ -341,16 +358,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 0.5,
     borderTopColor: '#E2E8F0',
-    paddingVertical: 8,
+    paddingVertical: 14,
     paddingHorizontal: 8,
+    paddingBottom: 18,
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
   },
-  navItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
+  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6 },
   navItemActive: {
-    backgroundColor: '#0F1F3D', borderRadius: 8, paddingVertical: 6,
+    backgroundColor: '#0F1F3D', borderRadius: 10, paddingVertical: 9,
   },
-  navIcon: { fontSize: 20 },
-  navLabel: { fontSize: 10, color: '#94A3B8' },
-  navLabelActive: { fontSize: 10, color: '#FFFFFF', fontWeight: '500' },
+  navIcon: { fontSize: 22 },
+  navLabel: { fontSize: 11, color: '#94A3B8' },
+  navLabelActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '500' },
 });

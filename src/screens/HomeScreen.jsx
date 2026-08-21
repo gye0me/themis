@@ -1,11 +1,313 @@
-import { useContext } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { APP_ROUTES } from '../navigation/routes';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
+import * as SMS from 'expo-sms';
+import * as Notifications from 'expo-notifications';
+import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
-import { logout } from '../services/firebaseService';
+import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
+import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
+import {
+  syncDeadmanLocalState,
+  readDeadmanTriggeredFlag,
+  registerDeadmanBackgroundTask,
+  unregisterDeadmanBackgroundTask,
+} from '../services/deadmanBackgroundTask';
+
+// 앱이 백그라운드에 있어도 알림이 뜨도록 설정 (데드맨 스위치 초과 알림용)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+const EVIDENCE_TILES = [
+  { type: 'image', label: '사진', bg: '#EFF6FF', color: '#1D4ED8' },
+  { type: 'audio', label: '음성', bg: '#F5F3FF', color: '#5B21B6' },
+  { type: 'video', label: '영상', bg: '#FFF7ED', color: '#C2410C' },
+  { type: 'contract', label: '계약서', bg: '#F0FDF4', color: '#15803D' },
+];
+
+// 데드맨 스위치: 포그라운드에서는 1초 단위로 정확히 카운트다운한다.
+// 앱이 백그라운드에 있는 동안은 deadmanBackgroundTask.js에 등록된 백그라운드 작업(EAS 개발
+// 빌드에서만 동작, Expo Go에서는 무시됨)이 최소 15분 간격으로 깨어나 초과 여부를 확인하고,
+// 초과 시 알림을 띄운다 — OS가 타이밍을 보장하지 않아 "정확히 30분"은 아니고,
+// 앱이 완전히 종료된 동안엔 그마저도 안 돌 수 있다는 한계는 여전히 남아있다.
+const DEADMAN_TIMEOUT_MS = 30 * 60 * 1000;
+
+function formatCountdown(ms) {
+  const clamped = Math.max(0, ms);
+  const totalSec = Math.floor(clamped / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatJoinDate(ts) {
+  if (!ts) return null;
+  const date = ts?.toDate ? ts.toDate() : new Date(ts);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function formatCaseDate(ts) {
+  if (!ts) return '';
+  const date = ts?.toDate ? ts.toDate() : new Date(ts);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getMonth() + 1}월 ${date.getDate()}일~`;
+}
 
 export function HomeScreen({ navigation }) {
-  const { user } = useContext(AuthContext);
+  const { user, profile, refreshProfile } = useContext(AuthContext);
+
+  const [cases, setCases] = useState([]);
+  const [evidenceByCase, setEvidenceByCase] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  const [deadmanEnabled, setDeadmanEnabled] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [savingContact, setSavingContact] = useState(false);
+  const [lastCheckIn, setLastCheckIn] = useState(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const triggeringRef = useRef(false);
+
+  const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '사용자';
+  const joinDate = formatJoinDate(profile?.createdAt ?? profile?.joined_at);
+
+  const toggleDeadman = async (next) => {
+    setDeadmanEnabled(next);
+    if (next && !contactName.trim()) {
+      // 켜는 순간 보호자 연락처가 없으면 바로 입력창을 띄운다
+      setEditingContact(true);
+      return;
+    }
+    if (!user) return;
+    const checkInAt = next ? Date.now() : lastCheckIn;
+    if (next) setLastCheckIn(checkInAt);
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: {
+          enabled: next,
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim(),
+          lastCheckIn: checkInAt,
+        },
+      });
+      await refreshProfile?.();
+      await syncDeadmanLocalState({ enabled: next, lastCheckIn: checkInAt, contactName, contactPhone });
+      if (next) {
+        await Notifications.requestPermissionsAsync().catch(() => {});
+        const ok = await registerDeadmanBackgroundTask();
+        if (!ok) {
+          Alert.alert(
+            '알림',
+            'Expo Go에서는 백그라운드 감지가 동작하지 않아요. 앱이 켜져있는 동안만 카운트다운돼요.\n(EAS 개발 빌드로 실행하면 백그라운드에서도 감지됩니다.)'
+          );
+        }
+      } else {
+        await unregisterDeadmanBackgroundTask();
+      }
+    } catch (err) {
+      console.error('데드맨 스위치 저장 오류:', err);
+      Alert.alert('오류', '설정을 저장하지 못했습니다.');
+    }
+  };
+
+  const saveContact = async () => {
+    if (!user) return;
+    if (!contactName.trim() || !contactPhone.trim()) {
+      Alert.alert('알림', '보호자 이름과 연락처를 입력해주세요.');
+      return;
+    }
+    setSavingContact(true);
+    const checkInAt = Date.now();
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: {
+          enabled: deadmanEnabled,
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim(),
+          lastCheckIn: checkInAt,
+        },
+      });
+      setLastCheckIn(checkInAt);
+      await refreshProfile?.();
+      await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone });
+      if (deadmanEnabled) {
+        await Notifications.requestPermissionsAsync().catch(() => {});
+        await registerDeadmanBackgroundTask();
+      }
+      setEditingContact(false);
+    } catch (err) {
+      console.error('보호자 연락처 저장 오류:', err);
+      Alert.alert('오류', '저장하지 못했습니다.');
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
+  // "저 괜찮아요" 체크인 — 카운트다운을 30분으로 다시 채운다.
+  const checkIn = async () => {
+    const checkInAt = Date.now();
+    setLastCheckIn(checkInAt);
+    await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone });
+    if (!user) return;
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: { enabled: deadmanEnabled, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn: checkInAt },
+      });
+    } catch (err) {
+      console.error('체크인 저장 오류:', err);
+    }
+  };
+
+  // 30분 무응답 시간 초과 — GPS 위치를 담아 보호자에게 보낼 문자를 미리 채워서 연다.
+  // (OS 정책상 앱이 사용자 동의 없이 문자를 "완전 자동"으로 보낼 수는 없어, 마지막 전송 버튼만 사용자가 누르면 된다.)
+  const triggerDeadmanAlert = async () => {
+    if (triggeringRef.current) return;
+    triggeringRef.current = true;
+    try {
+      // 재발동 방지를 위해 즉시 끄고 저장 (사용자가 다시 켜면 재무장)
+      setDeadmanEnabled(false);
+      await unregisterDeadmanBackgroundTask();
+      await syncDeadmanLocalState({ enabled: false, lastCheckIn, contactName, contactPhone });
+      if (user) {
+        await updateUserProfile(user.uid, {
+          deadmanSwitch: { enabled: false, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn },
+        }).catch((err) => console.error('데드맨 스위치 비활성화 저장 오류:', err));
+      }
+
+      let locationLine = '위치 정보 없음';
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          locationLine = `https://maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
+        }
+      } catch (err) {
+        console.warn('위치 조회 실패:', err.message);
+      }
+
+      const message = `[Themis 위급 알림] ${displayName}님이 30분간 앱에 응답이 없습니다.\n마지막 위치: ${locationLine}\n확인 부탁드립니다.`;
+
+      const available = await SMS.isAvailableAsync();
+      if (!available || !contactPhone) {
+        Alert.alert(
+          '무응답 감지됨',
+          `30분간 체크인이 없었어요.\n\n${message}\n\n(이 기기에서 문자 전송을 사용할 수 없어 자동으로 열지 못했습니다.)`
+        );
+        return;
+      }
+      await SMS.sendSMSAsync([contactPhone], message);
+      Alert.alert('알림 발송 준비 완료', '문자 앱에서 전송 버튼을 눌러 마무리해주세요. 데드맨 스위치는 안전을 위해 꺼졌습니다 — 필요하면 다시 켜주세요.');
+    } finally {
+      triggeringRef.current = false;
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      let active = true;
+      (async () => {
+        setLoading(true);
+        try {
+          const list = await getCasesByUser(user.uid);
+          const sorted = [...list].sort(
+            (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)
+          );
+          if (!active) return;
+          setCases(sorted);
+
+          const entries = await Promise.all(
+            sorted.map(async (c) => {
+              try {
+                const records = await getEvidenceRecords(user.uid, c.id);
+                const byType = {};
+                records.forEach((r) => {
+                  const key = r.evidenceType ?? 'default';
+                  byType[key] = (byType[key] ?? 0) + 1;
+                });
+                return [c.id, { total: records.length, byType }];
+              } catch (err) {
+                console.error('사건별 증거 조회 오류:', err);
+                return [c.id, { total: 0, byType: {} }];
+              }
+            })
+          );
+          if (!active) return;
+          setEvidenceByCase(Object.fromEntries(entries));
+        } catch (err) {
+          console.error('홈 데이터 조회 오류:', err);
+        } finally {
+          if (active) setLoading(false);
+        }
+      })();
+
+      // 데드맨 스위치 설정값은 프로필 문서에서 불러온다 (저장 안 돼있으면 기본 OFF)
+      const saved = profile?.deadmanSwitch;
+      setDeadmanEnabled(Boolean(saved?.enabled));
+      setContactName(saved?.contactName ?? '');
+      setContactPhone(saved?.contactPhone ?? '');
+      const savedCheckIn = saved?.lastCheckIn?.toMillis ? saved.lastCheckIn.toMillis() : (saved?.lastCheckIn ?? null);
+      setLastCheckIn(savedCheckIn);
+      setNowTick(Date.now());
+
+      return () => {
+        active = false;
+      };
+    }, [user, profile?.deadmanSwitch])
+  );
+
+  // 앱이 백그라운드/완전종료 상태였다가 다시 켜졌을 때 — 그 사이 백그라운드 작업이
+  // 이미 초과를 감지해뒀다면(triggered 플래그) 바로 알림 흐름을 이어서 진행한다.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active') return;
+      setNowTick(Date.now());
+      const alreadyTriggered = await readDeadmanTriggeredFlag().catch(() => false);
+      if (alreadyTriggered) triggerDeadmanAlert();
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 알림을 탭해서 앱을 열었을 때도 같은 흐름으로 이어준다 (콜드 스타트 포함).
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.notification.request.content.data?.type === 'deadman-alert') {
+        triggerDeadmanAlert();
+      }
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 1초마다 카운트다운 갱신 + 시간 초과 시 알림 발동 (앱이 포그라운드일 때만 동작)
+  useEffect(() => {
+    if (!deadmanEnabled || !lastCheckIn) return;
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [deadmanEnabled, lastCheckIn]);
+
+  useEffect(() => {
+    if (!deadmanEnabled || !lastCheckIn) return;
+    if (nowTick - lastCheckIn >= DEADMAN_TIMEOUT_MS) {
+      triggerDeadmanAlert();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nowTick, deadmanEnabled, lastCheckIn]);
 
   const handleLogout = () => {
     Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
@@ -16,15 +318,21 @@ export function HomeScreen({ navigation }) {
         onPress: async () => {
           try {
             await logout();
-          } catch (e) {
+          } catch (err) {
+            console.error('로그아웃 오류:', err);
             Alert.alert('오류', '로그아웃에 실패했습니다.');
           }
         },
       },
     ]);
   };
+
+  const totalEvidence = Object.values(evidenceByCase).reduce((sum, v) => sum + (v?.total ?? 0), 0);
+  const activeCase = cases[0] ?? null;
+  const restCases = cases.slice(1);
+
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper}>
       {/* 상태바 */}
       <View style={styles.statusbar}>
         <Text style={styles.statusTime}>9:41</Text>
@@ -53,101 +361,151 @@ export function HomeScreen({ navigation }) {
             <Text style={styles.profileAvatarIcon}>👤</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>박덕새</Text>
-            <Text style={styles.profileSub}>가입일 2025.03.01</Text>
-            <Text style={styles.profileDetail}>진행 중인 사건 2건 · 수집 증거 8건</Text>
+            <Text style={styles.profileName}>{displayName}</Text>
+            <Text style={styles.profileSub}>{joinDate ? `가입일 ${joinDate}` : '프로필 동기화 중...'}</Text>
+            <Text style={styles.profileDetail}>진행 중인 사건 {cases.length}건 · 수집 증거 {totalEvidence}건</Text>
           </View>
         </View>
 
-        {/* 진행 중인 사건 배너 */}
-        <TouchableOpacity style={styles.caseBanner} onPress={() => navigation.navigate('EvidenceTimeline')}>
-          <Text style={styles.caseBannerText}>현재 진행 중인 사건</Text>
-          <Text style={styles.caseBannerSub}>전세보증금 미반환 · 퀘스트 3/5 완료 · 증거 8건 수집</Text>
-          <Text style={styles.caseBannerArrow}>→</Text>
-        </TouchableOpacity>
-
-        {/* 섹션 타이틀 */}
-        <Text style={styles.sectionTitle}>내 사건 기록</Text>
-
-        {/* 사건 카드 1 — 진행 중 */}
-        <TouchableOpacity style={styles.caseCard} onPress={() => navigation.navigate('EvidenceUpload')}>
-          <View style={[styles.caseCardBar, {backgroundColor: '#DC2626'}]} />
-          <View style={styles.caseCardBody}>
-            <View style={styles.caseCardHeader}>
-              <View style={styles.badgeDanger}>
-                <Text style={styles.badgeDangerText}>진행 중</Text>
-              </View>
-              <Text style={styles.caseCardTitle}>전세보증금 미반환</Text>
-              <Text style={styles.caseDate}>3월 2일~</Text>
-            </View>
-
-            {/* 퀘스트 진행도 */}
-            <View style={styles.progressRow}>
-              <Text style={styles.progressLabel}>퀘스트 진행도</Text>
-              <Text style={styles.progressValue}>3 / 5 완료</Text>
-            </View>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, {width: '60%'}]} />
-            </View>
-
-            {/* 퀘스트 체크리스트 */}
-            <View style={styles.checkGrid}>
-              <Text style={styles.checkDone}>✓ 임대차보호법 확인</Text>
-              <Text style={styles.checkDone}>✓ 내용증명 발송</Text>
-              <Text style={styles.checkDone}>✓ 증거 PDF 정리</Text>
-              <Text style={styles.checkTodo}>○ 법률구조공단 신청</Text>
-              <Text style={styles.checkTodo}>○ 소액심판 신청</Text>
-            </View>
-
-            {/* 증거 숫자 카드 */}
-            <View style={styles.evidenceRow}>
-              <View style={[styles.evidenceCard, {backgroundColor: '#EFF6FF'}]}>
-                <Text style={[styles.evidenceNum, {color: '#1D4ED8'}]}>4</Text>
-                <Text style={[styles.evidenceLabel, {color: '#3B82F6'}]}>사진</Text>
-              </View>
-              <View style={[styles.evidenceCard, {backgroundColor: '#F5F3FF'}]}>
-                <Text style={[styles.evidenceNum, {color: '#5B21B6'}]}>2</Text>
-                <Text style={[styles.evidenceLabel, {color: '#7C3AED'}]}>음성</Text>
-              </View>
-              <View style={[styles.evidenceCard, {backgroundColor: '#FFF7ED'}]}>
-                <Text style={[styles.evidenceNum, {color: '#C2410C'}]}>1</Text>
-                <Text style={[styles.evidenceLabel, {color: '#EA580C'}]}>영상</Text>
-              </View>
-              <View style={[styles.evidenceCard, {backgroundColor: '#F0FDF4'}]}>
-                <Text style={[styles.evidenceNum, {color: '#15803D'}]}>1</Text>
-                <Text style={[styles.evidenceLabel, {color: '#16A34A'}]}>PDF</Text>
-              </View>
-              <TouchableOpacity style={styles.timelineBtn} onPress={() => navigation.navigate('EvidenceTimeline')}>
-                <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
-              </TouchableOpacity>
-            </View>
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#1E3A5F" />
           </View>
-        </TouchableOpacity>
-
-        {/* 사건 카드 2 — 완료 */}
-        <View style={styles.caseCard}>
-          <View style={[styles.caseCardBar, {backgroundColor: '#16A34A'}]} />
-          <View style={styles.caseCardBody}>
-            <View style={styles.caseCardHeader}>
-              <View style={styles.badgeSuccess}>
-                <Text style={styles.badgeSuccessText}>완료</Text>
-              </View>
-              <Text style={styles.caseCardTitle}>프리랜서 계약 분쟁</Text>
-              <Text style={styles.caseDate}>2월 15일~</Text>
-            </View>
-            <Text style={styles.caseMeta}>계약서 1 · 메모 3</Text>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, {width: '100%', backgroundColor: '#16A34A'}]} />
-            </View>
-            <View style={styles.progressRow}>
-              <View />
-              <Text style={styles.progressValue}>퀘스트 3/3</Text>
-            </View>
+        ) : !activeCase ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyIcon}>📂</Text>
+            <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
+            <TouchableOpacity
+              style={styles.emptyBtn}
+              onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true } })}
+            >
+              <Text style={styles.emptyBtnText}>+ 첫 사건 기록 시작하기</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        ) : (
+          <>
+            {/* 진행 중인 사건 배너 */}
+            {(() => {
+              const meta = CASE_TYPE_META[activeCase.caseType] ?? { icon: '📁' };
+              const { progress } = buildQuestSteps(activeCase.caseType, activeCase.questSteps ?? []);
+              const evidence = evidenceByCase[activeCase.id] ?? { total: 0 };
+              return (
+                <TouchableOpacity
+                  style={styles.caseBanner}
+                  onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: activeCase.id } })}
+                >
+                  <Text style={styles.caseBannerText}>현재 진행 중인 사건</Text>
+                  <Text style={styles.caseBannerSub}>
+                    {meta.icon} {activeCase.title || '이름 없는 사건'} · 퀘스트 {progress.label} · 증거 {evidence.total}건 수집
+                  </Text>
+                  <Text style={styles.caseBannerArrow}>→</Text>
+                </TouchableOpacity>
+              );
+            })()}
+
+            {/* 섹션 타이틀 */}
+            <Text style={styles.sectionTitle}>내 사건 기록</Text>
+
+            {/* 대표 사건 카드 (퀘스트 + 증거 상세) */}
+            {(() => {
+              const meta = CASE_TYPE_META[activeCase.caseType] ?? { icon: '📁' };
+              const { items, progress } = buildQuestSteps(activeCase.caseType, activeCase.questSteps ?? []);
+              const evidence = evidenceByCase[activeCase.id] ?? { total: 0, byType: {} };
+              const previewItems = items.slice(0, 5);
+              const isDone = progress.percent === 100;
+              return (
+                <TouchableOpacity
+                  style={styles.caseCard}
+                  onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: activeCase.id } })}
+                >
+                  <View style={[styles.caseCardBar, { backgroundColor: isDone ? '#16A34A' : '#DC2626' }]} />
+                  <View style={styles.caseCardBody}>
+                    <View style={styles.caseCardHeader}>
+                      <View style={isDone ? styles.badgeSuccess : styles.badgeDanger}>
+                        <Text style={isDone ? styles.badgeSuccessText : styles.badgeDangerText}>{isDone ? '완료' : '진행 중'}</Text>
+                      </View>
+                      <Text style={styles.caseCardTitle} numberOfLines={1}>{meta.icon} {activeCase.title || '이름 없는 사건'}</Text>
+                      <Text style={styles.caseDate}>{formatCaseDate(activeCase.createdAt)}</Text>
+                    </View>
+
+                    <View style={styles.progressRow}>
+                      <Text style={styles.progressLabel}>퀘스트 진행도</Text>
+                      <Text style={styles.progressValue}>{progress.label}</Text>
+                    </View>
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressFill, { width: `${progress.percent}%`, backgroundColor: isDone ? '#16A34A' : '#3B7DD8' }]} />
+                    </View>
+
+                    {previewItems.length > 0 && (
+                      <View style={styles.checkGrid}>
+                        {previewItems.map((item) => (
+                          <Text key={item.id} style={item.completed ? styles.checkDone : styles.checkTodo} numberOfLines={1}>
+                            {item.completed ? '✓' : '○'} {item.title}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+
+                    <View style={styles.evidenceRow}>
+                      {EVIDENCE_TILES.map((tile) => (
+                        <View key={tile.type} style={[styles.evidenceCard, { backgroundColor: tile.bg }]}>
+                          <Text style={[styles.evidenceNum, { color: tile.color }]}>{evidence.byType?.[tile.type] ?? 0}</Text>
+                          <Text style={[styles.evidenceLabel, { color: tile.color }]}>{tile.label}</Text>
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        style={styles.timelineBtn}
+                        onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: activeCase.id } })}
+                      >
+                        <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
+
+            {/* 나머지 사건 카드들 (간단 표시) */}
+            {restCases.map((c) => {
+              const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁' };
+              const { progress } = buildQuestSteps(c.caseType, c.questSteps ?? []);
+              const evidence = evidenceByCase[c.id] ?? { total: 0 };
+              const isDone = progress.percent === 100;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.caseCard}
+                  onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: c.id } })}
+                >
+                  <View style={[styles.caseCardBar, { backgroundColor: isDone ? '#16A34A' : '#DC2626' }]} />
+                  <View style={styles.caseCardBody}>
+                    <View style={styles.caseCardHeader}>
+                      <View style={isDone ? styles.badgeSuccess : styles.badgeDanger}>
+                        <Text style={isDone ? styles.badgeSuccessText : styles.badgeDangerText}>{isDone ? '완료' : '진행 중'}</Text>
+                      </View>
+                      <Text style={styles.caseCardTitle} numberOfLines={1}>{meta.icon} {c.title || '이름 없는 사건'}</Text>
+                      <Text style={styles.caseDate}>{formatCaseDate(c.createdAt)}</Text>
+                    </View>
+                    <Text style={styles.caseMeta}>증거 {evidence.total}건</Text>
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressFill, { width: `${progress.percent}%`, backgroundColor: isDone ? '#16A34A' : '#3B7DD8' }]} />
+                    </View>
+                    <View style={styles.progressRow}>
+                      <View />
+                      <Text style={styles.progressValue}>퀘스트 {progress.label}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
 
         {/* 새 사건 추가 */}
-        <TouchableOpacity style={styles.caseCardNew} onPress={() => navigation.navigate('RecordStart')}>
+        <TouchableOpacity
+          style={styles.caseCardNew}
+          onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true } })}
+        >
           <Text style={styles.caseCardNewPlus}>+</Text>
           <Text style={styles.caseCardNewText}>새 사건 기록 시작하기</Text>
         </TouchableOpacity>
@@ -156,19 +514,69 @@ export function HomeScreen({ navigation }) {
         <View style={styles.deadman}>
           <View style={styles.deadmanLeft}>
             <Text style={styles.deadmanTitle}>위급 상황 자동 알림</Text>
-            <Text style={styles.deadmanSub}>30분 무응답 시 보호자에게 GPS + 증거 자동 전송</Text>
-            <Text style={styles.deadmanContact}>보호자: 홍길동 · 010-1234-5678</Text>
-            <TouchableOpacity>
-              <Text style={styles.deadmanChange}>변경 →</Text>
-            </TouchableOpacity>
+            <Text style={styles.deadmanSub}>30분간 "체크인"이 없으면 보호자에게 위치와 함께 문자 전송을 준비해요</Text>
+            {deadmanEnabled && !editingContact && (
+              <View style={styles.deadmanCountdownRow}>
+                <Text style={styles.deadmanCountdown}>
+                  {formatCountdown(DEADMAN_TIMEOUT_MS - (nowTick - (lastCheckIn ?? nowTick)))}
+                </Text>
+                <TouchableOpacity style={styles.checkInBtn} onPress={checkIn}>
+                  <Text style={styles.checkInBtnText}>저 괜찮아요 ✓</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {editingContact ? (
+              <View style={styles.deadmanEditBox}>
+                <TextInput
+                  style={styles.deadmanInput}
+                  placeholder="보호자 이름"
+                  placeholderTextColor="#5C7A9E"
+                  value={contactName}
+                  onChangeText={setContactName}
+                />
+                <TextInput
+                  style={styles.deadmanInput}
+                  placeholder="연락처 (010-0000-0000)"
+                  placeholderTextColor="#5C7A9E"
+                  value={contactPhone}
+                  onChangeText={setContactPhone}
+                  keyboardType="phone-pad"
+                />
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                  <TouchableOpacity onPress={() => setEditingContact(false)}>
+                    <Text style={styles.deadmanCancel}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={saveContact} disabled={savingContact}>
+                    <Text style={styles.deadmanChange}>{savingContact ? '저장 중...' : '저장'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.deadmanContact}>
+                  {contactName ? `보호자: ${contactName} · ${contactPhone}` : '보호자 연락처가 등록되지 않았어요'}
+                </Text>
+                <TouchableOpacity onPress={() => setEditingContact(true)}>
+                  <Text style={styles.deadmanChange}>변경 →</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            <Text style={styles.deadmanNote}>
+              * 앱이 켜져있는 동안 실제로 카운트다운돼요. 시간 초과 시 문자 앱이 위치와 함께 미리 채워져 열리고,
+              마지막 전송은 직접 눌러야 해요(운영체제 정책). 앱을 완전히 꺼두면 그동안은 감지가 안 되고,
+              다시 열었을 때 몰아서 확인해요 — 완전한 백그라운드 감지는 아직 지원하지 않습니다.
+            </Text>
           </View>
-          <View style={styles.toggleOn}>
+          <TouchableOpacity
+            style={deadmanEnabled ? styles.toggleOn : styles.toggleOff}
+            onPress={() => toggleDeadman(!deadmanEnabled)}
+          >
             <View style={styles.toggleCircle} />
-            <Text style={styles.toggleText}>ON</Text>
-          </View>
+            <Text style={styles.toggleText}>{deadmanEnabled ? 'ON' : 'OFF'}</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={{height: 60}} />
+        <View style={{ height: 90 }} />
       </ScrollView>
 
       {/* 네비바 */}
@@ -190,7 +598,7 @@ export function HomeScreen({ navigation }) {
           <Text style={styles.navLabelActive}>홈</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -230,6 +638,12 @@ const styles = StyleSheet.create({
   },
   logoutText: { color: '#94A3B8', fontSize: 11 },
   content: { flex: 1, padding: 16 },
+  loadingBox: { alignItems: 'center', paddingVertical: 40 },
+  emptyBox: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  emptyIcon: { fontSize: 36 },
+  emptyText: { color: '#94A3B8', fontSize: 13 },
+  emptyBtn: { backgroundColor: '#1E3A5F', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, marginTop: 4 },
+  emptyBtnText: { color: '#F1F5F9', fontSize: 12, fontWeight: '600' },
   profileCard: {
     backgroundColor: '#1E3A5F', borderRadius: 10,
     padding: 16, flexDirection: 'row',
@@ -303,40 +717,62 @@ const styles = StyleSheet.create({
   deadman: {
     backgroundColor: '#0F1F3D', borderRadius: 10,
     padding: 14, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'space-between',
+    alignItems: 'flex-start', justifyContent: 'space-between',
     marginBottom: 10,
   },
-  deadmanLeft: { flex: 1 },
+  deadmanLeft: { flex: 1, paddingRight: 10 },
   deadmanTitle: { color: '#F87171', fontSize: 12, fontWeight: '600' },
   deadmanSub: { color: '#4A6FA5', fontSize: 10 },
   deadmanContact: { color: '#4A6FA5', fontSize: 10, marginTop: 2 },
-  deadmanChange: { color: '#3B7DD8', fontSize: 10, marginTop: 4 },
+  deadmanCountdownRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 4 },
+  deadmanCountdown: {
+    color: '#F1F5F9', fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'],
+  },
+  checkInBtn: {
+    backgroundColor: '#16A34A', borderRadius: 14,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  checkInBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  deadmanChange: { color: '#3B7DD8', fontSize: 10, marginTop: 4, fontWeight: '600' },
+  deadmanCancel: { color: '#8595AC', fontSize: 10, marginTop: 4 },
+  deadmanNote: { color: '#4A6FA5', fontSize: 9, marginTop: 8, fontStyle: 'italic' },
+  deadmanEditBox: { marginTop: 6, gap: 6 },
+  deadmanInput: {
+    backgroundColor: '#16233F', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 7,
+    fontSize: 11, color: '#F1F5F9',
+  },
   toggleOn: {
     backgroundColor: '#3B7DD8', borderRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+  },
+  toggleOff: {
+    backgroundColor: '#334155', borderRadius: 12,
     paddingHorizontal: 10, paddingVertical: 4,
     flexDirection: 'row', alignItems: 'center', gap: 4,
   },
   toggleCircle: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
   toggleText: { color: '#FFFFFF', fontSize: 10, fontWeight: '500' },
   navbar: {
-  flexDirection: 'row',
-  backgroundColor: '#FFFFFF',
-  borderTopWidth: 0.5,
-  borderTopColor: '#E2E8F0',
-  paddingVertical: 8,
-  paddingHorizontal: 8,
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  right: 0,
-},
-  navItem: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 4 },
-  navItemActive: {
-    backgroundColor: '#0F1F3D', borderRadius: 8,
-    paddingVertical: 6,
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderTopColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    paddingBottom: 18,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  navIcon: { fontSize: 20 },
-  navIconActive: { fontSize: 20 },
-  navLabel: { fontSize: 10, color: '#94A3B8' },
-  navLabelActive: { fontSize: 10, color: '#FFFFFF', fontWeight: '500' },
+  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6 },
+  navItemActive: {
+    backgroundColor: '#0F1F3D', borderRadius: 10,
+    paddingVertical: 9,
+  },
+  navIcon: { fontSize: 22 },
+  navIconActive: { fontSize: 22 },
+  navLabel: { fontSize: 11, color: '#94A3B8' },
+  navLabelActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '500' },
 });
