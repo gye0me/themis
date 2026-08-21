@@ -1,3 +1,54 @@
+import { useContext, useState } from 'react';
+import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
+import { AuthContext } from '../context/AuthContext';
+import { createEvidenceRecord, getEvidenceRecords, uploadEvidenceThumbnail } from '../services/firebaseService';
+import { transcribeAudioClova } from '../services/clovaSpeechService';
+import { extractTextFromImage } from '../services/ocrService';
+
+const TYPE_CONFIG = {
+  image:    { icon: '📷', color: '#EA580C' },
+  audio:    { icon: '🎙️', color: '#7C3AED' },
+  video:    { icon: '🎥', color: '#16A34A' },
+  text:     { icon: '📝', color: '#3B82F6' },
+  contract: { icon: '📑', color: '#0EA5E9' },
+  default:  { icon: '📄', color: '#94A3B8' },
+};
+
+function formatDate(capturedAt) {
+  if (!capturedAt || (typeof capturedAt.toDate !== 'function' && isNaN(new Date(capturedAt)))) {
+    return '날짜 정보 없음';
+  }
+  const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hour = date.getHours();
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hour < 12 ? '오전' : '오후';
+  const hour12 = hour % 12 || 12;
+  return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
+}
+
+// 녹음 시간을 mm:ss 형식으로 표시
+function formatDuration(ms) {
+  const totalSec = Math.floor((ms ?? 0) / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+const UPLOAD_TYPES = {
+  image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
+  audio: { mimeType: 'audio/*',  title: '음성 녹음 증거',  label: '음성' },
+  video: { mimeType: 'video/*',  title: '영상 증거',        label: '영상' },
+};
+
 export function EvidenceUploadScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
   const caseId = route?.params?.caseId ?? null;
@@ -81,11 +132,26 @@ export function EvidenceUploadScreen({ navigation, route }) {
     }
   };
 
-  // 파일 선택기로 기존 파일 가져오기 (사진/영상, 그리고 음성의 "파일에서 가져오기")
+  // 사진/영상은 갤러리에서, 음성은 파일 탐색기에서 선택
   const handlePickFile = async (evidenceType) => {
-    const cfg = UPLOAD_TYPES[evidenceType];
-    if (!cfg || uploadingType !== null) return;
+    if (uploadingType !== null) return;
     try {
+      if (evidenceType === 'image' || evidenceType === 'video') {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: evidenceType === 'image' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+          quality: 0.8,
+        });
+        if (result.canceled || !result.assets?.length) return;
+        const asset = result.assets[0];
+        await uploadEvidence(evidenceType, {
+          uri: asset.uri,
+          name: asset.fileName ?? `${evidenceType}-${Date.now()}.${evidenceType === 'image' ? 'jpg' : 'mp4'}`,
+          mimeType: asset.mimeType ?? (evidenceType === 'image' ? 'image/jpeg' : 'video/mp4'),
+        });
+        return;
+      }
+
+      const cfg = UPLOAD_TYPES[evidenceType];
       const result = await DocumentPicker.getDocumentAsync({ type: cfg.mimeType });
       if (result.canceled || !result.assets?.length) return;
       await uploadEvidence(evidenceType, result.assets[0]);
@@ -219,7 +285,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
             ) : (
               <Text style={styles.cardTitle}>사진</Text>
             )}
-            <Text style={styles.cardDesc}>현장 사진 촬영</Text>
+            <Text style={styles.cardDesc}>갤러리에서 선택</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -247,7 +313,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
             ) : (
               <Text style={styles.cardTitle}>영상</Text>
             )}
-            <Text style={styles.cardDesc}>동영상 파일 업로드</Text>
+            <Text style={styles.cardDesc}>갤러리에서 선택</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -330,3 +396,161 @@ export function EvidenceUploadScreen({ navigation, route }) {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: '#F1F5F9' },
+  statusbar: {
+    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
+    flexDirection: 'row', justifyContent: 'space-between',
+  },
+  statusTime: { color: '#6B84A8', fontSize: 12 },
+  statusApp: { color: '#6B84A8', fontSize: 12 },
+  appbar: {
+    backgroundColor: '#1E3A5F',
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  appbarLogo: {
+    width: 28, height: 28, borderRadius: 7,
+    backgroundColor: '#3B7DD8',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  backBtn: { paddingVertical: 4, paddingRight: 6 },
+  back: { color: '#7B9EC5', fontSize: 24 },
+  appbarLogoText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
+  appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
+  appbarSub: { color: '#7B9EC5', fontSize: 11 },
+  content: { flex: 1, padding: 16 },
+  sectionTitle: {
+    fontSize: 10, fontWeight: '500', color: '#94A3B8',
+    letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
+  },
+  shortcutRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  shortcutCard: {
+    flex: 1,
+    backgroundColor: '#1E3A5F',
+    borderRadius: 10,
+    borderTopWidth: 3,
+    borderTopColor: '#5B8FD1',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    gap: 4,
+  },
+  shortcutIcon: { fontSize: 22 },
+  shortcutTitle: { color: '#F1F5F9', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  shortcutDesc: { color: '#7B9EC5', fontSize: 10, textAlign: 'center' },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  uploadCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 10,
+    width: '47.5%',
+    alignItems: 'center',
+    borderTopWidth: 3,
+  },
+  cardIcon: { fontSize: 28, marginBottom: 6 },
+  cardTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600', marginBottom: 2 },
+  cardDesc: { color: '#94A3B8', fontSize: 11, textAlign: 'center' },
+  gpsCaption: {
+    color: '#94A3B8',
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  recorderOverlay: {
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  recorderCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 20,
+    padding: 28, alignItems: 'center', gap: 8, width: '78%',
+  },
+  recorderDot: {
+    width: 14, height: 14, borderRadius: 7, backgroundColor: '#EF4444', marginBottom: 6,
+  },
+  recorderTimer: { fontSize: 32, fontWeight: '700', color: '#0F172A' },
+  recorderLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 12 },
+  recorderBtnRow: { flexDirection: 'row', gap: 10, width: '100%' },
+  recorderCancelBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center',
+  },
+  recorderCancelBtnText: { color: '#64748B', fontSize: 13, fontWeight: '600' },
+  recorderStopBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 10,
+    backgroundColor: '#1E3A5F', alignItems: 'center',
+  },
+  recorderStopBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  navbar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderTopColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    paddingBottom: 18,
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+  },
+  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6 },
+  navItemActive: {
+    backgroundColor: '#0F1F3D', borderRadius: 10, paddingVertical: 9,
+  },
+  navIcon: { fontSize: 22 },
+  navIconActive: { fontSize: 22 },
+  navLabel: { fontSize: 11, color: '#94A3B8' },
+  navLabelActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '500' },
+  recordBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  recordCard: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  recordTitle: { color: '#0F172A', fontSize: 15, fontWeight: '700', marginBottom: 12 },
+  recordTimer: { color: '#1E3A5F', fontSize: 32, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 24 },
+  recordStartBtn: {
+    backgroundColor: '#7C3AED', borderRadius: 30,
+    paddingHorizontal: 28, paddingVertical: 14,
+  },
+  recordStartBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  recordStopBtn: {
+    backgroundColor: '#DC2626', borderRadius: 30,
+    paddingHorizontal: 28, paddingVertical: 14,
+  },
+  recordStopBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  recordActionRow: { flexDirection: 'row', gap: 10 },
+  recordRetryBtn: {
+    borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  recordRetryBtnText: { color: '#64748B', fontSize: 12, fontWeight: '600' },
+  recordConfirmBtn: {
+    backgroundColor: '#1E3A5F', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  recordConfirmBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  recordCloseText: { color: '#94A3B8', fontSize: 12 },
+});
