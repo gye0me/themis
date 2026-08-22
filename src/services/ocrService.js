@@ -31,9 +31,9 @@ export const extractTextFromImage = async (imageUri) => {
         img.src = imageUri;
       });
     } else {
-      const FileSystem = await import('expo-file-system');
-      base64 = await FileSystem.default.readAsStringAsync(imageUri, {
-        encoding: FileSystem.default.EncodingType.Base64,
+      const FileSystem = require('expo-file-system/legacy');
+      base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: 'base64',
       });
     }
 
