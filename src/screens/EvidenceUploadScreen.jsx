@@ -83,13 +83,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
           sttError = e.message;
         }
       } else if (evidenceType === 'image') {
+        console.log('OCR 시작:', file.uri);
         try {
           note = await extractTextFromImage(file.uri);
+          console.log('OCR 완료:', note);
         } catch (e) {
           console.warn('OCR 변환 실패:', e.message);
         }
       }
-
       // 영상 증거: 5초 지점 프레임을 캡처해 "5초 스탬프"로 함께 저장 (변조 여부 확인용 미리보기)
       let extra = {};
       if (evidenceType === 'video') {

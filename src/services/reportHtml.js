@@ -78,7 +78,7 @@ function buildQuestCard(step) {
  * @param {Array} records - evidenceRecords 배열
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
  */
-export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [] }) {
+export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], signatureDataUrl = null }) {
   const counts = records.reduce((acc, r) => {
     const key = r.evidenceType ?? 'default';
     acc[key] = (acc[key] ?? 0) + 1;
@@ -142,6 +142,13 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
   .summary { font-size: 12px; color: #1E3A5F; margin: 4px 0; }
   .hash { font-size: 10px; color: #94A3B8; margin-top: 6px; word-break: break-all; }
   .disclaimer { font-size: 11px; color: #94A3B8; text-align: center; margin-top: 24px; line-height: 1.6; }
+  .signature-section { margin-top: 32px; border-top: 1px solid #E2E8F0; padding-top: 20px; }
+  .signature-legal { font-size: 11px; color: #64748B; line-height: 1.8; margin-bottom: 20px; }
+  .signature-box { border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; max-width: 280px; }
+  .signature-label { font-size: 11px; color: #94A3B8; margin-bottom: 8px; }
+  .signature-img { max-width: 100%; height: 80px; object-fit: contain; }
+  .signature-empty { height: 80px; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 12px; }
+  .signature-date { font-size: 10px; color: #94A3B8; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -163,10 +170,18 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     ? '<p style="text-align:center;color:#94A3B8;">등록된 증거 또는 완료된 대응 조치가 없습니다.</p>'
     : timelineEntries.map((e) => e.html).join('\n')}
 
-  <p class="disclaimer">
-    본 보고서는 Themis 앱에서 자동 생성된 증거 정리 자료입니다.<br />
-    법적 효력은 담당 기관에 문의하세요.
-  </p>
+  <div class="signature-section">
+    <p class="signature-legal">
+      본 보고서는 Themis 앱에서 자동 생성된 증거 정리 자료이며, 수집된 증거의 무결성은 SHA-256 해시값 및 서버 타임스탬프로 보장됩니다.<br />
+      아래 서명자는 본 보고서의 내용이 사실임을 확인합니다.<br />
+      법적 효력은 담당 기관에 문의하세요.
+    </p>
+    <div class="signature-box">
+      <div class="signature-label">서명</div>
+      ${signatureDataUrl ? `<img src="${signatureDataUrl}" class="signature-img" alt="서명" />` : '<div class="signature-empty">서명 없음</div>'}
+      <div class="signature-date">서명일: ${formatDateOnly(now)}</div>
+    </div>
+  </div>
 </div>
 </body>
 </html>`;

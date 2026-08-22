@@ -372,6 +372,12 @@ export function TimelineScreen({ navigation, route }) {
                             style={styles.contractImage}
                             resizeMode="cover"
                           />
+                          {item.note ? (
+                            <View style={styles.hashCard}>
+                              <Text style={styles.hashLabel}>📝 OCR 추출 텍스트</Text>
+                              <Text style={styles.memoDetailText}>{item.note}</Text>
+                            </View>
+                          ) : null}
                         </View>
                       )}
 
