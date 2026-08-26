@@ -18,6 +18,7 @@ import { ChatRoomScreen } from '../screens/ChatRoomScreen';
 import { AuthContext } from '../context/AuthContext';
 import ResponseGuideScreen from '../screens/ResponseGuideScreen';
 import ReportPreviewScreen from '../screens/ReportPreviewScreen';
+import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -177,6 +178,7 @@ function AppStack() {
       <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );

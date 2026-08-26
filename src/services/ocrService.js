@@ -43,11 +43,11 @@ export const extractTextFromImage = async (imageUri) => {
       body: JSON.stringify({
         contents: [{
           parts: [
-            { text: '이 이미지에 있는 모든 텍스트를 정확하게 추출해주세요. 줄바꿈과 띄어쓰기를 최대한 원본 그대로 유지해주세요. 텍스트 외 설명은 하지 마세요. 텍스트가 없으면 빈 문자열을 반환하세요.' },
+            { text: '이 이미지에 있는 모든 텍스트를 빠짐없이 정확하게 추출해주세요. 원본의 줄바꿈, 띄어쓰기, 문장 구조를 최대한 그대로 유지해주세요. 표나 목록이 있으면 구조를 살려서 추출해주세요. 절대로 요약하거나 설명하지 말고 이미지에 있는 텍스트만 그대로 추출해주세요. 텍스트가 없으면 빈 문자열만 반환하세요.' },
             { inline_data: { mime_type: mimeType, data: base64 } },
           ],
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
       }),
     });
 

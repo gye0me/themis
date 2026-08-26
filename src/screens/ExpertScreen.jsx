@@ -150,7 +150,7 @@ export function ExpertScreen({ navigation }) {
       <View style={styles.bottomButtonArea}>
         <TouchableOpacity
           style={styles.bottomButton}
-          onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}
+          onPress={() => navigation.navigate('ExpertQuestion')}
         >
           <Text style={styles.bottomButtonText}>내 타임라인 올리고 질문하기</Text>
         </TouchableOpacity>

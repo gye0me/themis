@@ -418,12 +418,15 @@ export function TimelineScreen({ navigation, route }) {
                             resizeMode="cover"
                           />
                           {item.note ? (
-                            <View style={styles.hashCard}>
-                              <Text style={styles.hashLabel}>📝 OCR 추출 텍스트</Text>
-                              <Text style={styles.memoDetailText}>{item.note}</Text>
-                            </View>
+                            <TouchableOpacity 
+                              style={styles.hashCard}
+                              onPress={() => Alert.alert('OCR 추출 텍스트', item.note)}
+                            >
+                              <Text style={styles.hashLabel}>📝 OCR 추출 텍스트 (탭하면 전체 보기)</Text>
+                              <Text style={styles.memoDetailText} numberOfLines={3}>{item.note}</Text>
+                            </TouchableOpacity>
                           ) : null}
-                        </View>
+                           </View>
                       )}
 
                       {/* 영상 상세 */}
