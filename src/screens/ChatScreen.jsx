@@ -1,21 +1,88 @@
-import { useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
+import { AuthContext } from '../context/AuthContext';
+import { CHAT_ROOMS, joinRoom, subscribeToRoomMeta, subscribeToMembers } from '../services/chatService';
 
-const ROOMS = [
-  { id: 'jeonse', name: '강남구 전세사기 피해자', members: 247, color: '#1E3A5F' },
-  { id: 'stalking', name: '스토킹 피해자 지원', members: 23, color: '#7C3AED' },
-  { id: 'harass', name: '직장 내 괴롭힘 피해자', members: 18, color: '#EA580C' },
-];
+function formatRelativeTime(ts) {
+  if (!ts) return null;
+  const diffMs = Date.now() - ts;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return '방금';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const date = new Date(ts);
+  return `${date.getMonth() + 1}.${date.getDate()}`;
+}
 
 export function ChatScreen({ navigation }) {
-  const [joined, setJoined] = useState({});
+  const { user, profile } = useContext(AuthContext);
+  const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
 
-  const joinRoom = (room) => {
-    setJoined((prev) => ({ ...prev, [room.id]: true }));
-    navigation.navigate(CHAT_ROUTES.ROOM, { roomName: room.name, memberCount: room.members });
-  };
+  const [search, setSearch] = useState('');
+  const [roomMeta, setRoomMeta] = useState({}); // { [roomId]: { lastMessage, lastMessageAt } }
+  const [roomMembers, setRoomMembers] = useState({}); // { [roomId]: string[] }
+  const [joining, setJoining] = useState(null);
+
+  useEffect(() => {
+    const unsubscribers = CHAT_ROOMS.flatMap((room) => [
+      subscribeToRoomMeta(room.id, (meta) => {
+        setRoomMeta((prev) => ({ ...prev, [room.id]: meta }));
+      }),
+      subscribeToMembers(room.id, (memberIds) => {
+        setRoomMembers((prev) => ({ ...prev, [room.id]: memberIds }));
+      }),
+    ]);
+    return () => unsubscribers.forEach((unsub) => unsub?.());
+  }, []);
+
+  function matchesSearch(room, term) {
+    if (!term.trim()) return true;
+    const t = term.trim().toLowerCase();
+    return room.name.toLowerCase().includes(t) || room.description.toLowerCase().includes(t);
+  }
+
+  const victimRooms = useMemo(
+    () => CHAT_ROOMS.filter((r) => r.type === 'victim' && matchesSearch(r, search)),
+    [search],
+  );
+  const expertRooms = useMemo(
+    () => CHAT_ROOMS.filter((r) => r.type === 'expert' && matchesSearch(r, search)),
+    [search],
+  );
+  const joinedRooms = useMemo(
+    () => CHAT_ROOMS.filter((r) => (roomMembers[r.id] ?? []).includes(user?.uid)),
+    [roomMembers, user],
+  );
+
+  async function enterRoom(room) {
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '채팅방에 참여하려면 먼저 로그인해주세요.');
+      return;
+    }
+    try {
+      setJoining(room.id);
+      const alreadyJoined = (roomMembers[room.id] ?? []).includes(user.uid);
+      if (!alreadyJoined) {
+        await joinRoom(room.id, user.uid, displayName);
+      }
+      navigation.navigate(CHAT_ROUTES.ROOM, {
+        roomId: room.id,
+        roomName: room.name,
+      });
+    } catch (err) {
+      console.error('채팅방 참여 오류:', err);
+      Alert.alert('입장 실패', err?.message ?? '채팅방에 참여하지 못했습니다.');
+    } finally {
+      setJoining(null);
+    }
+  }
+
+  function memberCountOf(room) {
+    return (roomMembers[room.id] ?? []).length;
+  }
 
   return (
     <SafeAreaView style={styles.wrapper}>
@@ -44,6 +111,8 @@ export function ChatScreen({ navigation }) {
             style={styles.searchInput}
             placeholder="피해 유형 또는 지역 검색"
             placeholderTextColor="#94A3B8"
+            value={search}
+            onChangeText={setSearch}
           />
         </View>
       </View>
@@ -53,73 +122,39 @@ export function ChatScreen({ navigation }) {
         {/* 추천 피해방 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>추천 피해방</Text>
-          <TouchableOpacity onPress={() => Alert.alert('추천 피해방', '지금은 이 3개 방이 전부예요. 새로운 방이 열리면 여기 더 추가될 예정입니다.')}>
-            <Text style={styles.seeAll}>전체 보기 →</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* 피해방 카드 1 */}
-        <View style={styles.roomCard}>
-          <View style={styles.roomCardTop}>
-            <View style={[styles.roomIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Text style={styles.roomIconText}>🏠</Text>
-            </View>
-            <View style={styles.roomInfo}>
-              <View style={styles.roomTitleRow}>
-                <Text style={styles.roomName}>강남구 전세사기 피해자</Text>
-                <View style={styles.victimBadgeRed}>
-                  <Text style={styles.victimBadgeRedText}>피해자 47명</Text>
-                </View>
+        {victimRooms.map((room) => (
+          <View key={room.id} style={styles.roomCard}>
+            <View style={styles.roomCardTop}>
+              <View style={[styles.roomIcon, { backgroundColor: room.color }]}>
+                <Text style={styles.roomIconText}>{room.icon}</Text>
               </View>
-              <Text style={styles.roomDesc}>같은 집주인에게 사례 다수 · 집단 고소 준비</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.joinBtn} onPress={() => joinRoom(ROOMS[0])}>
-            <Text style={styles.joinBtnText}>{joined.jeonse ? '참여 중 ✓' : '참여하기'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 피해방 카드 2 */}
-        <View style={styles.roomCard}>
-          <View style={styles.roomCardTop}>
-            <View style={[styles.roomIcon, { backgroundColor: '#F3E8FF' }]}>
-              <Text style={styles.roomIconText}>🛡️</Text>
-            </View>
-            <View style={styles.roomInfo}>
-              <View style={styles.roomTitleRow}>
-                <Text style={styles.roomName}>스토킹 피해자 지원</Text>
-                <View style={[styles.victimBadgeRed, { backgroundColor: '#F3E8FF' }]}>
-                  <Text style={[styles.victimBadgeRedText, { color: '#7C3AED' }]}>피해자 23명</Text>
+              <View style={styles.roomInfo}>
+                <View style={styles.roomTitleRow}>
+                  <Text style={styles.roomName}>{room.name}</Text>
+                  <View style={styles.victimBadgeRed}>
+                    <Text style={styles.victimBadgeRedText}>참여 {memberCountOf(room)}명</Text>
+                  </View>
                 </View>
+                <Text style={styles.roomDesc}>{room.description}</Text>
               </View>
-              <Text style={styles.roomDesc}>피해자 지원센터 연결 · 법적 대응 공유</Text>
             </View>
+            <TouchableOpacity
+              style={styles.joinBtn}
+              onPress={() => enterRoom(room)}
+              disabled={joining === room.id}
+            >
+              <Text style={styles.joinBtnText}>
+                {joining === room.id
+                  ? '입장 중...'
+                  : (roomMembers[room.id] ?? []).includes(user?.uid)
+                    ? '참여 중 ✓'
+                    : '참여하기'}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={[styles.joinBtn, { backgroundColor: '#7C3AED' }]} onPress={() => joinRoom(ROOMS[1])}>
-            <Text style={styles.joinBtnText}>{joined.stalking ? '참여 중 ✓' : '참여하기'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 피해방 카드 3 */}
-        <View style={styles.roomCard}>
-          <View style={styles.roomCardTop}>
-            <View style={[styles.roomIcon, { backgroundColor: '#FFF7ED' }]}>
-              <Text style={styles.roomIconText}>💼</Text>
-            </View>
-            <View style={styles.roomInfo}>
-              <View style={styles.roomTitleRow}>
-                <Text style={styles.roomName}>직장 내 괴롭힘 피해자</Text>
-                <View style={[styles.victimBadgeRed, { backgroundColor: '#FFF7ED' }]}>
-                  <Text style={[styles.victimBadgeRedText, { color: '#C2410C' }]}>피해자 18명</Text>
-                </View>
-              </View>
-              <Text style={styles.roomDesc}>증거 수집 방법 공유 · 노동청 신고 안내</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.joinBtn, { backgroundColor: '#EA580C' }]} onPress={() => joinRoom(ROOMS[2])}>
-            <Text style={styles.joinBtnText}>{joined.harass ? '참여 중 ✓' : '참여하기'}</Text>
-          </TouchableOpacity>
-        </View>
+        ))}
 
         {/* 새 피해자 모임 만들기 */}
         <TouchableOpacity
@@ -133,55 +168,57 @@ export function ChatScreen({ navigation }) {
         {/* 구분선 */}
         <View style={styles.divider} />
 
+        {/* 전문가 채널 */}
+        <Text style={styles.sectionTitle}>전문가 채널</Text>
+        {expertRooms.map((room) => (
+          <TouchableOpacity key={room.id} style={styles.expertCard} onPress={() => enterRoom(room)}>
+            <View style={[styles.roomIcon, { backgroundColor: room.color }]}>
+              <Text style={styles.roomIconText}>{room.icon}</Text>
+            </View>
+            <View style={styles.roomInfo}>
+              <Text style={styles.roomName}>{room.name}</Text>
+              <Text style={styles.roomDesc}>{room.description}</Text>
+            </View>
+            <Text style={styles.expertArrow}>→</Text>
+          </TouchableOpacity>
+        ))}
+
+        {/* 구분선 */}
+        <View style={styles.divider} />
+
         {/* 참여 중인 방 */}
         <Text style={styles.sectionTitle}>참여 중인 방</Text>
-
-        {/* 채팅방 1 */}
-        <TouchableOpacity
-          style={styles.chatItem}
-          onPress={() => navigation.navigate(CHAT_ROUTES.ROOM, {
-            roomName: '전세사기 피해자 모임',
-            memberCount: 247,
-          })}
-        >
-          <View style={[styles.chatAvatar, { backgroundColor: '#FEE2E2' }]}>
-            <Text style={styles.chatAvatarText}>김</Text>
-          </View>
-          <View style={styles.chatContent}>
-            <View style={styles.chatTop}>
-              <Text style={styles.chatRoomName}>김OO 전세사기 피해자 모임</Text>
-              <Text style={styles.chatTime}>오전 10:25</Text>
-            </View>
-            <View style={styles.chatBottom}>
-              <Text style={styles.chatLastMsg} numberOfLines={1}>첨단: PDF 공유해주실 수 있나요?</Text>
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>1</Text>
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* 채팅방 2 */}
-        <TouchableOpacity
-          style={styles.chatItem}
-          onPress={() => navigation.navigate(CHAT_ROUTES.ROOM, {
-            roomName: '프리랜서 계약 피해자',
-            memberCount: 23,
-          })}
-        >
-          <View style={[styles.chatAvatar, { backgroundColor: '#EFF6FF' }]}>
-            <Text style={styles.chatAvatarText}>프</Text>
-          </View>
-          <View style={styles.chatContent}>
-            <View style={styles.chatTop}>
-              <Text style={styles.chatRoomName}>프리랜서 계약 피해자</Text>
-              <Text style={styles.chatTime}>어제</Text>
-            </View>
-            <View style={styles.chatBottom}>
-              <Text style={styles.chatLastMsg} numberOfLines={1}>딱다: 내용증명 발송했어요</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+        {joinedRooms.length === 0 ? (
+          <Text style={styles.noJoinedText}>아직 참여한 방이 없어요. 위에서 방을 선택해 참여해보세요.</Text>
+        ) : (
+          joinedRooms.map((room) => {
+            const meta = roomMeta[room.id];
+            return (
+              <TouchableOpacity
+                key={room.id}
+                style={styles.chatItem}
+                onPress={() => navigation.navigate(CHAT_ROUTES.ROOM, { roomId: room.id, roomName: room.name })}
+              >
+                <View style={[styles.chatAvatar, { backgroundColor: room.color }]}>
+                  <Text style={styles.chatAvatarText}>{room.icon}</Text>
+                </View>
+                <View style={styles.chatContent}>
+                  <View style={styles.chatTop}>
+                    <Text style={styles.chatRoomName}>{room.name}</Text>
+                    {meta?.lastMessageAt ? (
+                      <Text style={styles.chatTime}>{formatRelativeTime(meta.lastMessageAt)}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.chatBottom}>
+                    <Text style={styles.chatLastMsg} numberOfLines={1}>
+                      {meta?.lastMessage || '아직 메시지가 없어요'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
 
         <View style={{ height: 80 }} />
       </ScrollView>
@@ -266,9 +303,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 10, fontWeight: '700', color: '#64748B',
-    letterSpacing: 1, textTransform: 'uppercase',
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
   },
-  seeAll: { fontSize: 11, color: '#3B7DD8', fontWeight: '500' },
 
   roomCard: {
     backgroundColor: '#FFFFFF',
@@ -323,6 +359,19 @@ const styles = StyleSheet.create({
 
   divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 16 },
 
+  expertCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  expertArrow: { fontSize: 14, color: '#94A3B8' },
+
+  noJoinedText: { fontSize: 12, color: '#94A3B8', paddingVertical: 8 },
+
   chatItem: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
@@ -343,13 +392,6 @@ const styles = StyleSheet.create({
   chatTime: { fontSize: 10, color: '#94A3B8' },
   chatBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chatLastMsg: { fontSize: 11, color: '#64748B', flex: 1 },
-  unreadBadge: {
-    backgroundColor: '#EF4444', borderRadius: 10,
-    width: 18, height: 18,
-    alignItems: 'center', justifyContent: 'center',
-    marginLeft: 6,
-  },
-  unreadText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
 
   navbar: {
     flexDirection: 'row',

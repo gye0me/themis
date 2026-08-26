@@ -1,12 +1,12 @@
 import { useCallback, useContext, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
-import { getEvidenceRecords, getCaseById } from '../services/firebaseService';
+import { getEvidenceRecords, getCaseById, deleteCase } from '../services/firebaseService';
 
 const TYPE_CONFIG = {
   image:    { icon: '📷', color: '#EA580C', label: '사진' },
@@ -114,6 +114,7 @@ export function TimelineScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [deleting, setDeleting] = useState(false);
   function toggleExpand(id) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -156,6 +157,36 @@ export function TimelineScreen({ navigation, route }) {
     navigation.navigate(RECORD_ROUTES.REPORT_PREVIEW, { caseData, records });
   }
 
+  function handleDeleteCase() {
+    if (!caseId || !user || deleting) return;
+    Alert.alert(
+      '사건 삭제',
+      `"${caseData?.title || '이 사건'}"을(를) 삭제하시겠습니까?\n포함된 증거 ${records.length}건도 함께 영구 삭제되며, 되돌릴 수 없습니다.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              await deleteCase(caseId, user.uid);
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK);
+              }
+            } catch (err) {
+              console.error('사건 삭제 오류:', err);
+              Alert.alert('삭제 실패', '사건을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   const filteredRecords = activeFilter === 'all'
     ? records
     : records.filter((r) => r.evidenceType === activeFilter);
@@ -196,6 +227,20 @@ export function TimelineScreen({ navigation, route }) {
           >
             <Text style={styles.shareBtnText}>↗</Text>
           </TouchableOpacity>
+          {caseId && (
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={handleDeleteCase}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#F87171" />
+              ) : (
+                <Text style={styles.deleteBtnText}>🗑</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -466,6 +511,8 @@ const styles = StyleSheet.create({
   subtitle: { color: '#7B9EC5', fontSize: 11 },
   shareBtn: { padding: 4 },
   shareBtnText: { color: '#7B9EC5', fontSize: 18 },
+  deleteBtn: { padding: 4 },
+  deleteBtnText: { fontSize: 16 },
   newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#3B7DD8' },
   newCaseBtnText: { color: '#7B9EC5', fontSize: 11 },
   content: { flex: 1, padding: 16 },

@@ -1,71 +1,88 @@
-import { useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, Text, View, ScrollView,
-  TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert,
+  TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AuthContext } from '../context/AuthContext';
+import { getChatRoomMeta, subscribeToMessages, subscribeToMembers, sendMessage } from '../services/chatService';
 
-const INITIAL_MESSAGES = [
-  {
-    id: 1,
-    sender: '딱',
-    avatarColor: '#DCFCE7',
-    avatarTextColor: '#166534',
-    text: '혹시 OO구 OO아파트\n집주인한테 당하신 분 계세요?',
-    time: '오전 10:21',
-    isMine: false,
-  },
-  {
-    id: 2,
-    sender: '북',
-    avatarColor: '#FEF9C3',
-    avatarTextColor: '#854D0E',
-    text: '저도! 같은 집주인인지 확인하고\n싶어요. PDF 공유해주실 수 있나요?',
-    time: '오전 10:23',
-    isMine: false,
-  },
-  {
-    id: 3,
-    isFile: true,
-    fileName: '사건_타임라인_250305.pdf',
-    time: '오전 10:24',
-    isMine: true,
-  },
-  {
-    id: 4,
-    sender: '북',
-    avatarColor: '#FEF9C3',
-    avatarTextColor: '#854D0E',
-    text: '맞아요! 같은 분이에요.\n집단 고소 같이 진행해요.\n민원 모이면 가중처벌 가능해요.',
-    time: '오전 10:25',
-    isMine: false,
-  },
-  {
-    id: 5,
-    text: '같이 진행하고 싶어요!\n연락처 공유해도 될까요?',
-    time: '오전 10:26',
-    isMine: true,
-  },
-];
+function formatTime(ts) {
+  if (!ts) return '';
+  const date = new Date(ts);
+  const hour = date.getHours();
+  const ampm = hour < 12 ? '오전' : '오후';
+  const hour12 = hour % 12 || 12;
+  return `${ampm} ${hour12}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatDateLabel(ts) {
+  const date = ts ? new Date(ts) : new Date();
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
 
 export function ChatRoomScreen({ navigation, route }) {
-  const roomName = route?.params?.roomName ?? '전세사기 피해자 모임';
-  const memberCount = route?.params?.memberCount ?? 247;
+  const { user, profile } = useContext(AuthContext);
+  const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
 
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const roomId = route?.params?.roomId ?? null;
+  const roomMeta = getChatRoomMeta(roomId);
+  const roomName = route?.params?.roomName ?? roomMeta?.name ?? '채팅방';
+
+  const [messages, setMessages] = useState([]);
+  const [memberCount, setMemberCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [draft, setDraft] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
 
-  const sendMessage = () => {
+  useEffect(() => {
+    if (!roomId) {
+      setLoading(false);
+      setLoadError('채팅방 정보를 찾을 수 없습니다.');
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
+    let unsubMessages;
+    let unsubMembers;
+    try {
+      unsubMessages = subscribeToMessages(roomId, (list) => {
+        setMessages(list);
+        setLoading(false);
+      });
+      unsubMembers = subscribeToMembers(roomId, (memberIds) => setMemberCount(memberIds.length));
+    } catch (err) {
+      console.error('채팅방 초기화 오류:', err);
+      setLoadError(err?.message ?? '채팅방을 불러오지 못했습니다.');
+      setLoading(false);
+    }
+    return () => {
+      unsubMessages?.();
+      unsubMembers?.();
+    };
+  }, [roomId]);
+
+  const sendCurrentDraft = async () => {
     const text = draft.trim();
-    if (!text) return;
-    const now = new Date();
-    const hour = now.getHours();
-    const ampm = hour < 12 ? '오전' : '오후';
-    const hour12 = hour % 12 || 12;
-    const time = `${ampm} ${hour12}:${String(now.getMinutes()).padStart(2, '0')}`;
-    setMessages((prev) => [...prev, { id: prev.length + 1, text, time, isMine: true }]);
+    if (!text || !roomId) return;
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '메시지를 보내려면 먼저 로그인해주세요.');
+      return;
+    }
     setDraft('');
+    setSending(true);
+    try {
+      await sendMessage(roomId, { uid: user.uid, name: displayName, text });
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    } catch (err) {
+      console.error('메시지 전송 오류:', err);
+      Alert.alert('전송 실패', err?.message ?? '메시지를 보내지 못했습니다.');
+      setDraft(text);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -87,8 +104,8 @@ export function ChatRoomScreen({ navigation, route }) {
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
         <View>
-          <Text style={styles.appbarTitle}>피해자 연대</Text>
-          <Text style={styles.appbarSub}>같은 피해, 함께 대응</Text>
+          <Text style={styles.appbarTitle}>{roomName}</Text>
+          <Text style={styles.appbarSub}>{roomMeta?.type === 'expert' ? '전문가 채널' : '같은 피해, 함께 대응'}</Text>
         </View>
       </View>
 
@@ -96,94 +113,75 @@ export function ChatRoomScreen({ navigation, route }) {
       <View style={styles.roomInfoCard}>
         <View style={styles.roomInfoLeft}>
           <Text style={styles.roomInfoName}>{roomName}</Text>
-          <Text style={styles.roomInfoDesc}>같은 집주인 피해자라면 연결 · 집단 고소 진행 가능</Text>
+          <Text style={styles.roomInfoDesc}>{roomMeta?.description ?? '실시간으로 연결된 채팅방입니다'}</Text>
         </View>
         <View style={styles.memberBadge}>
           <Text style={styles.memberBadgeText}>{memberCount}명</Text>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.chatArea}
-        contentContainerStyle={styles.chatContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* 날짜 구분선 */}
-        <View style={styles.dateDivider}>
-          <View style={styles.dateLine} />
-          <Text style={styles.dateText}>2026년 3월 7일</Text>
-          <View style={styles.dateLine} />
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#3B7DD8" />
+          <Text style={styles.loadingText}>메시지를 불러오는 중...</Text>
         </View>
+      ) : loadError ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>{loadError}</Text>
+        </View>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          style={styles.chatArea}
+          contentContainerStyle={styles.chatContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+        >
+          {/* 날짜 구분선 */}
+          <View style={styles.dateDivider}>
+            <View style={styles.dateLine} />
+            <Text style={styles.dateText}>{formatDateLabel(messages[0]?.createdAt)}</Text>
+            <View style={styles.dateLine} />
+          </View>
 
-        {/* 메시지 목록 */}
-        {messages.map((msg) => {
-          if (msg.isMine) {
-            return (
-              <View key={msg.id} style={styles.myMsgRow}>
-                <Text style={styles.msgTime}>{msg.time}</Text>
-                {msg.isFile ? (
-                  <View style={styles.fileCard}>
-                    <View style={styles.fileCardIcon}>
-                      <Text style={styles.fileCardIconText}>P</Text>
-                    </View>
-                    <Text style={styles.fileCardName}>{msg.fileName}</Text>
-                  </View>
-                ) : (
-                  <View style={styles.myBubble}>
-                    <Text style={styles.myBubbleText}>{msg.text}</Text>
-                  </View>
-                )}
-              </View>
-            );
-          }
-          return (
-            <View key={msg.id} style={styles.otherMsgRow}>
-              <View style={[styles.avatar, { backgroundColor: msg.avatarColor }]}>
-                <Text style={[styles.avatarText, { color: msg.avatarTextColor }]}>{msg.sender}</Text>
-              </View>
-              <View style={styles.otherMsgBody}>
-                <View style={styles.otherBubble}>
-                  <Text style={styles.otherBubbleText}>{msg.text}</Text>
-                </View>
-                <Text style={styles.msgTime}>{msg.time}</Text>
-              </View>
+          {messages.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>아직 메시지가 없어요. 첫 메시지를 보내보세요!</Text>
             </View>
-          );
-        })}
+          ) : (
+            messages.map((msg) => {
+              const isMine = msg.senderId === user?.uid;
+              if (isMine) {
+                return (
+                  <View key={msg.id} style={styles.myMsgRow}>
+                    <Text style={styles.msgTime}>{formatTime(msg.createdAt)}</Text>
+                    <View style={styles.myBubble}>
+                      <Text style={styles.myBubbleText}>{msg.text}</Text>
+                    </View>
+                  </View>
+                );
+              }
+              const initial = (msg.senderName || '?').trim().charAt(0) || '?';
+              return (
+                <View key={msg.id} style={styles.otherMsgRow}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initial}</Text>
+                  </View>
+                  <View style={styles.otherMsgBody}>
+                    <Text style={styles.senderName}>{msg.senderName}</Text>
+                    <View style={styles.otherBubble}>
+                      <Text style={styles.otherBubbleText}>{msg.text}</Text>
+                    </View>
+                    <Text style={styles.msgTime}>{formatTime(msg.createdAt)}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
 
-        {/* SOS 카드 */}
-        <View style={styles.sosCard}>
-          <View style={styles.sosLeft}>
-            <Text style={styles.sosTitle}>핫게시판 게시 가능 SOS</Text>
-            <Text style={styles.sosDesc}>피해자 10명 이상 모이면 게시 가능</Text>
-          </View>
-          <View style={styles.sosIconBox}>
-            <Text style={styles.sosIcon}>📄</Text>
-          </View>
-        </View>
-
-        {/* 현재 참여 현황 */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoCardTitle}>현재 참여 현황</Text>
-          <View style={styles.infoCardRow}>
-            <Text style={styles.infoCardLabel}>같은 집주인 피해자</Text>
-            <Text style={styles.infoCardSub}>표로 10명</Text>
-            <TouchableOpacity style={styles.confirmBtn} onPress={() => setConfirmed(true)}>
-              <Text style={styles.confirmBtnText}>{confirmed ? '확인됨 ✓' : '3명 확인'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 유사 판례 */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoCardTitle}>유사 판례 5건 발견</Text>
-          <TouchableOpacity onPress={() => Alert.alert('유사 판례', '판례 상세 화면은 아직 준비 중이에요. 국가법령정보 API 연동 후 제공될 예정입니다.')}>
-            <Text style={styles.precedentLink}>비슷한 사례에서 피해자가 승소한 판례를 확인하세요 →</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: 16 }} />
-      </ScrollView>
+          <View style={{ height: 16 }} />
+        </ScrollView>
+      )}
 
       {/* 메시지 입력창 */}
       <View style={styles.inputBar}>
@@ -193,11 +191,12 @@ export function ChatRoomScreen({ navigation, route }) {
           placeholderTextColor="#94A3B8"
           value={draft}
           onChangeText={setDraft}
-          onSubmitEditing={sendMessage}
+          onSubmitEditing={sendCurrentDraft}
           multiline
+          editable={!sending}
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} disabled={!draft.trim()}>
-          <Text style={styles.sendIcon}>▶</Text>
+        <TouchableOpacity style={styles.sendBtn} onPress={sendCurrentDraft} disabled={!draft.trim() || sending}>
+          {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.sendIcon}>▶</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -241,6 +240,12 @@ const styles = StyleSheet.create({
   },
   memberBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
 
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { color: '#94A3B8', fontSize: 13 },
+  errorText: { color: '#DC2626', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
+  emptyBox: { alignItems: 'center', paddingVertical: 32 },
+  emptyText: { color: '#94A3B8', fontSize: 12 },
+
   chatArea: { flex: 1 },
   chatContent: { padding: 16, gap: 12 },
 
@@ -253,9 +258,11 @@ const styles = StyleSheet.create({
   otherMsgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   avatar: {
     width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#E2E8F0',
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 12, fontWeight: '700' },
+  avatarText: { fontSize: 12, fontWeight: '700', color: '#1E3A5F' },
+  senderName: { fontSize: 10, color: '#94A3B8', marginBottom: 2 },
   otherMsgBody: { gap: 2 },
   otherBubble: {
     backgroundColor: '#FFFFFF',
@@ -279,56 +286,7 @@ const styles = StyleSheet.create({
   },
   myBubbleText: { fontSize: 13, color: '#FFFFFF', lineHeight: 19 },
 
-  fileCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10, padding: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1, borderColor: '#E2E8F0',
-    maxWidth: 220,
-  },
-  fileCardIcon: {
-    width: 28, height: 28, borderRadius: 6,
-    backgroundColor: '#3B7DD8',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  fileCardIconText: { color: '#FFFFFF', fontWeight: '700', fontSize: 12 },
-  fileCardName: { fontSize: 12, color: '#0F172A', flex: 1 },
-
   msgTime: { fontSize: 10, color: '#94A3B8' },
-
-  sosCard: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: 10, padding: 14,
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: '#FECACA',
-    marginTop: 8,
-  },
-  sosLeft: { flex: 1 },
-  sosTitle: { fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 2 },
-  sosDesc: { fontSize: 11, color: '#B91C1C' },
-  sosIconBox: {
-    width: 36, height: 36, borderRadius: 8,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sosIcon: { fontSize: 18 },
-
-  infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10, padding: 14, gap: 8,
-  },
-  infoCardTitle: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
-  infoCardRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-  },
-  infoCardLabel: { fontSize: 12, color: '#475569', flex: 1 },
-  infoCardSub: { fontSize: 11, color: '#94A3B8' },
-  confirmBtn: {
-    backgroundColor: '#EFF6FF', borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  confirmBtnText: { fontSize: 11, color: '#1D4ED8', fontWeight: '600' },
-  precedentLink: { fontSize: 12, color: '#3B7DD8', lineHeight: 18 },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

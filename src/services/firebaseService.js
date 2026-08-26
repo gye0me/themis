@@ -500,6 +500,43 @@ export async function saveCaseAiHistory(caseId, history) {
   return updateDocument('cases', caseId, { aiHistory: history });
 }
 
+/**
+ * 사건 삭제 (사건 문서 + 소속 증거 기록 + Storage 파일까지 함께 정리).
+ * 되돌릴 수 없으므로 화면단에서 반드시 확인(Alert) 후 호출할 것.
+ */
+export async function deleteCase(caseId, userId) {
+  try {
+    const records = await getEvidenceRecords(userId, caseId);
+
+    // Storage 파일 삭제 (하나 실패해도 나머지 정리는 계속 진행)
+    await Promise.all(
+      records.map(async (r) => {
+        if (!r.storagePath) return;
+        try {
+          await deleteFile(r.storagePath);
+        } catch (err) {
+          console.error('증거 파일 삭제 오류:', r.storagePath, err);
+        }
+      }),
+    );
+
+    // 증거 문서 삭제
+    await Promise.all(
+      records.map((r) =>
+        deleteDocument('evidenceRecords', r.id).catch((err) => {
+          console.error('증거 문서 삭제 오류:', r.id, err);
+        }),
+      ),
+    );
+
+    // 사건 문서 삭제
+    await deleteDocument('cases', caseId);
+  } catch (error) {
+    console.error('사건 삭제 오류:', error);
+    throw error;
+  }
+}
+
 // 음성 파일 텍스트 변환은 clovaSpeechService.js의 transcribeAudioClova()로 대체됨
 // (기존 Whisper 연동은 크레딧/파일 크기 제한 문제로 클로바 음성인식으로 교체)
 
