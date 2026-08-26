@@ -6,9 +6,44 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "ios": {
-      "supportsTablet": true
-    }
+      "supportsTablet": true,
+      "bundleIdentifier": "com.themis.app"
+    },
+    "plugins": [
+      "expo-video",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "증거로 남길 음성을 녹음하기 위해 마이크 접근 권한이 필요합니다."
+        }
+      ],
+      "expo-background-task",
+      [
+        "expo-notifications",
+        {
+          "color": "#1E3A5F"
+        }
+      ]
+    ],
+    "android": {
+      "package": "com.themis.app",
+      "permissions": [
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a8dad4f5-d897-4cda-adac-03fc3b23ab24"
+      }
+    },
+    "owner": "themis-team"
   }
 }

@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    match /users/{uid} {
+      allow read, create, update, delete: if isOwner(uid);
+    }
+    match /evidenceRecords/{docId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    match /contracts/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /contract_clauses/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /cases/{docId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    match /community_comments/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /chatrooms/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /chatroom_members/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
