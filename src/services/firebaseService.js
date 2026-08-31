@@ -400,6 +400,9 @@ export async function createEvidenceRecord({
       // 클라이언트 기기 시계는 조작 가능하므로, 서버가 실제로 문서를 받은 시점을
       // 별도로 기록해 무결성 검증 근거로 쓴다 (capturedAt과 별개로 유지).
       serverVerifiedAt: serverTimestamp(),
+      // 잘못 올린 증거라도 삭제하면 무결성이 깨질 수 있어 삭제 대신 숨기기(hidden)로 처리한다.
+      // 숨긴 증거는 타임라인에 흐릿하게 표시되고(UI), 보고서 생성 시엔 제외된다.
+      hidden: false,
       ...extra,
     });
 
@@ -418,10 +421,26 @@ export async function createEvidenceRecord({
       downloadURL,
       location,
       capturedAt,
+      hidden: false,
       ...extra,
     };
   } catch (error) {
     console.error('증거 저장 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 증거 숨기기 / 숨김 해제.
+ * 삭제 대신 hidden 플래그만 바꿔서 원본 데이터(무결성)는 그대로 보존한다.
+ * - 타임라인 UI: 숨긴 증거는 흐릿하게 "이 증거는 숨겨진 상태입니다" 표시 후 탭하면 다시 볼 수 있음
+ * - 보고서(reportHtml.js): hidden === true인 증거는 자동으로 제외됨
+ */
+export async function setEvidenceHidden(recordId, hidden) {
+  try {
+    await updateDocument('evidenceRecords', recordId, { hidden: Boolean(hidden) });
+  } catch (error) {
+    console.error('증거 숨기기 상태 변경 오류:', error);
     throw error;
   }
 }

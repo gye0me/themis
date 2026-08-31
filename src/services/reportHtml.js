@@ -98,7 +98,11 @@ function buildQuestCard(step) {
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
  */
 export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], signatureDataUrl = null }) {
-  const counts = records.reduce((acc, r) => {
+  // 숨김 처리된 증거(hidden === true)는 보고서에서 제외한다 — 삭제는 무결성이 깨질 수 있어
+  // 대신 hidden 플래그로 처리하는 항목이라, 타임라인 화면에는 흐릿하게 남아있어도 정식 보고서에는 안 나가야 한다.
+  const visibleRecords = records.filter((r) => !r.hidden);
+
+  const counts = visibleRecords.reduce((acc, r) => {
     const key = r.evidenceType ?? 'default';
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
@@ -108,7 +112,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 
   // 타임라인 항목을 날짜순으로 병합
   const timelineEntries = [
-    ...records.map((r) => ({ type: 'evidence', date: toDate(r.capturedAt), html: buildEvidenceCard(r) })),
+    ...visibleRecords.map((r) => ({ type: 'evidence', date: toDate(r.capturedAt), html: buildEvidenceCard(r) })),
     ...completedQuests.map((q) => ({ type: 'quest', date: toDate(q.completedAt), html: buildQuestCard(q) })),
   ]
     .filter((e) => e.date)
@@ -167,7 +171,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     <div class="meta">기록 시작일: ${escapeHtml(formatDateOnly(caseData.createdAt) || '-')}</div>
     <div class="meta">보고서 생성일: ${formatDateOnly(now)}</div>
     <div class="counts">
-      증거 총 ${records.length}건
+      증거 총 ${visibleRecords.length}건
       (사진 ${counts.image ?? 0} · 음성 ${counts.audio ?? 0} · 영상 ${counts.video ?? 0} · 메모 ${counts.text ?? 0})
     </div>
   </div>

@@ -1,0 +1,898 @@
+<meta charset="UTF-8">
+<title>Themis Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink-950: #0A1628;
+    --brand-700: #1E3A72;
+    --brand-600: #2A50B8;
+    --brand-500: #3D6FE0;
+    --brand-400: #6B93EE;
+    --sky-100: #E9F1FD;
+    --sky-050: #F4F9FE;
+    --surface: #FFFFFF;
+    --ink-900: #101828;
+    --ink-700: #33405C;
+    --ink-500: #5B6B8C;
+    --ink-400: #8894AC;
+    --line: #E7ECF5;
+    --danger-600: #DC2626;
+    --danger-100: #FDE9E9;
+    --safe-600: #16A672;
+    --safe-100: #E4F7EF;
+    --warn-600: #C2410C;
+    --warn-100: #FFF1E7;
+    --violet-600: #6D3FD1;
+    --violet-100: #F0EBFC;
+
+    --page-bg: #EEF1F7;
+    --page-ink: #1B2333;
+    --page-muted: #626E8A;
+    --page-card: #FFFFFF;
+    --page-line: #DFE4EE;
+    --page-accent: #3D6FE0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page-bg: #0B0F19; --page-ink: #E7ECF7; --page-muted: #8D97B4;
+      --page-card: #121729; --page-line: #232B42; --page-accent: #6B93EE;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page-bg: #0B0F19; --page-ink: #E7ECF7; --page-muted: #8D97B4;
+    --page-card: #121729; --page-line: #232B42; --page-accent: #6B93EE;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page-bg); color: var(--page-ink);
+    font-family: "IBM Plex Sans KR", -apple-system, "Malgun Gothic", sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 26px;
+    padding: 44px 20px 80px;
+  }
+
+  .page-head { width: 100%; max-width: 1080px; display: flex; flex-direction: column; gap: 6px; }
+  .page-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--page-accent); }
+  .page-title { font-size: 22px; font-weight: 700; margin: 0; color: var(--page-ink); }
+  .page-desc { font-size: 13.5px; color: var(--page-muted); line-height: 1.6; max-width: 68ch; margin: 0; }
+  .page-desc code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px;
+    background: var(--page-card); border: 1px solid var(--page-line);
+    padding: 1px 6px; border-radius: 5px; color: var(--page-ink);
+  }
+
+  .stage { width: 100%; max-width: 1080px; display: flex; gap: 32px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+
+  /* screen picker (review aid — not part of the Figma frame) */
+  .picker { display: flex; flex-direction: column; gap: 6px; min-width: 168px; }
+  .picker-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--page-muted); margin-bottom: 4px; }
+  .picker button {
+    all: unset; cursor: pointer; font-size: 12.5px; padding: 8px 10px; border-radius: 9px;
+    color: var(--page-ink); display: flex; align-items: center; gap: 8px;
+  }
+  .picker button:hover { background: var(--page-card); }
+  .picker button.is-current { background: var(--page-card); font-weight: 700; color: var(--page-accent); border: 1px solid var(--page-line); }
+  .picker button .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--page-line); flex-shrink: 0; }
+  .picker button.is-current .dot { background: var(--page-accent); }
+
+  .device {
+    width: 390px; border-radius: 46px; background: #06090F; padding: 12px;
+    box-shadow: 0 30px 60px -20px rgba(4,8,20,0.55), 0 2px 0 rgba(255,255,255,0.04) inset;
+    flex-shrink: 0;
+  }
+  .device-screen { width: 100%; height: 780px; border-radius: 34px; overflow: hidden; background: var(--surface); position: relative; }
+
+  /* ============ screens ============ */
+  .screen {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    background: var(--surface); font-family: "IBM Plex Sans KR", -apple-system, "Malgun Gothic", sans-serif;
+    overflow-y: auto;
+  }
+  .screen.is-active { display: flex; }
+
+  .statusbar { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px 6px; font-size: 13px; font-weight: 600; color: var(--ink-900); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .statusbar .icons { display: flex; align-items: center; gap: 6px; }
+  .statusbar svg { width: 16px; height: 16px; }
+
+  /* ---- light top bar (tab landings) ---- */
+  .top-bar { display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 22px 18px; background: linear-gradient(180deg, var(--sky-050), var(--sky-100)); flex-shrink: 0; }
+  .top-bar-title { font-size: 21px; font-weight: 700; color: var(--ink-900); margin: 0; }
+  .top-bar-sub { font-size: 12px; color: var(--ink-500); margin: 3px 0 0; }
+  .top-bar-icons { display: flex; gap: 14px; padding-top: 3px; }
+  .top-bar-icons button, .icon-btn { all: unset; cursor: pointer; color: var(--ink-700); display: flex; }
+  .top-bar-icons svg, .icon-btn svg { width: 20px; height: 20px; }
+
+  /* ---- back header (pushed screens) ---- */
+  .back-header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .back-btn { all: unset; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; color: var(--ink-700); flex-shrink: 0; }
+  .back-btn svg { width: 22px; height: 22px; }
+  .back-header .titles { flex: 1; min-width: 0; }
+  .back-header .title { font-size: 15px; font-weight: 700; color: var(--ink-900); }
+  .back-header .sub { font-size: 11.5px; color: var(--ink-500); margin-top: 1px; }
+  .header-action { all: unset; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--brand-500); flex-shrink: 0; }
+  .header-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+
+  .body { flex: 1; display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+  .body.tight { gap: 16px; }
+
+  .section { display: flex; flex-direction: column; gap: 12px; }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-400); }
+
+  /* ---- shared atoms ---- */
+  .badge { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--danger-100); color: var(--danger-600); flex-shrink: 0; }
+  .badge.safe { background: var(--safe-100); color: var(--safe-600); }
+  .badge.warn { background: var(--warn-100); color: var(--warn-600); }
+  .badge.neutral { background: var(--sky-100); color: var(--brand-600); }
+
+  .chip {
+    all: unset; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--ink-700);
+    padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface);
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .chip.is-active { background: var(--ink-900); border-color: var(--ink-900); color: #fff; }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+
+  .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .type-card {
+    all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+    padding: 14px; border-radius: 14px; border: 1.5px solid var(--line);
+  }
+  .type-card.is-active { border-color: var(--brand-500); background: var(--sky-050); }
+  .type-card .icon { font-size: 20px; }
+  .type-card .label { font-size: 13px; font-weight: 700; color: var(--ink-900); }
+  .type-card .desc { font-size: 10.5px; color: var(--ink-500); }
+
+  .field-label { font-size: 12px; font-weight: 700; color: var(--ink-700); }
+  .text-input, .textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--sky-050);
+    padding: 12px 14px; font-size: 13.5px; color: var(--ink-900); font-family: inherit;
+  }
+  .textarea { min-height: 96px; resize: none; }
+
+  .cta {
+    all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+    width: 100%; padding: 15px; border-radius: 16px; cursor: pointer;
+    background: linear-gradient(120deg, var(--brand-700) 0%, var(--brand-500) 100%);
+    color: #fff; font-size: 15px; font-weight: 700;
+    box-shadow: 0 12px 24px -10px rgba(42,80,184,0.55);
+  }
+  .cta.ghost { background: none; color: var(--brand-500); box-shadow: none; border: 1.5px solid var(--brand-400); }
+
+  .card { border-radius: 18px; border: 1px solid var(--line); }
+
+  /* case card */
+  .case-card { display: flex; overflow: hidden; }
+  .case-card-bar { width: 4px; background: var(--danger-600); flex-shrink: 0; }
+  .case-card-body { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 16px; min-width: 0; }
+  .case-head { display: flex; align-items: center; gap: 8px; }
+  .case-title { font-size: 14px; font-weight: 700; color: var(--ink-900); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .case-date { font-size: 11px; color: var(--ink-400); flex-shrink: 0; }
+  .progress-row { display: flex; justify-content: space-between; align-items: center; }
+  .progress-label { font-size: 11.5px; color: var(--ink-500); }
+  .progress-value { font-size: 11.5px; font-weight: 700; color: var(--ink-700); }
+  .progress-track { height: 6px; border-radius: 999px; background: var(--sky-100); overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 999px; background: var(--brand-500); }
+  .check-grid { display: flex; flex-direction: column; gap: 6px; }
+  .check-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-500); }
+  .check-item.done { color: var(--ink-700); }
+  .check-dot { width: 15px; height: 15px; border-radius: 999px; flex-shrink: 0; border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center; }
+  .check-item.done .check-dot { background: var(--brand-500); border-color: var(--brand-500); }
+  .check-item.done .check-dot svg { width: 9px; height: 9px; color: #fff; }
+  .evidence-row { display: flex; gap: 8px; align-items: stretch; }
+  .evidence-tile { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; padding: 10px 4px; }
+  .evidence-num { font-size: 15px; font-weight: 700; }
+  .evidence-label { font-size: 10px; font-weight: 600; }
+  .timeline-btn { all: unset; cursor: pointer; flex-shrink: 0; width: 60px; display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 12px; background: var(--ink-900); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 1.35; padding: 4px; }
+
+  /* list row (reference "추천서비스" pattern) */
+  .row { all: unset; cursor: pointer; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 13px 4px; border-top: 1px solid var(--line); width: 100%; }
+  .row:first-child { border-top: none; }
+  .row-icon { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; text-align: left; }
+  .row-title { font-size: 13.5px; font-weight: 700; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-sub { font-size: 11.5px; color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-meta { font-size: 10.5px; color: var(--ink-400); flex-shrink: 0; }
+  .row-chevron { color: var(--ink-400); flex-shrink: 0; }
+  .row-chevron svg { width: 16px; height: 16px; }
+
+  .dashed-row { all: unset; cursor: pointer; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 14px; border: 1.5px dashed var(--line); color: var(--brand-500); font-size: 13px; font-weight: 700; width: 100%; }
+
+  /* hot cases */
+  .hot-card { all: unset; cursor: pointer; box-sizing: border-box; width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; border-left: 4px solid var(--danger-600); background: var(--sky-050); }
+  .hot-card.warn { border-left-color: var(--warn-600); }
+  .hot-top { display: flex; align-items: center; gap: 8px; }
+  .hot-title { font-size: 13.5px; font-weight: 700; color: var(--ink-900); flex: 1; min-width: 0; }
+  .hot-desc { font-size: 11.5px; color: var(--ink-500); line-height: 1.5; text-align: left; }
+  .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 10.5px; font-weight: 600; color: var(--ink-500); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+
+  .post-card { display: flex; flex-direction: column; gap: 8px; padding: 15px; }
+  .post-top { display: flex; align-items: center; gap: 9px; }
+  .post-avatar { width: 30px; height: 30px; border-radius: 999px; background: var(--sky-100); color: var(--brand-600); font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .post-meta { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .post-author { font-size: 12.5px; font-weight: 700; color: var(--ink-900); }
+  .post-time { font-size: 10.5px; color: var(--ink-400); }
+  .post-title { font-size: 13.5px; font-weight: 700; color: var(--ink-900); }
+  .post-body { font-size: 12px; color: var(--ink-500); line-height: 1.55; }
+  .attach { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--brand-500); background: var(--sky-050); border-radius: 10px; padding: 7px 10px; }
+
+  /* search */
+  .search-input { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 12px; background: var(--sky-050); border: 1px solid var(--line); }
+  .search-input svg { width: 16px; height: 16px; color: var(--ink-400); flex-shrink: 0; }
+  .search-input span { font-size: 13px; color: var(--ink-400); }
+
+  /* timeline */
+  .summary-strip { display: flex; flex-wrap: wrap; gap: 6px; background: var(--ink-950); border-radius: 12px; padding: 10px; min-height: 40px; align-items: center; }
+  .summary-tag { border-radius: 11px; padding: 4px 10px; }
+  .summary-tag span { color: #fff; font-size: 10px; font-weight: 600; }
+  .tl-item { display: flex; gap: 10px; }
+  .tl-left { display: flex; flex-direction: column; align-items: center; padding-top: 4px; flex-shrink: 0; width: 14px; }
+  .tl-dot { width: 13px; height: 13px; border-radius: 999px; border: 2.5px solid #fff; box-shadow: 0 0 0 1.5px var(--line); flex-shrink: 0; }
+  .tl-line { width: 2px; flex: 1; background: var(--line); margin-top: 4px; min-height: 30px; }
+  .tl-card { flex: 1; border-radius: 14px; border: 1px solid var(--line); padding: 13px; display: flex; flex-direction: column; gap: 6px; }
+  .tl-meta { display: flex; justify-content: space-between; align-items: center; }
+  .tl-date { font-size: 10.5px; color: var(--ink-400); }
+  .tl-gps { font-size: 10px; font-weight: 600; color: var(--brand-600); background: var(--sky-100); border-radius: 999px; padding: 2px 8px; }
+  .tl-head { display: flex; align-items: center; gap: 8px; }
+  .tl-icon { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .tl-title { font-size: 13px; font-weight: 700; color: var(--ink-900); flex: 1; }
+  .tl-hint { font-size: 10.5px; color: var(--brand-500); }
+  .tl-body { font-size: 11.5px; color: var(--ink-500); line-height: 1.5; }
+
+  /* guide / quest */
+  .quest-card { display: flex; align-items: flex-start; gap: 10px; padding: 13px; }
+  .quest-checkbox { width: 20px; height: 20px; border-radius: 999px; border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .quest-card.done .quest-checkbox { background: var(--safe-600); border-color: var(--safe-600); }
+  .quest-card.done .quest-checkbox svg { width: 11px; height: 11px; color: #fff; }
+  .quest-body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .quest-title-row { display: flex; align-items: center; gap: 8px; }
+  .quest-title { font-size: 13.5px; font-weight: 700; color: var(--ink-900); flex: 1; }
+  .quest-card.done .quest-title { color: var(--ink-500); text-decoration: line-through; text-decoration-color: var(--line); }
+  .quest-desc { font-size: 11.5px; color: var(--ink-500); line-height: 1.5; }
+  .quest-phone { font-size: 11.5px; color: var(--brand-500); font-weight: 600; }
+
+  /* chat bubbles */
+  .msg-row { display: flex; flex-direction: column; gap: 4px; max-width: 78%; }
+  .msg-row.me { align-self: flex-end; align-items: flex-end; }
+  .msg-row.them { align-self: flex-start; }
+  .msg-name { font-size: 10.5px; color: var(--ink-400); padding: 0 3px; }
+  .bubble { padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; }
+  .msg-row.me .bubble { background: var(--ink-950); color: #fff; border-bottom-right-radius: 4px; }
+  .msg-row.them .bubble { background: var(--sky-050); color: var(--ink-900); border-bottom-left-radius: 4px; }
+  .msg-time { font-size: 9.5px; color: var(--ink-400); padding: 0 3px; }
+
+  .ai-answer { display: flex; flex-direction: column; gap: 10px; }
+  .ai-avatar-row { display: flex; align-items: center; gap: 8px; }
+  .ai-avatar { width: 24px; height: 24px; border-radius: 999px; background: var(--ink-950); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .ai-label { font-size: 11px; font-weight: 700; color: var(--ink-500); }
+  .ai-text { font-size: 12.5px; color: var(--ink-700); line-height: 1.65; padding-left: 32px; }
+  .suggest-scroll { display: flex; gap: 8px; overflow-x: auto; padding-left: 32px; padding-bottom: 2px; }
+
+  .input-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px calc(14px + env(safe-area-inset-bottom,0px)); border-top: 1px solid var(--line); background: var(--surface); flex-shrink: 0; }
+  .input-bar .text-input { border-radius: 999px; padding: 11px 16px; }
+  .send-btn { all: unset; cursor: pointer; width: 38px; height: 38px; border-radius: 999px; background: var(--ink-950); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .send-btn svg { width: 15px; height: 15px; color: #fff; }
+
+  /* report */
+  .report-summary { background: linear-gradient(160deg, var(--ink-950), var(--brand-700)); border-radius: 16px; padding: 18px; color: #fff; display: flex; flex-direction: column; gap: 4px; }
+  .report-eyebrow { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #9DB3E8; }
+  .report-name { font-size: 16px; font-weight: 700; }
+  .report-meta { font-size: 11.5px; color: #B9CBF2; }
+  .toc-list .row { padding: 11px 4px; }
+  .toc-num { width: 18px; font-size: 11px; font-weight: 700; color: var(--brand-500); flex-shrink: 0; }
+  .evidence-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .evidence-thumb { position: relative; aspect-ratio: 4/3; border-radius: 10px; background: linear-gradient(140deg, var(--sky-100), #DCE6F7); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .evidence-thumb::after { content: '✓ 워터마크'; position: absolute; bottom: 4px; right: 5px; font-size: 8px; font-weight: 700; color: var(--brand-600); background: rgba(255,255,255,0.85); padding: 1px 5px; border-radius: 6px; }
+  .sign-box { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .sign-empty { height: 56px; border: 1.5px dashed var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 11.5px; color: var(--ink-400); }
+  .legal-note { font-size: 10.5px; color: var(--ink-400); line-height: 1.7; }
+
+  /* bottom nav */
+  .navbar { display: flex; padding: 10px 14px calc(14px + env(safe-area-inset-bottom,0px)); border-top: 1px solid var(--line); background: var(--surface); flex-shrink: 0; }
+  .nav-item { all: unset; cursor: pointer; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; border-radius: 14px; }
+  .nav-item svg { width: 21px; height: 21px; color: var(--ink-400); }
+  .nav-item span { font-size: 10.5px; font-weight: 600; color: var(--ink-400); }
+  .nav-item.is-active { background: var(--sky-100); }
+  .nav-item.is-active svg { color: var(--brand-600); }
+  .nav-item.is-active span { color: var(--brand-600); font-weight: 700; }
+
+  /* hero (home only) */
+  .hero { display: flex; flex-direction: column; gap: 18px; padding: 6px 24px 26px; background: linear-gradient(180deg, var(--sky-050) 0%, var(--sky-100) 62%, var(--surface) 100%); flex-shrink: 0; }
+  .illustration-wrap { position: relative; height: 150px; display: flex; align-items: center; justify-content: center; }
+  .cloud { position: absolute; border-radius: 999px; background: radial-gradient(circle at 35% 35%, #fff, #DCE9FB 70%); filter: blur(1px); opacity: 0.9; }
+  .cloud--a { width: 92px; height: 34px; top: 2px; left: 6px; }
+  .cloud--b { width: 64px; height: 24px; bottom: 10px; right: 14px; opacity: 0.75; }
+  .cloud--c { width: 46px; height: 18px; top: 40px; right: 46px; opacity: 0.6; }
+  .hero-headline { margin: 0; font-size: 18.5px; line-height: 1.5; font-weight: 700; color: var(--ink-900); text-align: center; text-wrap: balance; }
+  .hero-headline b { color: var(--brand-500); }
+  .avatar { width: 44px; height: 44px; border-radius: 999px; background: var(--sky-100); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: var(--brand-600); flex-shrink: 0; }
+  .profile-row { display: flex; align-items: center; gap: 12px; }
+  .profile-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .profile-name { font-size: 15px; font-weight: 700; color: var(--ink-900); }
+  .profile-meta { font-size: 12px; color: var(--ink-500); }
+  .safety-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 20px; border: 1px solid var(--line); background: linear-gradient(165deg, #FBFDFF 0%, var(--sky-050) 100%); }
+  .safety-top { display: flex; align-items: flex-start; gap: 12px; }
+  .safety-icon { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; background: var(--safe-100); display: flex; align-items: center; justify-content: center; }
+  .safety-icon svg { width: 20px; height: 20px; color: var(--safe-600); }
+  .safety-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .safety-title { font-size: 14.5px; font-weight: 700; color: var(--ink-900); }
+  .status-pill { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--safe-100); color: var(--safe-600); }
+  .safety-desc { font-size: 12px; color: var(--ink-500); line-height: 1.55; margin: 3px 0 0; }
+  .safety-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .countdown-block { display: flex; flex-direction: column; gap: 2px; }
+  .countdown-label { font-size: 10.5px; color: var(--ink-400); }
+  .countdown-value { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 24px; font-weight: 600; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+  .checkin-btn { all: unset; cursor: pointer; padding: 11px 18px; border-radius: 999px; background: var(--ink-900); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .safety-contact { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--ink-500); }
+  .safety-contact b { color: var(--ink-700); font-weight: 600; }
+  .link-btn { all: unset; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--brand-500); }
+  .quick-grid { display: flex; gap: 10px; }
+  .quick-tile { all: unset; cursor: pointer; flex: 1; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 14px 6px; border-radius: 16px; border: 1px solid var(--line); }
+  .quick-icon { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .quick-label { font-size: 11.5px; font-weight: 600; color: var(--ink-700); }
+
+  /* ---------------- token panel ---------------- */
+  .tokens { width: 100%; max-width: 340px; background: var(--page-card); border: 1px solid var(--page-line); border-radius: 20px; padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+  .tokens h2 { margin: 0; font-size: 13px; font-weight: 700; color: var(--page-ink); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch { display: flex; align-items: center; gap: 7px; padding: 6px 9px 6px 6px; border-radius: 10px; border: 1px solid var(--page-line); font-size: 11px; color: var(--page-ink); }
+  .swatch i { width: 17px; height: 17px; border-radius: 6px; display: block; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.06); }
+
+  @media (max-width: 900px) {
+    .stage { flex-direction: column; align-items: center; }
+    .picker { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+
+<div class="page-head">
+  <p class="page-eyebrow">Design · Interactive prototype</p>
+  <h1 class="page-title">Themis 인터랙티브 프로토타입</h1>
+  <p class="page-desc">
+    화면마다 실제 탭/버튼이 눌려요 — 하단 <code>기록·전문가·채팅·홈</code> 탭과, 카드/리스트 탭, 뒤로가기까지 이어집니다.
+    피그마로 옮길 땐 원하는 화면에서 <code>.screen.is-active</code> 프레임 하나만 골라 html.to.design으로 가져오면 돼요
+    (11개 프레임 전부 같은 디자인 토큰 위에 있어서 한 번에 가져와도 됩니다).
+  </p>
+</div>
+
+<div class="stage">
+  <div class="picker" id="picker"></div>
+
+  <div class="device">
+    <div class="device-screen" id="deviceScreen">
+
+      <!-- ============ 1. 홈 ============ -->
+      <section class="screen is-active" id="screen-home" data-title="홈" data-tab="home">
+        <div class="statusbar"><span>9:41</span><span class="icons">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 8a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="18" height="10" rx="2.5"/><path d="M22 10v4"/></svg>
+        </span></div>
+        <div class="hero">
+          <div class="top-bar" style="padding:0; background:none;">
+            <h1 class="top-bar-title">홈</h1>
+            <div class="top-bar-icons">
+              <button aria-label="검색"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+              <button aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+              <button aria-label="계정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button>
+            </div>
+          </div>
+          <div class="illustration-wrap">
+            <span class="cloud cloud--a"></span><span class="cloud cloud--b"></span><span class="cloud cloud--c"></span>
+            <svg width="122" height="134" viewBox="0 0 128 140" fill="none">
+              <defs>
+                <linearGradient id="shieldFill" x1="20" y1="10" x2="108" y2="130" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6B93EE"/><stop offset="1" stop-color="#1E3A72"/></linearGradient>
+                <linearGradient id="shieldGloss" x1="30" y1="16" x2="90" y2="70" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+              </defs>
+              <ellipse cx="64" cy="120" rx="34" ry="7" fill="#1E3A72" opacity="0.12"/>
+              <circle cx="64" cy="68" r="58" fill="#6B93EE" opacity="0.12"/>
+              <circle cx="112" cy="30" r="4" fill="#6B93EE" opacity="0.55"/>
+              <circle cx="16" cy="96" r="3" fill="#6B93EE" opacity="0.45"/>
+              <path d="M64 10 L104 26 L104 66 C104 96 88 116 64 130 C40 116 24 96 24 66 L24 26 Z" fill="url(#shieldFill)"/>
+              <path d="M64 10 L104 26 L104 66 C104 96 88 116 64 130 C40 116 24 96 24 66 L24 26 Z" fill="url(#shieldGloss)"/>
+              <path d="M46 64 L58 76 L86 46" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <p class="hero-headline">소희님, Themis가 오늘도<br /><b>기록하고 지키고 증명</b>하며 곁에 있어요</p>
+            <button class="cta" onclick="push('new-case-form')">+ 새 사건 기록 시작하기</button>
+          </div>
+        </div>
+        <div class="body">
+          <div class="profile-row">
+            <div class="avatar">소</div>
+            <div class="profile-text">
+              <span class="profile-name">소희님</span>
+              <span class="profile-meta">가입일 2026.03.02 · 진행 중인 사건 2건 · 수집 증거 14건</span>
+            </div>
+          </div>
+          <div class="section">
+            <span class="section-label">오늘의 안전 체크</span>
+            <div class="safety-card">
+              <div class="safety-top">
+                <div class="safety-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 20 6.5v5c0 5-3.4 8.7-8 9.5-4.6-.8-8-4.5-8-9.5v-5Z"/></svg></div>
+                <div style="flex:1; min-width:0;">
+                  <div class="safety-title-row"><span class="safety-title">위급 상황 자동 알림</span><span class="status-pill">감지 중</span></div>
+                  <p class="safety-desc">30분간 "체크인"이 없으면 보호자에게 위치와 함께 문자 전송을 준비해요.</p>
+                </div>
+              </div>
+              <div class="safety-bottom">
+                <div class="countdown-block"><span class="countdown-label">남은 시간</span><span class="countdown-value">18:42</span></div>
+                <button class="checkin-btn" onclick="this.previousElementSibling.querySelector('.countdown-value').textContent='30:00'; this.textContent='체크인 완료 ✓';">저 괜찮아요 ✓</button>
+              </div>
+              <div class="safety-contact"><span>보호자 · <b>김지연 010-1234-5678</b></span><button class="link-btn">변경</button></div>
+            </div>
+          </div>
+          <div class="section">
+            <span class="section-label">빠른 기록</span>
+            <div class="quick-grid">
+              <button class="quick-tile" onclick="push('evidence-upload')"><span class="quick-icon" style="background:#EFF6FF;">📷</span><span class="quick-label">사진</span></button>
+              <button class="quick-tile" onclick="push('evidence-upload')"><span class="quick-icon" style="background:#F5F3FF;">🎙️</span><span class="quick-label">음성</span></button>
+              <button class="quick-tile" onclick="push('evidence-upload')"><span class="quick-icon" style="background:#FFF7ED;">🎥</span><span class="quick-label">영상</span></button>
+              <button class="quick-tile" onclick="push('evidence-upload')"><span class="quick-icon" style="background:#F0FDF4;">📑</span><span class="quick-label">계약서</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="navbar" data-navbar></div>
+      </section>
+
+      <!-- ============ 2. 기록 (탭 랜딩) ============ -->
+      <section class="screen" id="screen-records" data-title="기록" data-tab="records">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="top-bar"><div><h1 class="top-bar-title">기록</h1><p class="top-bar-sub">사건을 기록하고 관리하세요</p></div></div>
+        <div class="body">
+          <div class="section">
+            <span class="section-label">내 사건</span>
+            <div class="card case-card" style="cursor:pointer;" onclick="push('timeline')">
+              <div class="case-card-bar"></div>
+              <div class="case-card-body">
+                <div class="case-head"><span class="badge">진행 중</span><span class="case-title">🏠 전세보증금 미반환</span><span class="case-date">3월 2일~</span></div>
+                <div>
+                  <div class="progress-row"><span class="progress-label">퀘스트 진행도</span><span class="progress-value">2 / 6</span></div>
+                  <div class="progress-track"><div class="progress-fill" style="width:33%"></div></div>
+                </div>
+                <div class="evidence-row">
+                  <div class="evidence-tile" style="background:#EFF6FF;"><span class="evidence-num" style="color:#1D4ED8;">4</span><span class="evidence-label" style="color:#1D4ED8;">사진</span></div>
+                  <div class="evidence-tile" style="background:#F5F3FF;"><span class="evidence-num" style="color:#5B21B6;">2</span><span class="evidence-label" style="color:#5B21B6;">음성</span></div>
+                  <div class="evidence-tile" style="background:#FFF7ED;"><span class="evidence-num" style="color:#C2410C;">1</span><span class="evidence-label" style="color:#C2410C;">영상</span></div>
+                  <div class="evidence-tile" style="background:#F0FDF4;"><span class="evidence-num" style="color:#15803D;">1</span><span class="evidence-label" style="color:#15803D;">계약서</span></div>
+                  <button class="timeline-btn">타임라인<br />보기 →</button>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="border:none;">
+              <button class="row" onclick="push('timeline')">
+                <div class="row-icon" style="background:#F3E8FF;">🛡️</div>
+                <div class="row-text"><span class="row-title">신변위협 — 스토킹 기록</span><span class="row-sub">증거 6건 · 퀘스트 완료 5/5</span></div>
+                <span class="badge safe">완료</span>
+              </button>
+            </div>
+            <button class="dashed-row" onclick="push('new-case-form')">+ 새 사건 기록 시작하기</button>
+          </div>
+        </div>
+        <div class="navbar" data-navbar></div>
+      </section>
+
+      <!-- ============ 3. 전문가 ============ -->
+      <section class="screen" id="screen-experts" data-title="전문가" data-tab="experts">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="top-bar"><div><h1 class="top-bar-title">전문가 연결</h1><p class="top-bar-sub">사건별 공유하고 답변 받기</p></div></div>
+        <div class="body">
+          <div class="section">
+            <span class="section-label">지금 주목받는 사건</span>
+            <button class="hot-card">
+              <div class="hot-top"><span class="badge">🔥 HOT</span><span class="hot-title">전세보증금 미반환 — 강남구 집중</span><span class="badge">피해자 47명</span></div>
+              <p class="hot-desc">같은 집주인에게 피해를 입은 사람이 많습니다. 전문가 12명 · 제보 3건 · 집단 고소 준비 중</p>
+              <div class="tag-row"><span class="tag">변호사</span><span class="tag">기자</span><span class="tag">부동산중개사</span></div>
+            </button>
+            <button class="hot-card warn">
+              <div class="hot-top"><span class="badge warn">금상승</span><span class="hot-title">프리랜서 대금 미지급 — IT 업계</span><span class="badge warn">피해자 23명</span></div>
+              <p class="hot-desc">의뢰인으로부터 대금을 받지 못한 프리랜서들이 모이고 있습니다.</p>
+              <div class="tag-row"><span class="tag">변호사</span><span class="tag">공익법무관</span></div>
+            </button>
+          </div>
+          <div class="section">
+            <span class="section-label">일반 게시판</span>
+            <div class="card post-card">
+              <div class="post-top">
+                <div class="post-avatar">김</div>
+                <div class="post-meta"><span class="post-author">김현탄</span><span class="post-time">30분 전</span></div>
+                <span class="badge warn">답변 대기 중</span>
+              </div>
+              <p class="post-title">스토킹 피해 — 경찰 신고 절차가 궁금합니다</p>
+              <p class="post-body">6개월쯤 전부터 집 앞에 나타나는 사람이 있습니다. 타임라인 기록해뒀는데 어떻게 신고해야 하나요?</p>
+              <div class="attach">📄 증거_타임라인_250307.pdf</div>
+            </div>
+          </div>
+          <button class="cta" onclick="push('expert-question')">✍️ 전문가에게 질문 등록하기</button>
+        </div>
+        <div class="navbar" data-navbar></div>
+      </section>
+
+      <!-- ============ 4. 채팅 (탭 랜딩) ============ -->
+      <section class="screen" id="screen-chats" data-title="채팅" data-tab="chats">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="top-bar"><div><h1 class="top-bar-title">연대 채팅</h1><p class="top-bar-sub">같은 피해를 겪은 사람들, 전문가와 연결돼요</p></div></div>
+        <div class="body tight">
+          <div class="search-input"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>채팅방 검색</span></div>
+          <div class="section">
+            <span class="section-label">피해자 연대방</span>
+            <div class="card" style="border:none;">
+              <button class="row" onclick="openRoom('강남구 전세사기 피해자','🏠','#FEE2E2','참여 21명')">
+                <div class="row-icon" style="background:#FEE2E2;">🏠</div>
+                <div class="row-text"><span class="row-title">강남구 전세사기 피해자</span><span class="row-sub">같은 집주인에게 사례 다수 · 집단 고소 준비</span></div>
+                <span class="row-meta">3분 전</span>
+              </button>
+              <button class="row" onclick="openRoom('스토킹 피해자 지원','🛡️','#F3E8FF','참여 14명')">
+                <div class="row-icon" style="background:#F3E8FF;">🛡️</div>
+                <div class="row-text"><span class="row-title">스토킹 피해자 지원</span><span class="row-sub">피해자 지원센터 연결 · 법적 대응 공유</span></div>
+                <span class="row-meta">방금</span>
+              </button>
+              <button class="row" onclick="openRoom('직장 내 괴롭힘 피해자','💼','#FFF7ED','참여 9명')">
+                <div class="row-icon" style="background:#FFF7ED;">💼</div>
+                <div class="row-text"><span class="row-title">직장 내 괴롭힘 피해자</span><span class="row-sub">증거 수집 방법 공유 · 노동청 신고 안내</span></div>
+                <span class="row-meta">1시간 전</span>
+              </button>
+            </div>
+          </div>
+          <div class="section">
+            <span class="section-label">전문가 채널</span>
+            <div class="card" style="border:none;">
+              <button class="row" onclick="openRoom('공익변호사 상담 채널','⚖️','#DBEAFE','상담원 상시 대기')">
+                <div class="row-icon" style="background:#DBEAFE;">⚖️</div>
+                <div class="row-text"><span class="row-title">공익변호사 상담 채널</span><span class="row-sub">공익 목적 법률 상담을 진행하는 변호사와 1:1 연결</span></div>
+                <span class="row-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
+              </button>
+              <button class="row" onclick="openRoom('대한법률구조공단 채널','🏛️','#DCFCE7','상담원 상시 대기')">
+                <div class="row-icon" style="background:#DCFCE7;">🏛️</div>
+                <div class="row-text"><span class="row-title">대한법률구조공단 채널</span><span class="row-sub">법률구조공단 상담원에게 직접 문의하는 공식 채널</span></div>
+                <span class="row-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="navbar" data-navbar></div>
+      </section>
+
+      <!-- ============ 5. 새 사건 시작 ============ -->
+      <section class="screen" id="screen-new-case-form" data-title="새 사건 시작">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header"><button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button><div class="titles"><div class="title">새 사건 시작</div></div></div>
+        <div class="body">
+          <div class="section">
+            <span class="field-label">사건 유형</span>
+            <div class="type-grid">
+              <button class="type-card is-active" onclick="selectOne(this)"><span class="icon">🏠</span><span class="label">전세사기</span><span class="desc">전세사기, 보증금, 계약</span></button>
+              <button class="type-card" onclick="selectOne(this)"><span class="icon">💸</span><span class="label">금전사기</span><span class="desc">중고거래, 보이스피싱</span></button>
+              <button class="type-card" onclick="selectOne(this)"><span class="icon">👥</span><span class="label">괴롭힘</span><span class="desc">직장, 학교, 따돌림</span></button>
+              <button class="type-card" onclick="selectOne(this)"><span class="icon">🚨</span><span class="label">신변 위협</span><span class="desc">스토킹, 협박, 데이트폭력</span></button>
+            </div>
+          </div>
+          <div class="section">
+            <span class="field-label">기록 이름</span>
+            <input class="text-input" value="전세보증금 미반환" />
+          </div>
+          <div class="section">
+            <span class="field-label">공개 범위</span>
+            <div class="chip-row">
+              <button class="chip is-active" onclick="selectOne(this)">나만 보기</button>
+              <button class="chip" onclick="selectOne(this)">전문가 공유</button>
+              <button class="chip" onclick="selectOne(this)">공론화</button>
+            </div>
+          </div>
+          <div class="section">
+            <span class="field-label">태그</span>
+            <div class="chip-scroll">
+              <button class="chip is-active" onclick="this.classList.toggle('is-active')">#전세</button>
+              <button class="chip is-active" onclick="this.classList.toggle('is-active')">#보증금</button>
+              <button class="chip" onclick="this.classList.toggle('is-active')">#월세</button>
+              <button class="chip" onclick="this.classList.toggle('is-active')">#소비자피해</button>
+              <button class="chip" onclick="this.classList.toggle('is-active')">#프리랜서</button>
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px 20px calc(16px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line);">
+          <button class="cta" onclick="push('evidence-upload')">시작하기</button>
+        </div>
+      </section>
+
+      <!-- ============ 6. 증거 업로드 ============ -->
+      <section class="screen" id="screen-evidence-upload" data-title="증거 업로드">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header"><button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button><div class="titles"><div class="title">증거 업로드</div><div class="sub">전세사기 · 사건 기록 추가하기</div></div></div>
+        <div class="body">
+          <div class="chip-row" style="gap:10px;">
+            <button class="type-card" style="flex:1;" onclick="push('guide-chat')"><span class="icon">📋</span><span class="label">계약서 분석</span><span class="desc">독소조항 자동 탐지</span></button>
+            <button class="type-card" style="flex:1;" onclick="push('guide-chat')"><span class="icon">🧭</span><span class="label">사건 대응 퀘스트</span><span class="desc">전세사기 단계별 안내</span></button>
+          </div>
+          <div class="type-grid">
+            <button class="type-card" onclick="push('timeline')"><span class="icon">📷</span><span class="label">사진</span><span class="desc">현장 사진 촬영</span></button>
+            <button class="type-card" onclick="push('timeline')"><span class="icon">🎙️</span><span class="label">음성</span><span class="desc">지금 녹음 또는 파일 선택</span></button>
+            <button class="type-card" onclick="push('timeline')"><span class="icon">🎥</span><span class="label">영상</span><span class="desc">동영상 파일 업로드</span></button>
+            <button class="type-card" onclick="push('timeline')"><span class="icon">📝</span><span class="label">상세 기록</span><span class="desc">텍스트 직접 입력</span></button>
+          </div>
+          <p style="text-align:center; font-size:11.5px; color:var(--ink-400);">📍 업로드 시 위치와 시간이 자동으로 기록돼요</p>
+        </div>
+      </section>
+
+      <!-- ============ 7. 타임라인 ============ -->
+      <section class="screen" id="screen-timeline" data-title="타임라인">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header">
+          <button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+          <div class="titles"><div class="title">사건 타임라인</div><div class="sub">수집된 증거 6건</div></div>
+          <div class="header-actions">
+            <button class="icon-btn" onclick="push('report')" aria-label="공유"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg></button>
+          </div>
+        </div>
+        <div class="body tight">
+          <div class="summary-strip">
+            <div class="summary-tag" style="background:#EA580C;"><span>사진 4</span></div>
+            <div class="summary-tag" style="background:#7C3AED;"><span>음성 1</span></div>
+            <div class="summary-tag" style="background:#3B82F6;"><span>메모 1</span></div>
+          </div>
+          <div class="chip-scroll">
+            <button class="chip is-active">전체</button>
+            <button class="chip">📷 사진</button>
+            <button class="chip">🎙️ 음성</button>
+            <button class="chip">🎥 영상</button>
+            <button class="chip">📝 메모</button>
+          </div>
+          <div class="section" style="gap:0;">
+            <div class="tl-item">
+              <div class="tl-left"><div class="tl-dot" style="background:#3B82F6;"></div><div class="tl-line"></div></div>
+              <div class="tl-card" style="margin-bottom:14px;">
+                <div class="tl-meta"><span class="tl-date">3월 2일, 오후 11:00</span><span class="tl-gps">📍 자택 앞</span></div>
+                <div class="tl-head"><div class="tl-icon" style="background:#EEF2FB; color:#4A6FA5;">💬</div><span class="tl-title">집주인 협박 문자</span><span class="tl-hint">자세히 ▾</span></div>
+                <p class="tl-body">"보증금 못 돌려준다, 알아서 해라" — 문자 캡처 기록됨</p>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-left"><div class="tl-dot" style="background:#7C3AED;"></div><div class="tl-line"></div></div>
+              <div class="tl-card" style="margin-bottom:14px;">
+                <div class="tl-meta"><span class="tl-date">3월 7일, 오전 08:00</span><span class="tl-gps">📍 지하철역</span></div>
+                <div class="tl-head"><div class="tl-icon" style="background:#F1EBFC; color:#7C4FD8;">🎙️</div><span class="tl-title">통화 녹음 파일</span><span class="tl-hint">자세히 ▾</span></div>
+                <p class="tl-body">2분 30초 — 클로바 음성인식으로 텍스트 자동 변환 완료</p>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-left"><div class="tl-dot" style="background:#EA580C;"></div></div>
+              <div class="tl-card">
+                <div class="tl-meta"><span class="tl-date">3월 15일, 오후 02:00</span><span class="tl-gps">📸 Photo</span></div>
+                <div class="tl-head"><div class="tl-icon" style="background:#FFF3E8; color:#E07B30;">📷</div><span class="tl-title">방문 기록 사진</span><span class="tl-hint">자세히 ▾</span></div>
+                <div class="evidence-thumb" style="aspect-ratio:16/9;"></div>
+              </div>
+            </div>
+          </div>
+          <button class="cta" style="margin-top:4px;" onclick="push('report')">📄 증거정리 보고서 보기 · 다운로드</button>
+        </div>
+      </section>
+
+      <!-- ============ 8. AI 대응 가이드 ============ -->
+      <section class="screen" id="screen-guide-chat" data-title="대응 가이드">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header"><button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button><div class="titles"><div class="title">대응 가이드</div><div class="sub">전세사기 단계별 안내</div></div></div>
+        <div class="body tight">
+          <div class="card" style="padding:14px; border:none; background:var(--sky-050);">
+            <div class="progress-row"><span class="progress-label">퀘스트 진행도</span><span class="progress-value">2 / 6</span></div>
+            <div class="progress-track" style="margin-top:8px;"><div class="progress-fill" style="width:33%"></div></div>
+          </div>
+          <div class="section">
+            <span class="section-label">대응 퀘스트</span>
+            <div class="card quest-card done">
+              <div class="quest-checkbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <div class="quest-body"><div class="quest-title-row"><span class="quest-title">증거 수집</span></div><span class="quest-desc">필요서류: 계약서, 거래 내역, 문자·통화 녹음</span></div>
+            </div>
+            <div class="card quest-card">
+              <div class="quest-checkbox"></div>
+              <div class="quest-body">
+                <div class="quest-title-row"><span class="quest-title">내용증명 발송</span></div>
+                <span class="quest-desc">필요서류: 신분증, 계약서 사본, 내용증명 문서 · 소요 1~2일</span>
+              </div>
+            </div>
+            <div class="card quest-card">
+              <div class="quest-checkbox"></div>
+              <div class="quest-body">
+                <div class="quest-title-row"><span class="quest-title">법률구조공단 무료 상담</span></div>
+                <span class="quest-desc">필요서류: 신분증, 관련 서류 · 소요 당일~1주</span>
+                <span class="quest-phone">📞 132</span>
+              </div>
+            </div>
+          </div>
+          <div class="section">
+            <span class="section-label">AI에게 물어보기</span>
+            <div class="msg-row me"><div class="bubble">집주인이 보증금을 안 돌려줘요</div></div>
+            <div class="ai-answer">
+              <div class="ai-avatar-row"><span class="ai-avatar">AI</span><span class="ai-label">Themis 어시스턴트</span></div>
+              <p class="ai-text">먼저 계약서·거래내역·문자 기록으로 증거를 모아두세요. 그다음 내용증명을 발송하면 법적 절차의 근거가 남아요. 132(법률구조공단)로 무료 상담도 받아보실 수 있어요.</p>
+              <div class="suggest-scroll">
+                <button class="chip">내용증명은 어떻게 써요?</button>
+                <button class="chip">소액심판 절차가 궁금해요</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">
+          <div class="text-input" style="color:var(--ink-400);">무엇이든 물어보세요</div>
+          <button class="send-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+        </div>
+      </section>
+
+      <!-- ============ 9. 보고서 ============ -->
+      <section class="screen" id="screen-report" data-title="사건 보고서">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header"><button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button><div class="titles"><div class="title">사건 보고서</div></div></div>
+        <div class="body tight">
+          <div class="report-summary">
+            <span class="report-eyebrow">사건 보고서</span>
+            <span class="report-name">🏠 전세보증금 미반환</span>
+            <span class="report-meta">기록 시작 2026.03.02 · 생성일 2026.08.31 · 증거 6건</span>
+          </div>
+          <div class="section">
+            <span class="section-label">증거 미리보기 · 워터마크 합성됨</span>
+            <div class="evidence-grid">
+              <div class="evidence-thumb"></div><div class="evidence-thumb"></div><div class="evidence-thumb"></div>
+            </div>
+          </div>
+          <div class="section">
+            <span class="section-label">서명</span>
+            <div class="sign-box">
+              <div class="sign-empty">서명 없음 — 탭해서 서명하기</div>
+              <p class="legal-note">본 보고서는 Themis 앱에서 자동 생성된 증거 정리 자료이며, 수집된 증거의 무결성은 SHA-256 해시값 및 서버 타임스탬프로 보장됩니다. 법적 효력은 담당 기관에 문의하세요.</p>
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px 20px calc(16px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line);">
+          <button class="cta">⤓ PDF 다운로드 / 전문가 전송</button>
+        </div>
+      </section>
+
+      <!-- ============ 10. 채팅방 ============ -->
+      <section class="screen" id="screen-chat-room" data-title="채팅방">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header">
+          <button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+          <div class="titles"><div class="title" id="roomTitle">강남구 전세사기 피해자</div><div class="sub" id="roomSub">참여 21명</div></div>
+        </div>
+        <div class="body tight" style="flex:1;">
+          <div class="msg-row them">
+            <span class="msg-name">지연맘</span>
+            <div class="bubble">저도 같은 집주인이에요... 벌써 3개월째 연락 두절이네요</div>
+            <span class="msg-time">오후 2:41</span>
+          </div>
+          <div class="msg-row them">
+            <span class="msg-name">희겸</span>
+            <div class="bubble">내용증명 보내신 분 계신가요? 양식 공유 가능하신 분 있으면 부탁드려요</div>
+            <span class="msg-time">오후 2:43</span>
+          </div>
+          <div class="msg-row me">
+            <div class="bubble">저 방금 법률구조공단(132) 상담 받았는데, 소액심판이 가능하다고 하네요</div>
+            <span class="msg-time">오후 2:45</span>
+          </div>
+          <div class="msg-row them">
+            <span class="msg-name">지연맘</span>
+            <div class="bubble">오 감사해요! 저도 신청해볼게요 🙏</div>
+            <span class="msg-time">오후 2:46</span>
+          </div>
+        </div>
+        <div class="input-bar">
+          <div class="text-input" style="color:var(--ink-400);">메시지 입력...</div>
+          <button class="send-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+        </div>
+      </section>
+
+      <!-- ============ 11. 전문가 질문 등록 ============ -->
+      <section class="screen" id="screen-expert-question" data-title="질문 등록">
+        <div class="statusbar"><span>9:41</span><span></span></div>
+        <div class="back-header">
+          <button class="back-btn" onclick="back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+          <div class="titles"><div class="title">질문 등록</div></div>
+          <button class="header-action" onclick="back()">등록</button>
+        </div>
+        <div class="body">
+          <div class="section">
+            <span class="field-label">제목</span>
+            <input class="text-input" placeholder="제목을 입력해주세요" />
+          </div>
+          <div class="section">
+            <span class="field-label">내용</span>
+            <textarea class="textarea" placeholder="전문가에게 질문할 내용을 입력해주세요"></textarea>
+          </div>
+          <div class="section">
+            <span class="field-label">📎 타임라인 첨부 (선택)</span>
+            <button class="dashed-row">+ 내 사건 타임라인 선택</button>
+          </div>
+          <p style="font-size:11px; color:var(--ink-400); line-height:1.6;">본 질문은 전문가 채널에 공개됩니다. 개인정보가 포함되지 않도록 주의해주세요.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="tokens">
+    <h2>디자인 토큰</h2>
+    <div class="swatches">
+      <span class="swatch"><i style="background:#0A1628"></i>Ink 950</span>
+      <span class="swatch"><i style="background:#1E3A72"></i>Brand 700</span>
+      <span class="swatch"><i style="background:#3D6FE0"></i>Brand 500</span>
+      <span class="swatch"><i style="background:#6B93EE"></i>Brand 400</span>
+      <span class="swatch"><i style="background:#E9F1FD"></i>Sky 100</span>
+      <span class="swatch"><i style="background:#101828"></i>Ink 900</span>
+      <span class="swatch"><i style="background:#5B6B8C"></i>Ink 500</span>
+      <span class="swatch"><i style="background:#E7ECF5"></i>Line</span>
+      <span class="swatch"><i style="background:#DC2626"></i>Danger</span>
+      <span class="swatch"><i style="background:#16A672"></i>Safe</span>
+    </div>
+    <p style="font-size:11.5px; color:var(--page-muted); line-height:1.6; margin:0;">
+      IBM Plex Sans KR (헤딩·본문) · IBM Plex Mono (카운트다운·타임스탬프)
+    </p>
+  </div>
+</div>
+
+<script>
+  const NAV_TABS = [
+    { id: 'records', label: '기록', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' },
+    { id: 'experts', label: '전문가', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M15.5 3.13a4 4 0 0 1 0 7.75"/></svg>' },
+    { id: 'chats', label: '채팅', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-8.9 8.4 8.8 8.8 0 0 1-3.6-.8L3 20l1-4.7A8.4 8.4 0 1 1 21 11.5Z"/></svg>' },
+    { id: 'home', label: '홈', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4h4v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>' },
+  ];
+
+  function buildNavbar(activeId) {
+    return NAV_TABS.map(t => `
+      <button class="nav-item ${t.id === activeId ? 'is-active' : ''}" onclick="tab('${t.id}')">
+        ${t.icon}<span>${t.label}</span>
+      </button>`).join('');
+  }
+
+  document.querySelectorAll('[data-navbar]').forEach(el => {
+    const screenId = el.closest('.screen').dataset.tab;
+    el.innerHTML = buildNavbar(screenId);
+  });
+
+  let stack = ['home'];
+
+  function render() {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('is-active'));
+    const current = stack[stack.length - 1];
+    document.getElementById('screen-' + current).classList.add('is-active');
+    document.querySelectorAll('.picker button').forEach(b => b.classList.toggle('is-current', b.dataset.id === current));
+  }
+
+  function push(id) {
+    if (stack[stack.length - 1] !== id) stack.push(id);
+    render();
+  }
+  function back() {
+    if (stack.length > 1) stack.pop();
+    render();
+  }
+  function tab(id) {
+    stack = [id];
+    render();
+  }
+  function jump(id) {
+    stack = [id];
+    render();
+  }
+  function selectOne(el) {
+    Array.from(el.parentElement.children).forEach(c => c.classList.remove('is-active'));
+    el.classList.add('is-active');
+  }
+  function openRoom(name, icon, color, sub) {
+    document.getElementById('roomTitle').textContent = name;
+    document.getElementById('roomSub').textContent = sub;
+    push('chat-room');
+  }
+
+  // build the review picker
+  const ORDER = ['home','records','experts','chats','new-case-form','evidence-upload','timeline','guide-chat','report','chat-room','expert-question'];
+  const picker = document.getElementById('picker');
+  picker.innerHTML = '<div class="picker-label">화면 바로가기</div>' + ORDER.map(id => {
+    const title = document.getElementById('screen-' + id).dataset.title;
+    return `<button data-id="${id}" onclick="jump('${id}')"><span class="dot"></span>${title}</button>`;
+  }).join('');
+
+  render();
+</script>
