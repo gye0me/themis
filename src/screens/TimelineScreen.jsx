@@ -8,13 +8,14 @@ import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById, deleteCase } from '../services/firebaseService';
 
+// color: 타입 식별용 포인트 컬러(타임라인 점, 필터 칩) / badgeBg·badgeColor: 카드 아이콘 뱃지(리디자인)
 const TYPE_CONFIG = {
-  image:    { icon: '📷', color: '#EA580C', label: '사진' },
-  audio:    { icon: '🎙️', color: '#7C3AED', label: '음성' },
-  video:    { icon: '🎥', color: '#16A34A', label: '영상' },
-  text:     { icon: '📝', color: '#3B82F6', label: '메모' },
-  contract: { icon: '📑', color: '#0EA5E9', label: '계약분석' },
-  default:  { icon: '📄', color: '#94A3B8', label: '기타' },
+  image:    { icon: '📷', color: '#EA580C', badgeBg: '#FFF3E8', badgeColor: '#E07B30', label: '사진' },
+  audio:    { icon: '🎙️', color: '#7C3AED', badgeBg: '#F1EBFC', badgeColor: '#7C4FD8', label: '음성' },
+  video:    { icon: '🎥', color: '#16A34A', badgeBg: '#E8F4EF', badgeColor: '#2E8B68', label: '영상' },
+  text:     { icon: '📝', color: '#3B82F6', badgeBg: '#EEF2FB', badgeColor: '#4A6FA5', label: '메모' },
+  contract: { icon: '📑', color: '#0EA5E9', badgeBg: '#E6F6FD', badgeColor: '#0E92C4', label: '계약분석' },
+  default:  { icon: '📄', color: '#94A3B8', badgeBg: '#F0F1F6', badgeColor: '#6B7A9A', label: '기타' },
 };
 
 const FILTER_OPTIONS = [
@@ -257,7 +258,7 @@ export function TimelineScreen({ navigation, route }) {
         </View>
       ) : loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#3B7DD8" />
+          <ActivityIndicator size="large" color="#4A6FA5" />
           <Text style={styles.loadingText}>증거를 불러오는 중...</Text>
         </View>
       ) : error ? (
@@ -295,7 +296,7 @@ export function TimelineScreen({ navigation, route }) {
                   key={opt.key}
                   style={[
                     styles.filterChip,
-                    isActive && { backgroundColor: cfg ? cfg.color : '#1E3A5F', borderColor: 'transparent' },
+                    isActive && { backgroundColor: cfg ? cfg.color : '#1A2540', borderColor: 'transparent' },
                   ]}
                   onPress={() => setActiveFilter(opt.key)}
                 >
@@ -360,12 +361,14 @@ export function TimelineScreen({ navigation, route }) {
                         <Text style={styles.cardDate}>{formatDate(item.capturedAt)}</Text>
                         {item.location && (
                           <View style={styles.gpsBadge}>
-                            <Text style={styles.gpsBadgeText}>GPS ✓</Text>
+                            <Text style={styles.gpsBadgeText}>📍 GPS 확인됨</Text>
                           </View>
                         )}
                       </View>
                       <View style={styles.typeRow}>
-                        <Text style={styles.typeIcon}>{cfg.icon}</Text>
+                        <View style={[styles.typeBadge, { backgroundColor: cfg.badgeBg }]}>
+                          <Text style={[styles.typeIcon, { color: cfg.badgeColor }]}>{cfg.icon}</Text>
+                        </View>
                         <Text style={styles.cardTitle}>{item.title || cfg.label}</Text>
                         <Text style={styles.expandHint}>{isExpanded ? '접기 ▲' : '자세히 ▼'}</Text>
                       </View>
@@ -496,107 +499,112 @@ export function TimelineScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
+  wrapper: { flex: 1, backgroundColor: '#F5F4F0' },
   statusbar: {
-    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
+    backgroundColor: '#1A2540', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
     flexDirection: 'row', justifyContent: 'space-between',
   },
-  statusTime: { color: '#6B84A8', fontSize: 12 },
-  statusApp: { color: '#6B84A8', fontSize: 12 },
+  statusTime: { color: '#8BA4C8', fontSize: 12 },
+  statusApp: { color: '#8BA4C8', fontSize: 12 },
   appbar: {
-    backgroundColor: '#1E3A5F', paddingTop: 16, paddingBottom: 14,
+    backgroundColor: '#1A2540', paddingTop: 16, paddingBottom: 14,
     paddingHorizontal: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'space-between',
   },
   backBtn: { paddingVertical: 4, paddingRight: 6 },
-  back: { color: '#7B9EC5', fontSize: 24 },
-  title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
-  subtitle: { color: '#7B9EC5', fontSize: 11 },
+  back: { color: '#8BA4C8', fontSize: 24 },
+  title: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  subtitle: { color: '#8BA4C8', fontSize: 11 },
   shareBtn: { padding: 4 },
-  shareBtnText: { color: '#7B9EC5', fontSize: 18 },
+  shareBtnText: { color: '#8BA4C8', fontSize: 18 },
   deleteBtn: { padding: 4 },
   deleteBtnText: { fontSize: 16 },
-  newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#3B7DD8' },
-  newCaseBtnText: { color: '#7B9EC5', fontSize: 11 },
+  newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#4A6FA5' },
+  newCaseBtnText: { color: '#8BA4C8', fontSize: 11 },
   content: { flex: 1, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: '#94A3B8', fontSize: 13 },
   errorText: { color: '#DC2626', fontSize: 13 },
-  retryText: { color: '#3B7DD8', fontSize: 13 },
+  retryText: { color: '#4A6FA5', fontSize: 13 },
   summaryRow: {
-    backgroundColor: '#1E3A5F', borderRadius: 8,
+    backgroundColor: '#1A2540', borderRadius: 10,
     padding: 10, flexDirection: 'row',
     flexWrap: 'wrap', gap: 6, marginBottom: 12,
     minHeight: 40, alignItems: 'center',
   },
   summaryTag: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 4 },
   summaryTagText: { color: '#FFFFFF', fontSize: 10, fontWeight: '500' },
-  emptyTagText: { color: '#7B9EC5', fontSize: 11 },
+  emptyTagText: { color: '#8BA4C8', fontSize: 11 },
   filterRow: { marginBottom: 14 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0',
+    borderRadius: 20, borderWidth: 0.5, borderColor: '#E0E2EA',
     backgroundColor: '#FFFFFF', marginRight: 8,
   },
   filterChipIcon: { fontSize: 12 },
-  filterChipText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+  filterChipText: { fontSize: 12, color: '#666666', fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   filterChipCount: { fontSize: 11, color: '#FFFFFF', fontWeight: '600' },
   emptyBox: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   emptyIcon: { fontSize: 40 },
-  emptyText: { color: '#94A3B8', fontSize: 13 },
-  uploadBtn: { backgroundColor: '#1E3A5F', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  uploadBtnText: { color: '#F1F5F9', fontSize: 12 },
+  emptyText: { color: '#888888', fontSize: 13 },
+  uploadBtn: { backgroundColor: '#1A2540', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  uploadBtnText: { color: '#FFFFFF', fontSize: 12 },
   dateDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  dateLine: { flex: 1, height: 0.5, backgroundColor: '#E2E8F0' },
-  dateText: { color: '#94A3B8', fontSize: 10 },
+  dateLine: { flex: 1, height: 0.5, backgroundColor: '#E0E2EA' },
+  dateText: { color: '#888888', fontSize: 10 },
   timelineItem: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   timelineLeft: { alignItems: 'center', paddingTop: 4 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
-  line: { width: 1.5, flex: 1, backgroundColor: '#E2E8F0', marginTop: 4 },
+  dot: { width: 13, height: 13, borderRadius: 7, borderWidth: 2.5, borderColor: '#FFFFFF' },
+  line: { width: 2, flex: 1, backgroundColor: '#D0D4E0', marginTop: 4 },
   timelineCard: {
     flex: 1, backgroundColor: '#FFFFFF',
-    borderRadius: 10, padding: 12, gap: 4,
+    borderRadius: 12, padding: 13, gap: 5,
+    borderWidth: 0.5, borderColor: '#E0E2EA',
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardDate: { color: '#94A3B8', fontSize: 10 },
-  gpsBadge: { backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  gpsBadgeText: { color: '#1D4ED8', fontSize: 9 },
-  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  typeIcon: { fontSize: 14 },
-  cardTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' },
-  cardSub: { color: '#64748B', fontSize: 10 },
+  cardDate: { color: '#888888', fontSize: 11, fontWeight: '500' },
+  gpsBadge: { backgroundColor: '#ECEEF5', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  gpsBadgeText: { color: '#4A6FA5', fontSize: 10, fontWeight: '600' },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  typeBadge: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  typeIcon: { fontSize: 16 },
+  cardTitle: { color: '#1A2540', fontSize: 13, fontWeight: '700', flex: 1 },
+  cardSub: { color: '#666666', fontSize: 11 },
   fileName: { color: '#94A3B8', fontSize: 9, fontStyle: 'italic' },
-  expandHint: { color: '#3B7DD8', fontSize: 10, marginLeft: 'auto' },
-  contractDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', gap: 8 },
-  contractImage: { width: '100%', height: 180, borderRadius: 8, backgroundColor: '#E2E8F0' },
-  detailCard: { backgroundColor: '#F8FAFC', borderRadius: 6, padding: 8, borderLeftWidth: 3 },
+  expandHint: { color: '#4A6FA5', fontSize: 10, marginLeft: 'auto' },
+  contractDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#E0E2EA', gap: 8 },
+  contractImage: { width: '100%', height: 180, borderRadius: 8, backgroundColor: '#E2E5EF' },
+  detailCard: { backgroundColor: '#F5F6FA', borderRadius: 6, padding: 8, borderLeftWidth: 3 },
   detailTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   detailLevelIcon: { fontSize: 12 },
   detailBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 20 },
   detailBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
-  detailTitle: { color: '#0F172A', fontSize: 11, fontWeight: '600', flexShrink: 1 },
-  detailDesc: { color: '#64748B', fontSize: 10, marginTop: 2 },
-  hashCard: { backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10, marginBottom: 8 },
+  detailTitle: { color: '#1A2540', fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  detailDesc: { color: '#666666', fontSize: 10, marginTop: 2 },
+  hashCard: { backgroundColor: '#F5F6FA', borderRadius: 8, padding: 10, marginBottom: 8 },
   hashLabel: { color: '#94A3B8', fontSize: 9 },
-  hashValue: { color: '#3B7DD8', fontSize: 9 },
+  hashValue: { color: '#4A6FA5', fontSize: 9 },
   pdfBtn: {
-    backgroundColor: '#1E3A5F', borderRadius: 10,
+    backgroundColor: '#1A2540', borderRadius: 12,
     padding: 14, alignItems: 'center', marginBottom: 10,
   },
-  pdfBtnText: { color: '#F1F5F9', fontSize: 12, fontWeight: '500' },
+  pdfBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   floatingBtn: {
     position: 'absolute', right: 16, bottom: 32,
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#3B7DD8',
+    backgroundColor: '#4A6FA5',
     alignItems: 'center', justifyContent: 'center',
     zIndex: 999,
   },
   floatingBtnText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
   floatingUploadBtn: {
     position: 'absolute', right: 16, bottom: 92,
-    backgroundColor: '#1E3A5F', borderRadius: 20,
+    backgroundColor: '#1A2540', borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 10,
     zIndex: 999,
   },
@@ -619,7 +627,7 @@ const styles = StyleSheet.create({
     marginLeft: 3, // ▶ 삼각형 글자 자체가 시각적으로 왼쪽으로 치우쳐 보여서 살짝 우측으로 보정
   },
   audioPlayBtn: {
-    backgroundColor: '#3B7DD8', borderRadius: 10, padding: 14,
+    backgroundColor: '#4A6FA5', borderRadius: 10, padding: 14,
     alignItems: 'center',
   },
   audioPlayBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },

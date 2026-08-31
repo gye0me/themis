@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, getEvidenceRecords, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
 import { extractTextFromImage } from '../services/ocrService';
+import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
+import { buildStampedImageFile } from '../utils/buildStampedImageFile';
 
 const TYPE_CONFIG = {
   image:    { icon: '📷', color: '#EA580C' },
@@ -60,6 +62,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
   const recorderState = useAudioRecorderState(audioRecorder, 200);
   const [recordModalVisible, setRecordModalVisible] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
+  const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
 
   // 파일 선택/녹음 두 경로가 공통으로 쓰는 업로드 처리 (위치 기록 → 클로바 변환 → Firestore 저장 → 결과 안내)
   const uploadEvidence = async (evidenceType, file) => {
@@ -144,11 +147,25 @@ export function EvidenceUploadScreen({ navigation, route }) {
         });
         if (result.canceled || !result.assets?.length) return;
         const asset = result.assets[0];
-        await uploadEvidence(evidenceType, {
+        let file = {
           uri: asset.uri,
           name: asset.fileName ?? `${evidenceType}-${Date.now()}.${evidenceType === 'image' ? 'jpg' : 'mp4'}`,
           mimeType: asset.mimeType ?? (evidenceType === 'image' ? 'image/jpeg' : 'video/mp4'),
-        });
+        };
+
+        // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
+        // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
+        if (evidenceType === 'image') {
+          setUploadingType('image');
+          try {
+            const stampedUri = await stamperRef.current.stamp(asset.uri);
+            file = buildStampedImageFile(file, stampedUri);
+          } catch (stampError) {
+            console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
+          }
+        }
+
+        await uploadEvidence(evidenceType, file);
         return;
       }
 
@@ -224,6 +241,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.wrapper}>
+      <PhotoWatermarkStamper ref={stamperRef} />
       <View style={styles.statusbar}>
         <Text style={styles.statusTime}>9:41</Text>
         <Text style={styles.statusApp}>Themis</Text>
