@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';

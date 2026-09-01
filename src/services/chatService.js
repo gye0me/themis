@@ -44,6 +44,14 @@ export const CHAT_ROOMS = [
     type: 'victim',
   },
   {
+    id: 'money-fraud-support',
+    name: '금전·거래 사기 피해자',
+    description: '중고거래·보이스피싱 피해 공유 · 신고 절차 안내',
+    icon: '💸',
+    color: '#FEF3C7',
+    type: 'victim',
+  },
+  {
     id: 'expert-public-lawyer',
     name: '공익변호사 상담 채널',
     description: '공익 목적 법률 상담을 진행하는 변호사와 1:1로 연결됩니다',
@@ -63,6 +71,25 @@ export const CHAT_ROOMS = [
 
 export function getChatRoomMeta(roomId) {
   return CHAT_ROOMS.find((r) => r.id === roomId) ?? null;
+}
+
+// 사건 유형(caseType) → 같은 피해 유형 채팅방 매핑.
+// '기타'처럼 대응되는 방이 없으면 매칭하지 않는다.
+const CASE_TYPE_TO_ROOM_ID = {
+  전세사기: 'jeonse-gangnam',
+  금전사기: 'money-fraud-support',
+  괴롭힘: 'workplace-harassment',
+  신변위협: 'stalking-support',
+};
+
+/**
+ * 새로 등록한 사건의 caseType과 같은 피해 유형을 다루는 피해자 연대방을 찾는다.
+ * 매칭되는 방이 없으면 null.
+ */
+export function getMatchingRoomForCaseType(caseType) {
+  const roomId = CASE_TYPE_TO_ROOM_ID[caseType];
+  if (!roomId) return null;
+  return getChatRoomMeta(roomId);
 }
 
 function assertRtdb() {

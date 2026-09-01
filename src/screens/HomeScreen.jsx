@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
-import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
 import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
 import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
@@ -79,8 +79,25 @@ export function HomeScreen({ navigation }) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const triggeringRef = useRef(false);
 
+  const [savingExpertBadge, setSavingExpertBadge] = useState(false);
+  const isExpertVerified = !!profile?.isExpert;
+
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '사용자';
   const joinDate = formatJoinDate(profile?.createdAt ?? profile?.joined_at);
+
+  const toggleExpertBadge = async (next) => {
+    if (!user) return;
+    setSavingExpertBadge(true);
+    try {
+      await updateUserProfile(user.uid, { isExpert: next });
+      await refreshProfile?.();
+    } catch (err) {
+      console.error('전문가 인증 저장 오류:', err);
+      Alert.alert('오류', '설정을 저장하지 못했습니다.');
+    } finally {
+      setSavingExpertBadge(false);
+    }
+  };
 
   const toggleDeadman = async (next) => {
     setDeadmanEnabled(next);
@@ -576,6 +593,27 @@ export function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        {/* 전문가 인증 배지 */}
+        <View style={styles.expertBadgeCard}>
+          <View style={styles.deadmanLeft}>
+            <Text style={styles.expertBadgeTitle}>전문가 인증 배지</Text>
+            <Text style={styles.expertBadgeSub}>
+              변호사·상담사 등 전문가라면 켜주세요. 전문가 채널에서 남긴 답변에 "전문가 답변" 배지가 표시돼요.
+            </Text>
+            <Text style={styles.deadmanNote}>
+              * 현재는 자기 신고 방식이라, 실제 자격 검증은 별도로 이루어지지 않아요.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={isExpertVerified ? styles.toggleOn : styles.toggleOff}
+            onPress={() => toggleExpertBadge(!isExpertVerified)}
+            disabled={savingExpertBadge}
+          >
+            <View style={styles.toggleCircle} />
+            <Text style={styles.toggleText}>{isExpertVerified ? 'ON' : 'OFF'}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 90 }} />
       </ScrollView>
 
@@ -589,7 +627,7 @@ export function HomeScreen({ navigation }) {
           <Text style={styles.navIcon}>👥</Text>
           <Text style={styles.navLabel}>전문가</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK, { screen: CHAT_ROUTES.SOLIDARITY })}>
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>
@@ -720,6 +758,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start', justifyContent: 'space-between',
     marginBottom: 10,
   },
+  expertBadgeCard: {
+    backgroundColor: '#0F1F3D', borderRadius: 10,
+    padding: 14, flexDirection: 'row',
+    alignItems: 'flex-start', justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  expertBadgeTitle: { color: '#60A5FA', fontSize: 12, fontWeight: '600' },
+  expertBadgeSub: { color: '#4A6FA5', fontSize: 10 },
   deadmanLeft: { flex: 1, paddingRight: 10 },
   deadmanTitle: { color: '#F87171', fontSize: 12, fontWeight: '600' },
   deadmanSub: { color: '#4A6FA5', fontSize: 10 },

@@ -27,6 +27,31 @@ service cloud.firestore {
     match /community_comments/{docId} {
       allow read, write: if isSignedIn();
     }
+    match /expertPosts/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // 본인은 글 전체를 수정/삭제할 수 있고, 다른 로그인 사용자는 신고 누적 자동 숨김 처리를 위해
+      // 오직 hidden 필드만 바꿀 수 있다(그 외 필드가 함께 바뀌면 거부).
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden'])
+      );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    match /expertPostComments/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden'])
+      );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    match /reports/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.reporterUserId == request.auth.uid;
+      allow update, delete: if false;
+    }
     match /chatrooms/{docId} {
       allow read, write: if isSignedIn();
     }

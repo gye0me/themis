@@ -5,7 +5,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import { createCase, getCasesByUser } from '../services/firebaseService';
 import { CASE_TYPES, CASE_TYPE_META, SUGGESTED_TAGS } from '../services/responseGuideSteps';
-import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, CHAT_ROUTES } from '../navigation/routes';
+import { getMatchingRoomForCaseType, joinRoom } from '../services/chatService';
 
 const VISIBILITY_OPTIONS = [
   { key: '나만보기', label: '나만 보기' },
@@ -97,8 +98,40 @@ export function NewCaseScreen({ navigation }) {
       setTagInput('');
       setVisibility('나만보기');
       setMemo('');
-      // 생성 직후 바로 그 사건의 증거 업로드로 진입
-      navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: selectedType });
+
+      const goToEvidenceUpload = () =>
+        navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: selectedType });
+
+      // 같은 피해 유형을 다루는 피해자 연대방이 있으면 알림으로 안내하고,
+      // 선택하면 바로 그 방으로 연결한다.
+      const matchedRoom = getMatchingRoomForCaseType(selectedType);
+      if (matchedRoom) {
+        Alert.alert(
+          '같은 피해 유형의 방이 있어요',
+          `"${matchedRoom.name}" 방에서 비슷한 피해를 겪은 분들과 정보를 나눌 수 있어요. 지금 참여하시겠어요?`,
+          [
+            { text: '나중에', style: 'cancel', onPress: goToEvidenceUpload },
+            {
+              text: '참여하기',
+              onPress: async () => {
+    try {
+      await joinRoom(matchedRoom.id, user.uid, user.displayName || user.email?.split('@')[0] || '익명');
+      navigation.navigate(APP_ROUTES.CHATS_STACK, {
+        screen: CHAT_ROUTES.ROOM,
+        params: { roomId: matchedRoom.id, roomName: matchedRoom.name },
+      });
+    } catch (err) {
+      console.error('연대방 참여 오류:', err);
+      goToEvidenceUpload();
+    }
+  },
+            },
+          ],
+        );
+      } else {
+        // 생성 직후 바로 그 사건의 증거 업로드로 진입
+        goToEvidenceUpload();
+      }
     } catch (err) {
       console.error('사건 생성 오류:', err);
       Alert.alert('오류', '사건 생성에 실패했습니다.');
@@ -296,7 +329,7 @@ export function NewCaseScreen({ navigation }) {
           <Text style={styles.navIcon}>👥</Text>
           <Text style={styles.navLabel}>전문가</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK, { screen: CHAT_ROUTES.SOLIDARITY })}>
           <Text style={styles.navIcon}>💬</Text>
           <Text style={styles.navLabel}>채팅</Text>
         </TouchableOpacity>

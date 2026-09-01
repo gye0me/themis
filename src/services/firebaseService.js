@@ -138,7 +138,18 @@ export async function getUserProfile(userId) {
 
 export async function updateUserProfile(userId, profileData) {
   try {
-    await updateDocument(THEMIS_COLLECTIONS.USERS, userId, profileData);
+    // updateDoc은 문서가 이미 존재해야만 동작한다. users/{uid} 문서가
+    // 아직 없는 계정(예: 회원가입 흐름을 거치지 않고 만들어진 테스트 계정)에서도
+    // 프로필 수정이 실패하지 않도록, 없으면 새로 만들고 있으면 병합하도록 처리한다.
+    const docRef = doc(db, THEMIS_COLLECTIONS.USERS, userId);
+    await setDoc(
+      docRef,
+      {
+        ...profileData,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
   } catch (error) {
     console.error('사용자 프로필 수정 오류:', error);
     throw error;
