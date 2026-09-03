@@ -349,7 +349,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         <View style={{ height: 90 }} />
       </ScrollView>
-
+{/* 
       <View style={styles.navbar}>
         <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
           <Text style={styles.navIconActive}>✏️</Text>
@@ -370,7 +370,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
           <Text style={styles.navIcon}>🏠</Text>
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
-      </View>
+      </View> */}
 
       <Modal
         visible={recordModalVisible}

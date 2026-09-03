@@ -6,7 +6,7 @@ import { useAudioPlayer } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
-import { getEvidenceRecords, getCaseById, deleteCase } from '../services/firebaseService';
+import { getEvidenceRecords, getCaseById, deleteCase, setEvidenceHidden } from '../services/firebaseService';
 
 // color: 타입 식별용 포인트 컬러(타임라인 점, 필터 칩) / badgeBg·badgeColor: 카드 아이콘 뱃지(리디자인)
 const TYPE_CONFIG = {
@@ -355,8 +355,28 @@ export function TimelineScreen({ navigation, route }) {
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => toggleExpand(item.id)}
-                      style={styles.timelineCard}
+                      onLongPress={() => {
+                        Alert.alert(
+                          item.hidden ? '증거 복원' : '증거 숨기기',
+                          item.hidden
+                            ? '이 증거를 다시 표시할까요?'
+                            : '이 증거를 숨길까요? 보고서에서도 제외됩니다.',
+                          [
+                            { text: '취소', style: 'cancel' },
+                            {
+                              text: item.hidden ? '복원' : '숨기기',
+                              onPress: () => setEvidenceHidden(item.id, !item.hidden),
+                            },
+                          ]
+                        );
+                      }}
+                      style={[styles.timelineCard, item.hidden && styles.timelineCardHidden]}
                     >
+                      {item.hidden && (
+                        <View style={styles.hiddenBanner}>
+                          <Text style={styles.hiddenBannerText}>🚫 숨겨진 증거 (길게 눌러서 복원)</Text>
+                        </View>
+                      )}
                       <View style={styles.cardHeader}>
                         <Text style={styles.cardDate}>{formatDate(item.capturedAt)}</Text>
                         {item.location && (
@@ -632,4 +652,7 @@ const styles = StyleSheet.create({
   },
   audioPlayBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   memoDetailText: { color: '#334155', fontSize: 13, lineHeight: 20 },
+  timelineCardHidden: { opacity: 0.4 },
+  hiddenBanner: { backgroundColor: '#FEF2F2', borderRadius: 6, padding: 6, marginBottom: 6 },
+  hiddenBannerText: { color: '#EF4444', fontSize: 10 },
 });

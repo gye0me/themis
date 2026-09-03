@@ -19,6 +19,10 @@ export function SignupScreen({ onSwitchToLogin }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountType, setAccountType] = useState('user');
+  const [expertJob, setExpertJob] = useState('');
+  const [expertOrg, setExpertOrg] = useState('');
+  const [expertLicense, setExpertLicense] = useState('');
 
   const validateForm = () => {
     if (!displayName.trim()) {
@@ -78,6 +82,61 @@ export function SignupScreen({ onSwitchToLogin }) {
           <Text style={styles.badge}>THEMIS</Text>
           <Text style={styles.title}>회원가입</Text>
           <Text style={styles.subtitle}>새 계정을 만들고 안전한 기록 관리를 시작하세요.</Text>
+
+    {/* 계정 유형 선택 */}
+    <View style={styles.formGroup}>
+      <Text style={styles.label}>계정 유형</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Pressable
+          style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: accountType === 'user' ? '#1E3A5F' : '#F1F5F9' }]}
+          onPress={() => setAccountType('user')}
+        >
+          <Text style={{ color: accountType === 'user' ? '#FFFFFF' : '#0F172A', fontSize: 13 }}>일반 사용자</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: accountType === 'expert' ? '#1E3A5F' : '#F1F5F9' }]}
+          onPress={() => setAccountType('expert')}
+        >
+          <Text style={{ color: accountType === 'expert' ? '#FFFFFF' : '#0F172A', fontSize: 13 }}>전문가</Text>
+        </Pressable>
+      </View>
+    </View>
+
+    {accountType === 'expert' && (
+      <>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>직종</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {['변호사', '공인중개사', '기자', '회계사', '기타'].map((job) => (
+              <Pressable
+                key={job}
+                onPress={() => setExpertJob(job)}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: expertJob === job ? '#1E3A5F' : '#F1F5F9', borderWidth: 1, borderColor: expertJob === job ? '#1E3A5F' : '#E2E8F0' }}
+              >
+                <Text style={{ color: expertJob === job ? '#FFFFFF' : '#64748B', fontSize: 12 }}>{job}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>소속 기관</Text>
+          <TextInput value={expertOrg} onChangeText={setExpertOrg} placeholder="예) 법무법인 OO" placeholderTextColor="#6f7c98" style={styles.input} editable={!loading} />
+        </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>자격증/면허 번호</Text>
+          <TextInput value={expertLicense} onChangeText={setExpertLicense} placeholder="자격증 또는 면허 번호 입력" placeholderTextColor="#6f7c98" style={styles.input} editable={!loading} />
+        </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>자격증 사진 첨부</Text>
+          <Pressable style={[styles.input, { alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' }]}>
+            <Text style={{ color: '#94A3B8', fontSize: 13 }}>+ 자격증 사진 업로드</Text>
+          </Pressable>
+        </View>
+        <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+          <Text style={{ color: '#92400E', fontSize: 11 }}>제출 후 관리자 검토 후 승인되며, 승인 시 전문가 배지가 부여됩니다.</Text>
+        </View>
+      </>
+    )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

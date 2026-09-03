@@ -141,7 +141,7 @@ export function NewCaseScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
       <View style={styles.statusbar}>
         <Text style={styles.statusTime}>9:41</Text>
         <Text style={styles.statusApp}>Themis</Text>
@@ -338,7 +338,7 @@ export function NewCaseScreen({ navigation }) {
           <Text style={styles.navLabel}>홈</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+          </SafeAreaView>
   );
 }
 
