@@ -35,6 +35,23 @@ function formatDateOnly(value) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
 }
 
+// 워터마크 SVG를 data URI로 생성한다. 호출할 때마다 회전 각도·글자 위치·타일 크기가
+// 랜덤하게 바뀌어서, 같은 자리를 오려내는 방식으로 지우기 어렵게 한다(위변조 방지 목적).
+function buildWatermarkDataUri({ opacityMin = 0.05, opacityMax = 0.09 } = {}) {
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const wmRotate = Math.round(rand(-50, -10));
+  const wmX = Math.round(rand(-40, 20));
+  const wmY = Math.round(rand(110, 190));
+  const wmTile = Math.round(rand(220, 300));
+  const wmOpacity = rand(opacityMin, opacityMax).toFixed(2);
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${wmTile}' height='${wmTile}'>` +
+    `<text x='${wmX}' y='${wmY}' font-size='24' fill='rgba(30,58,95,${wmOpacity})' ` +
+    `transform='rotate(${wmRotate} ${wmTile / 2} ${wmTile / 2})' font-family='sans-serif' font-weight='700'>THEMIS 원본</text>` +
+    "</svg>";
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 function buildEvidenceCard(record) {
   const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
   const dateStr = formatDateTime(record.capturedAt);
@@ -44,6 +61,8 @@ function buildEvidenceCard(record) {
 
   let mediaHtml = '';
   if (record.evidenceType === 'image' && record.downloadURL) {
+    // 사진 자체는 업로드 시점에 이미 워터마크가 픽셀로 합성되어 저장된다 (photoWatermark.js 참고).
+    // 여기서 또 겹쳐 찍으면 이중 워터마크가 되므로, 보고서에서는 페이지 전체 워터마크만 유지한다.
     mediaHtml = `<a href="${escapeHtml(record.downloadURL)}" target="_blank"><img class="thumb" src="${escapeHtml(record.downloadURL)}" alt="증거 사진" /></a>`;
   } else if (record.evidenceType === 'audio' && record.downloadURL) {
     mediaHtml = `<audio controls src="${escapeHtml(record.downloadURL)}"></audio>`;
@@ -79,7 +98,11 @@ function buildQuestCard(step) {
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
  */
 export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], signatureDataUrl = null }) {
-  const counts = records.reduce((acc, r) => {
+  // 숨김 처리된 증거(hidden === true)는 보고서에서 제외한다 — 삭제는 무결성이 깨질 수 있어
+  // 대신 hidden 플래그로 처리하는 항목이라, 타임라인 화면에는 흐릿하게 남아있어도 정식 보고서에는 안 나가야 한다.
+  const visibleRecords = records.filter((r) => !r.hidden);
+
+  const counts = visibleRecords.reduce((acc, r) => {
     const key = r.evidenceType ?? 'default';
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
@@ -89,7 +112,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 
   // 타임라인 항목을 날짜순으로 병합
   const timelineEntries = [
-    ...records.map((r) => ({ type: 'evidence', date: toDate(r.capturedAt), html: buildEvidenceCard(r) })),
+    ...visibleRecords.map((r) => ({ type: 'evidence', date: toDate(r.capturedAt), html: buildEvidenceCard(r) })),
     ...completedQuests.map((q) => ({ type: 'quest', date: toDate(q.completedAt), html: buildQuestCard(q) })),
   ]
     .filter((e) => e.date)
@@ -99,20 +122,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
   const now = new Date();
 
   // 반복 타일 워터마크 — SVG를 data URI 배경으로 깔아서 내용 길이와 무관하게 전체 페이지에 반복된다.
-  // 매번 생성할 때마다 회전 각도·글자 위치·타일 크기를 랜덤하게 바꿔서, 같은 자리를 오려내는
-  // 방식으로 지우기 어렵게 한다(위변조 방지 목적 — 매번 패턴이 달라짐).
-  const rand = (min, max) => Math.random() * (max - min) + min;
-  const wmRotate = Math.round(rand(-50, -10));
-  const wmX = Math.round(rand(-40, 20));
-  const wmY = Math.round(rand(110, 190));
-  const wmTile = Math.round(rand(220, 300));
-  const wmOpacity = rand(0.05, 0.09).toFixed(2);
-  const watermarkSvg =
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${wmTile}' height='${wmTile}'>` +
-    `<text x='${wmX}' y='${wmY}' font-size='24' fill='rgba(30,58,95,${wmOpacity})' ` +
-    `transform='rotate(${wmRotate} ${wmTile / 2} ${wmTile / 2})' font-family='sans-serif' font-weight='700'>THEMIS 원본</text>` +
-    "</svg>";
-  const watermarkDataUri = `data:image/svg+xml,${encodeURIComponent(watermarkSvg)}`;
+  const watermarkDataUri = buildWatermarkDataUri();
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -161,7 +171,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     <div class="meta">기록 시작일: ${escapeHtml(formatDateOnly(caseData.createdAt) || '-')}</div>
     <div class="meta">보고서 생성일: ${formatDateOnly(now)}</div>
     <div class="counts">
-      증거 총 ${records.length}건
+      증거 총 ${visibleRecords.length}건
       (사진 ${counts.image ?? 0} · 음성 ${counts.audio ?? 0} · 영상 ${counts.video ?? 0} · 메모 ${counts.text ?? 0})
     </div>
   </div>

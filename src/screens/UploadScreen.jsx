@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { useAuth } from '../hooks/useAuth';
 import { createEvidenceRecord } from '../services/firebaseService';
+import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
+import { buildStampedImageFile } from '../utils/buildStampedImageFile';
 
 const evidenceTypes = [
   { key: 'image', label: '이미지', icon: '📷' },
@@ -38,6 +40,7 @@ export function UploadScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [savedId, setSavedId] = useState('');
+  const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
 
   useEffect(() => {
     void loadLocation();
@@ -124,6 +127,18 @@ export function UploadScreen({ navigation, route }) {
     setSaving(true);
 
     try {
+      // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
+      // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
+      let fileToUpload = file;
+      if (evidenceType === 'image' && file) {
+        try {
+          const stampedUri = await stamperRef.current.stamp(file.uri);
+          fileToUpload = buildStampedImageFile(file, stampedUri);
+        } catch (stampError) {
+          console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
+        }
+      }
+
       const savedRecord = await createEvidenceRecord({
         userId: user?.uid ?? null,
         caseId,
@@ -131,7 +146,7 @@ export function UploadScreen({ navigation, route }) {
         title: trimmedTitle,
         note: trimmedNote,
         evidenceType,
-        file,
+        file: fileToUpload,
         location,
       });
 
@@ -151,6 +166,7 @@ export function UploadScreen({ navigation, route }) {
 
   return (
     <View style={styles.wrapper}>
+      <PhotoWatermarkStamper ref={stamperRef} />
       <View style={styles.appbar}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ 뒤로</Text>
