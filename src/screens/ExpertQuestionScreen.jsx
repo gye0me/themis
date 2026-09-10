@@ -6,6 +6,8 @@ import { AuthContext } from '../context/AuthContext';
 import { getCasesByUser } from '../services/firebaseService';
 import { createExpertPost } from '../services/expertBoardService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 export default function ExpertQuestionScreen({ navigation }) {
   const { user, profile } = useContext(AuthContext);
@@ -83,24 +85,23 @@ export default function ExpertQuestionScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.wrapper}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>질문 등록</Text>
-        <TouchableOpacity onPress={handleSubmit} disabled={submitting}>
-          {submitting ? <ActivityIndicator size="small" color="#1E3A5F" /> : <Text style={styles.submit}>등록</Text>}
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+      <BackHeader
+        title="질문 등록"
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity onPress={handleSubmit} disabled={submitting}>
+            {submitting ? <ActivityIndicator size="small" color={C.brand600} /> : <Text style={styles.submit}>등록</Text>}
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView style={styles.content}>
         {/* 제목 */}
         <TextInput
           style={styles.titleInput}
           placeholder="제목을 입력해주세요"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={C.ink400}
           value={title}
           onChangeText={setTitle}
         />
@@ -111,7 +112,7 @@ export default function ExpertQuestionScreen({ navigation }) {
         <TextInput
           style={styles.contentInput}
           placeholder="전문가에게 질문할 내용을 입력해주세요"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={C.ink400}
           value={content}
           onChangeText={setContent}
           multiline
@@ -202,50 +203,47 @@ export default function ExpertQuestionScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#E2E8F0' },
-  back: { color: '#1E3A5F', fontSize: 24 },
-  title: { color: '#0F172A', fontSize: 15, fontWeight: '600' },
-  submit: { color: '#1E3A5F', fontSize: 14, fontWeight: '700' },
-  content: { flex: 1, paddingHorizontal: 16 },
-  titleInput: { fontSize: 16, color: '#0F172A', paddingVertical: 16 },
-  divider: { height: 0.5, backgroundColor: '#E2E8F0' },
-  contentInput: { fontSize: 14, color: '#0F172A', paddingVertical: 16, minHeight: 200 },
+  wrapper: { flex: 1, backgroundColor: C.surface },
+  submit: { color: C.brand600, fontSize: 14, fontWeight: '700' },
+  content: { flex: 1, paddingHorizontal: 20 },
+  titleInput: { fontSize: 16, color: C.ink900, paddingVertical: 16, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: C.line },
+  contentInput: { fontSize: 14, color: C.ink900, paddingVertical: 16, minHeight: 200 },
   attachSection: { paddingVertical: 16, gap: 10 },
-  attachLabel: { color: '#64748B', fontSize: 13, fontWeight: '600' },
-  attachBtn: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 12, borderStyle: 'dashed' },
-  attachBtnText: { color: '#94A3B8', fontSize: 13 },
-  attachBtnTextFilled: { color: '#1E3A5F', fontSize: 13, fontWeight: '600' },
+  attachLabel: { color: C.ink700, fontSize: 13, fontWeight: '700' },
+  attachBtn: { borderWidth: 1.5, borderColor: C.line, borderRadius: 14, padding: 14, borderStyle: 'dashed', alignItems: 'center' },
+  attachBtnText: { color: C.brand600, fontSize: 13, fontWeight: '600' },
+  attachBtnTextFilled: { color: C.brand600, fontSize: 13, fontWeight: '700' },
   removeAttachBtn: { alignSelf: 'flex-start' },
-  removeAttachText: { color: '#EF4444', fontSize: 11.5 },
-  disclaimer: { color: '#94A3B8', fontSize: 11, lineHeight: 16, paddingVertical: 12 },
+  removeAttachText: { color: C.danger600, fontSize: 11.5 },
+  disclaimer: { color: C.ink400, fontSize: 11, lineHeight: 16, paddingVertical: 12 },
 
   anonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12 },
-  anonLabel: { fontSize: 13, fontWeight: '600', color: '#0F172A' },
-  anonSub: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  anonLabel: { fontSize: 13, fontWeight: '700', color: C.ink900 },
+  anonSub: { fontSize: 11, color: C.ink400, marginTop: 2 },
   checkboxOff: {
     width: 22, height: 22, borderRadius: 6,
-    borderWidth: 1.5, borderColor: '#CBD5E1',
+    borderWidth: 1.5, borderColor: C.line,
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxOn: {
     width: 22, height: 22, borderRadius: 6,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: C.brand600,
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxCheck: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, maxHeight: '70%' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(10,22,40,0.45)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
-  modalClose: { fontSize: 13, color: '#64748B' },
+  modalTitle: { fontSize: 15, fontWeight: '700', color: C.ink900 },
+  modalClose: { fontSize: 13, color: C.ink500 },
   modalLoading: { paddingVertical: 32, alignItems: 'center' },
   modalEmpty: { paddingVertical: 32, alignItems: 'center' },
-  modalEmptyText: { color: '#94A3B8', fontSize: 12.5 },
-  caseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#F1F5F9' },
+  modalEmptyText: { color: C.ink400, fontSize: 12.5 },
+  caseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line },
   caseRowIcon: { fontSize: 20 },
-  caseRowTitle: { fontSize: 13, fontWeight: '600', color: '#0F172A' },
-  caseRowMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
-  caseRowArrow: { color: '#CBD5E1', fontSize: 18 },
+  caseRowTitle: { fontSize: 13, fontWeight: '700', color: C.ink900 },
+  caseRowMeta: { fontSize: 11, color: C.ink400, marginTop: 2 },
+  caseRowArrow: { color: C.ink400, fontSize: 18 },
 });
