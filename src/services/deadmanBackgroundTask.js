@@ -113,6 +113,23 @@ export async function registerDeadmanBackgroundTask() {
   return true;
 }
 
+/**
+ * 데드맨 스위치가 "켜짐" 상태로 로드됐을 때(앱 재시작, 재설치, 기기 변경 등) 안전장치로 호출한다.
+ * 네이티브 등록은 토글을 직접 눌렀을 때만 이뤄지므로, Firestore엔 켜짐으로 남아있는데
+ * 실제 백그라운드 작업은 등록이 안 돼 있는(=조용히 감지가 멈춘) 상태를 여기서 복구한다.
+ * 이미 등록돼 있으면 아무것도 하지 않는다.
+ */
+export async function ensureDeadmanBackgroundTaskRegistered() {
+  try {
+    const registered = await TaskManager.isTaskRegisteredAsync(DEADMAN_TASK_NAME);
+    if (registered) return true;
+    return await registerDeadmanBackgroundTask();
+  } catch (err) {
+    console.warn('데드맨 백그라운드 작업 등록 확인 실패:', err.message);
+    return false;
+  }
+}
+
 export async function unregisterDeadmanBackgroundTask() {
   const registered = await TaskManager.isTaskRegisteredAsync(DEADMAN_TASK_NAME).catch(() => false);
   if (registered) {
