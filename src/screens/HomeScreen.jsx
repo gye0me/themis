@@ -7,7 +7,7 @@ import Svg, { Defs, LinearGradient as SvgGradient, Stop, Ellipse, Circle, Path }
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
-import { APP_ROUTES, RECORD_ROUTES, CHAT_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
 import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
 import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
@@ -18,6 +18,8 @@ import {
   unregisterDeadmanBackgroundTask,
   ensureDeadmanBackgroundTaskRegistered,
 } from '../services/deadmanBackgroundTask';
+import { BottomNavBar } from '../components/BottomNavBar';
+import { C, EVIDENCE_TILES } from '../theme/tokens';
 
 // 앱이 백그라운드에 있어도 알림이 뜨도록 설정 (데드맨 스위치 초과 알림용)
 Notifications.setNotificationHandler({
@@ -31,34 +33,6 @@ Notifications.setNotificationHandler({
 });
 
 const THEMIS_LOGO = require('../assets/themis-logo-brand.png');
-
-// ---- 리디자인 디자인 토큰 (design/themis-interactive.html 목업과 동일한 값) ----
-const C = {
-  ink950: '#0A1628',
-  brand700: '#1E3A72',
-  brand600: '#2A50B8',
-  brand500: '#3D6FE0',
-  brand400: '#6B93EE',
-  sky100: '#E9F1FD',
-  sky050: '#F4F9FE',
-  surface: '#FFFFFF',
-  ink900: '#101828',
-  ink700: '#33405C',
-  ink500: '#5B6B8C',
-  ink400: '#8894AC',
-  line: '#E7ECF5',
-  danger600: '#DC2626',
-  danger100: '#FDE9E9',
-  safe600: '#16A672',
-  safe100: '#E4F7EF',
-};
-
-const EVIDENCE_TILES = [
-  { type: 'image', label: '사진', bg: '#EFF6FF', color: '#1D4ED8' },
-  { type: 'audio', label: '음성', bg: '#F5F3FF', color: '#5B21B6' },
-  { type: 'video', label: '영상', bg: '#FFF7ED', color: '#C2410C' },
-  { type: 'contract', label: '계약서', bg: '#F0FDF4', color: '#15803D' },
-];
 
 // 데드맨 스위치: 포그라운드에서는 1초 단위로 정확히 카운트다운한다.
 // 앱이 백그라운드에 있는 동안은 deadmanBackgroundTask.js에 등록된 백그라운드 작업(EAS 개발
@@ -746,25 +720,7 @@ export function HomeScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* 네비바 */}
-      <View style={styles.navbar}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}>
-          <Text style={styles.navIcon}>✏️</Text>
-          <Text style={styles.navLabel}>기록</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>전문가</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK, { screen: CHAT_ROUTES.SOLIDARITY })}>
-          <Text style={styles.navIcon}>💬</Text>
-          <Text style={styles.navLabel}>채팅</Text>
-        </TouchableOpacity>
-        <View style={[styles.navItem, styles.navItemActive]}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabelActive}>홈</Text>
-        </View>
-      </View>
+      <BottomNavBar active="home" navigation={navigation} />
     </SafeAreaView>
   );
 }
@@ -887,15 +843,4 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 36 },
   emptyText: { color: C.ink400, fontSize: 13 },
 
-  // 하단 네비
-  navbar: {
-    flexDirection: 'row', backgroundColor: C.surface,
-    borderTopWidth: 1, borderTopColor: C.line,
-    paddingVertical: 10, paddingHorizontal: 8, paddingBottom: 18,
-  },
-  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6, borderRadius: 14 },
-  navItemActive: { backgroundColor: C.sky100 },
-  navIcon: { fontSize: 20 },
-  navLabel: { fontSize: 10.5, color: C.ink400, fontWeight: '600' },
-  navLabelActive: { fontSize: 10.5, color: C.brand600, fontWeight: '700' },
 });
