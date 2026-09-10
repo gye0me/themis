@@ -1,5 +1,5 @@
 import { useContext, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput } from "react-native";
 import { APP_ROUTES } from "../navigation/routes";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -15,6 +15,18 @@ import {
 } from "../services/imagePreprocess";
 import { createEvidenceRecord } from "../services/firebaseService";
 import { buildChecklist } from "../services/requiredClauseChecklist";
+import {
+  REGION_CODES,
+  HOUSING_TYPE_LABELS,
+  fetchRecentTrades,
+  groupTradesByBuilding,
+  filterTradesByArea,
+  calcAverageDealAmount,
+  calcJeonseRatio,
+  getJeonseRiskLevel,
+  formatManwonToKorean,
+  getPreviousYearMonth,
+} from "../services/realEstateService";
 
 const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
 
@@ -72,6 +84,21 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preprocessEnabled, setPreprocessEnabled] = useState(true);
+  const [housingType, setHousingType] = useState("apt");
+  const [selectedRegion, setSelectedRegion] = useState("강남구");
+  const [dealYmd, setDealYmd] = useState(getPreviousYearMonth());
+  const [buildingGroups, setBuildingGroups] = useState([]);
+  const [selectedBuilding, setSelectedBuilding] = useState(null);
+  const [contractArea, setContractArea] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [tradesLoading, setTradesLoading] = useState(false);
+  const [tradesSearched, setTradesSearched] = useState(false);
+
+  const filteredBuildingTrades = selectedBuilding ? filterTradesByArea(selectedBuilding.trades, contractArea) : [];
+  const compareAvgAmount = selectedBuilding ? calcAverageDealAmount(filteredBuildingTrades) : null;
+  const jeonseRatio = calcJeonseRatio(depositAmount, compareAvgAmount);
+  const jeonseRisk = getJeonseRiskLevel(jeonseRatio);
+  const jeonseRiskLabel = { danger: "깡통전세 위험", warning: "주의 필요", safe: "비교적 안전" };
 
   const handleCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -107,6 +134,25 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     }
   };
 
+
+  const handleFetchTrades = async () => {
+    const lawdCd = REGION_CODES[selectedRegion];
+    if (!lawdCd || !/^\d{6}$/.test(dealYmd)) {
+      Alert.alert("알림", "지역과 조회월(YYYYMM)을 확인해주세요.");
+      return;
+    }
+    setTradesLoading(true);
+    setTradesSearched(true);
+    setSelectedBuilding(null);
+    try {
+      // 구 단위 평균은 편차가 커서, 최근 3개월치를 모아 건물별로 묶어야
+      // 계약서와 같은 건물을 골라 정확하게 비교할 수 있다.
+      const recentTrades = await fetchRecentTrades({ housingType, lawdCd, baseYmd: dealYmd, months: 3 });
+      setBuildingGroups(groupTradesByBuilding(recentTrades));
+    } finally {
+      setTradesLoading(false);
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!image) return;
@@ -199,6 +245,170 @@ export default function ContractAnalysisScreen({ navigation, route }) {
         >
           <Text style={styles.toggleText}>{preprocessEnabled ? "회전·크기 보정 ON" : "보정 OFF"}</Text>
         </TouchableOpacity>
+
+        {/* 전월세 계약 시 국토교통부 실거래가 기반 전세가율(깡통전세 위험) 체크 */}
+        {selectedType === "전월세" && (
+          <View style={styles.realEstateBox}>
+            <Text style={styles.label}>전세가율 위험도 체크 (국토교통부 실거래가 연동)</Text>
+
+            <View style={styles.toggleRow}>
+              {Object.entries(HOUSING_TYPE_LABELS).map(([type, label]) => (
+                <TouchableOpacity
+                  key={type}
+                  onPress={() => {
+                    setHousingType(type);
+                    setBuildingGroups([]);
+                    setSelectedBuilding(null);
+                    setTradesSearched(false);
+                  }}
+                  style={[styles.toggleBtn, { backgroundColor: housingType === type ? "#1E3A5F" : "#1a2942" }]}
+                >
+                  <Text style={[styles.toggleText, styles.housingToggleText, { color: housingType === type ? "#fff" : "#8da3c1" }]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.regionScroll}>
+              {Object.keys(REGION_CODES).map((region) => (
+                <TouchableOpacity
+                  key={region}
+                  onPress={() => setSelectedRegion(region)}
+                  style={[styles.regionChip, selectedRegion === region && styles.regionChipActive]}
+                >
+                  <Text style={[styles.regionChipText, selectedRegion === region && styles.regionChipTextActive]}>
+                    {region}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.dealYmdRow}>
+              <Text style={styles.dealYmdLabel}>기준월</Text>
+              <TextInput
+                style={styles.dealYmdInput}
+                value={dealYmd}
+                onChangeText={setDealYmd}
+                placeholder="YYYYMM"
+                placeholderTextColor="#6B7280"
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+              <TouchableOpacity
+                style={styles.tradeSearchBtn}
+                onPress={handleFetchTrades}
+                disabled={tradesLoading}
+              >
+                <Text style={styles.tradeSearchBtnText}>{tradesLoading ? "조회 중..." : "건물 조회"}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {buildingGroups.length > 0 && (
+              <>
+                <Text style={styles.dealYmdLabel2}>계약서와 같은 건물을 선택하세요 (최근 3개월 매매 건수)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.regionScroll}>
+                  {buildingGroups.map((g) => (
+                    <TouchableOpacity
+                      key={`${g.dong}-${g.buildingName}`}
+                      onPress={() => setSelectedBuilding(g)}
+                      style={[styles.regionChip, selectedBuilding?.buildingName === g.buildingName && styles.regionChipActive]}
+                    >
+                      <Text style={[styles.regionChipText, selectedBuilding?.buildingName === g.buildingName && styles.regionChipTextActive]}>
+                        {g.buildingName} ({g.count})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+            {tradesSearched && !tradesLoading && buildingGroups.length === 0 && (
+              <Text style={styles.tradeEmptyText}>
+                해당 조건의 매매 실거래 내역이 없습니다. 기준월을 바꾸거나 주택유형을 확인해보세요.
+              </Text>
+            )}
+
+            {selectedBuilding && (
+              <View style={styles.tradesResultBox}>
+                <Text style={styles.tradesAvg}>
+                  {selectedBuilding.dong} {selectedBuilding.buildingName} · 최근 3개월 매매 {selectedBuilding.count}건
+                </Text>
+
+                <View style={styles.dealYmdRow}>
+                  <Text style={styles.dealYmdLabel}>전용면적(㎡)</Text>
+                  <TextInput
+                    style={styles.dealYmdInput}
+                    value={contractArea}
+                    onChangeText={setContractArea}
+                    placeholder="예: 84 (선택)"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.dealYmdRow}>
+                  <Text style={styles.dealYmdLabel}>전세보증금(만원)</Text>
+                  <TextInput
+                    style={styles.dealYmdInput}
+                    value={depositAmount}
+                    onChangeText={setDepositAmount}
+                    placeholder="예: 45000"
+                    placeholderTextColor="#6B7280"
+                    keyboardType="number-pad"
+                  />
+                </View>
+
+                <Text style={styles.compareAvgText}>
+                  비교 매매 평균가: {formatManwonToKorean(compareAvgAmount) || "정보없음"} ({filteredBuildingTrades.length}건 기준
+                  {contractArea ? `, ${contractArea}㎡ 근접` : ""})
+                </Text>
+
+                {jeonseRatio != null && jeonseRisk && (
+                  <View
+                    style={[
+                      styles.warningBanner,
+                      {
+                        backgroundColor: jeonseRisk === "danger" ? "#FEE2E2" : jeonseRisk === "warning" ? "#FEF3C7" : "#DCFCE7",
+                        borderLeftColor: levelColor[jeonseRisk],
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <Text style={styles.warningIcon}>{levelIcon[jeonseRisk]}</Text>
+                        <Text
+                          style={[
+                            styles.warningTitle,
+                            { color: jeonseRisk === "danger" ? "#991B1B" : jeonseRisk === "warning" ? "#92400E" : "#166534" },
+                          ]}
+                        >
+                          전세가율 {jeonseRatio}% — {jeonseRiskLabel[jeonseRisk]}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.warningDesc,
+                          { color: jeonseRisk === "danger" ? "#991B1B" : jeonseRisk === "warning" ? "#92400E" : "#166534" },
+                        ]}
+                      >
+                        보증금이 이 건물 실거래 매매가 대비 {jeonseRatio}% 수준입니다. 80% 이상이면 집값 하락 시 보증금을
+                        돌려받지 못하는 깡통전세 위험이 커지니, 전세보증보험 가입 여부를 꼭 확인하세요.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {selectedBuilding.trades.slice(0, 5).map((t, idx) => (
+                  <View key={idx} style={styles.tradeRow}>
+                    <Text style={styles.tradeAptName}>
+                      {t.area}㎡ · {t.floor}층
+                    </Text>
+                    <Text style={styles.tradeAmount}>{t.dealAmountKorean} · {t.dealDate}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* 사진 영역 */}
         {image ? (
@@ -363,4 +573,24 @@ const styles = StyleSheet.create({
   warningDesc: { color: '#92400E', fontSize: 11, marginTop: 2 },
   warningItem: { marginTop: 4 },
   warningItemText: { color: '#92400E', fontSize: 11 },
+  realEstateBox: { backgroundColor: "#111827", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#334155" },
+  regionScroll: { marginTop: 8, marginBottom: 10 },
+  regionChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, backgroundColor: "#1a2942", marginRight: 6 },
+  regionChipActive: { backgroundColor: "#1E3A5F" },
+  regionChipText: { color: "#8da3c1", fontSize: 12 },
+  regionChipTextActive: { color: "#fff", fontWeight: "bold" },
+  dealYmdRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  dealYmdLabel: { color: "#8da3c1", fontSize: 12, width: 88 },
+  dealYmdLabel2: { color: "#8da3c1", fontSize: 12, marginTop: 4, marginBottom: 4 },
+  compareAvgText: { color: "#93C5FD", fontSize: 12, marginBottom: 10 },
+  dealYmdInput: { flex: 1, backgroundColor: "#0b1220", color: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, borderWidth: 1, borderColor: "#334155" },
+  tradeSearchBtn: { backgroundColor: "#1D4ED8", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8 },
+  tradeSearchBtnText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
+  housingToggleText: { fontSize: 12 },
+  tradesResultBox: { marginTop: 12 },
+  tradesAvg: { color: "#F8FAFC", fontSize: 13, fontWeight: "bold", marginBottom: 8 },
+  tradeRow: { paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#1f2937" },
+  tradeAptName: { color: "#CBD5E1", fontSize: 12 },
+  tradeAmount: { color: "#93C5FD", fontSize: 12, marginTop: 2 },
+  tradeEmptyText: { color: "#6B7280", fontSize: 12, marginTop: 10, textAlign: "center" },
 });
