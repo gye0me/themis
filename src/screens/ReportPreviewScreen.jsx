@@ -8,6 +8,8 @@ import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { buildQuestSteps } from '../services/responseGuideSteps';
 import { buildCaseReportHtml } from '../services/reportHtml';
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 const EMPTY_RECORDS = [];
 
@@ -165,25 +167,12 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
   }
 
   return (
-    <SafeAreaView style={styles.wrapper}>
-      <View style={styles.statusbar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <Text style={styles.statusApp}>Themis</Text>
-      </View>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
-          style={styles.backBtn}
-        >
-          <Text style={styles.back}>‹</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>보고서 미리보기</Text>
-          <Text style={styles.subtitle}>{caseData?.title || '증거 정리 보고서'}</Text>
-        </View>
-        <View style={{ width: 24 }} />
-      </View>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+      <BackHeader
+        title="보고서 미리보기"
+        subtitle={caseData?.title || '증거 정리 보고서'}
+        onBack={() => navigation.goBack()}
+      />
 
       <View style={styles.webviewBox}>
         {Platform.OS === 'web' ? (
@@ -202,7 +191,7 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
         )}
         {webviewLoading && Platform.OS !== 'web' && (
           <View style={styles.webviewLoading} pointerEvents="none">
-            <ActivityIndicator size="large" color="#3B7DD8" />
+            <ActivityIndicator size="large" color={C.brand600} />
           </View>
         )}
       </View>
@@ -211,14 +200,14 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
       <View style={styles.downloadRow}>
         <TouchableOpacity style={styles.downloadBtn} onPress={handleDownload} disabled={saving}>
           {saving ? (
-            <ActivityIndicator color="#F1F5F9" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.downloadBtnText}>⬇ HTML 파일로 다운로드</Text>
           )}
         </TouchableOpacity>
         <TouchableOpacity style={styles.downloadBtnSecondary} onPress={() => setSignatureModal(true)} disabled={savingPdf}>
           {savingPdf ? (
-            <ActivityIndicator color="#1E3A5F" />
+            <ActivityIndicator color={C.brand600} />
           ) : (
             <Text style={styles.downloadBtnSecondaryText}>PDF로</Text>
           )}
@@ -345,53 +334,38 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
-  statusbar: {
-    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  statusTime: { color: '#6B84A8', fontSize: 12 },
-  statusApp: { color: '#6B84A8', fontSize: 12 },
-  header: {
-    backgroundColor: '#1E3A5F', paddingTop: 16, paddingBottom: 14,
-    paddingHorizontal: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'space-between',
-  },
-  backBtn: { paddingVertical: 4, paddingRight: 6 },
-  back: { color: '#7B9EC5', fontSize: 24 },
-  title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
-  subtitle: { color: '#7B9EC5', fontSize: 11 },
+  wrapper: { flex: 1, backgroundColor: C.surface },
   webviewBox: { flex: 1 },
-  webview: { flex: 1, backgroundColor: '#F1F5F9' },
+  webview: { flex: 1, backgroundColor: C.surface },
   webviewLoading: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: C.surface,
   },
   downloadRow: { flexDirection: 'row', gap: 1 },
   downloadBtn: {
-    flex: 3, backgroundColor: '#1E3A5F', padding: 16,
+    flex: 3, backgroundColor: C.brand600, padding: 16,
     alignItems: 'center', justifyContent: 'center',
   },
-  downloadBtnText: { color: '#F1F5F9', fontSize: 13, fontWeight: '600' },
+  downloadBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   downloadBtnSecondary: {
-    flex: 1, backgroundColor: '#334155', padding: 16,
+    flex: 1, backgroundColor: C.ink950, padding: 16,
     alignItems: 'center', justifyContent: 'center',
   },
   downloadBtnSecondaryText: { color: '#CBD5E1', fontSize: 12, fontWeight: '600' },
 });
 const sigStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  card: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
-  title: { color: '#0F172A', fontSize: 16, fontWeight: '700' },
-  desc: { color: '#64748B', fontSize: 12, lineHeight: 18 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(10,22,40,0.5)', justifyContent: 'flex-end' },
+  card: { backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
+  title: { color: C.ink900, fontSize: 16, fontWeight: '700' },
+  desc: { color: C.ink500, fontSize: 12, lineHeight: 18 },
   padWrap: { gap: 6 },
-  padLabel: { color: '#94A3B8', fontSize: 11 },
-  pad: { height: 150, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
-  clear: { color: '#3B7DD8', fontSize: 11, textAlign: 'right', marginTop: 4 },
+  padLabel: { color: C.ink400, fontSize: 11 },
+  pad: { height: 150, backgroundColor: C.sky050, borderRadius: 12, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
+  clear: { color: C.brand600, fontSize: 11, textAlign: 'right', marginTop: 4 },
   btnRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
-  cancelBtnText: { color: '#64748B', fontSize: 13, fontWeight: '600' },
-  confirmBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#1E3A5F', alignItems: 'center' },
-  confirmBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.line, alignItems: 'center' },
+  cancelBtnText: { color: C.ink500, fontSize: 13, fontWeight: '600' },
+  confirmBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: C.brand600, alignItems: 'center' },
+  confirmBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 });
