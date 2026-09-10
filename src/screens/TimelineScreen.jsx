@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById, deleteCase, setEvidenceHidden } from '../services/firebaseService';
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 // color: 타입 식별용 포인트 컬러(타임라인 점, 필터 칩) / badgeBg·badgeColor: 카드 아이콘 뱃지(리디자인)
 const TYPE_CONFIG = {
@@ -196,54 +198,43 @@ export function TimelineScreen({ navigation, route }) {
   const totalCount = records.length;
 
   return (
-    <SafeAreaView style={styles.wrapper}>
-      <View style={styles.statusbar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <Text style={styles.statusApp}>Themis</Text>
-      </View>
-      {/* 앱바 */}
-      <View style={styles.appbar}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
-          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK)}
-        >
-          <Text style={styles.back}>‹</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>증거 타임라인</Text>
-          <Text style={styles.subtitle}>수집된 증거 {totalCount}건</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity
-            style={styles.newCaseBtn}
-            onPress={() => navigation.navigate(RECORD_ROUTES.START, { openForm: true })}
-          >
-            <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.shareBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            onPress={handleOpenReport}
-          >
-            <Text style={styles.shareBtnText}>↗</Text>
-          </TouchableOpacity>
-          {caseId && (
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+      <BackHeader
+        title="사건 타임라인"
+        subtitle={`수집된 증거 ${totalCount}건`}
+        onBack={() => navigation.canGoBack() ? navigation.goBack() : navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK)}
+        right={
+          <>
             <TouchableOpacity
-              style={styles.deleteBtn}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              onPress={handleDeleteCase}
-              disabled={deleting}
+              style={styles.newCaseBtn}
+              onPress={() => navigation.navigate(RECORD_ROUTES.START, { openForm: true })}
             >
-              {deleting ? (
-                <ActivityIndicator size="small" color="#F87171" />
-              ) : (
-                <Text style={styles.deleteBtnText}>🗑</Text>
-              )}
+              <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={handleOpenReport}
+            >
+              <Text style={styles.shareBtnText}>↗</Text>
+            </TouchableOpacity>
+            {caseId && (
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                onPress={handleDeleteCase}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={C.danger600} />
+                ) : (
+                  <Text style={styles.deleteBtnText}>🗑</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </>
+        }
+      />
 
       {!user && !loading ? (
         <View style={styles.center}>
@@ -294,10 +285,7 @@ export function TimelineScreen({ navigation, route }) {
               return (
                 <TouchableOpacity
                   key={opt.key}
-                  style={[
-                    styles.filterChip,
-                    isActive && { backgroundColor: cfg ? cfg.color : '#1A2540', borderColor: 'transparent' },
-                  ]}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
                   onPress={() => setActiveFilter(opt.key)}
                 >
                   {cfg && <Text style={styles.filterChipIcon}>{cfg.icon}</Text>}
@@ -519,112 +507,98 @@ export function TimelineScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F5F4F0' },
-  statusbar: {
-    backgroundColor: '#1A2540', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  statusTime: { color: '#8BA4C8', fontSize: 12 },
-  statusApp: { color: '#8BA4C8', fontSize: 12 },
-  appbar: {
-    backgroundColor: '#1A2540', paddingTop: 16, paddingBottom: 14,
-    paddingHorizontal: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'space-between',
-  },
-  backBtn: { paddingVertical: 4, paddingRight: 6 },
-  back: { color: '#8BA4C8', fontSize: 24 },
-  title: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  subtitle: { color: '#8BA4C8', fontSize: 11 },
+  wrapper: { flex: 1, backgroundColor: C.surface },
   shareBtn: { padding: 4 },
-  shareBtnText: { color: '#8BA4C8', fontSize: 18 },
+  shareBtnText: { color: C.ink500, fontSize: 18 },
   deleteBtn: { padding: 4 },
   deleteBtnText: { fontSize: 16 },
-  newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#4A6FA5' },
-  newCaseBtnText: { color: '#8BA4C8', fontSize: 11 },
-  content: { flex: 1, padding: 16 },
+  newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: C.brand400 },
+  newCaseBtnText: { color: C.brand600, fontSize: 11, fontWeight: '600' },
+  content: { flex: 1, padding: 20 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { color: '#94A3B8', fontSize: 13 },
-  errorText: { color: '#DC2626', fontSize: 13 },
-  retryText: { color: '#4A6FA5', fontSize: 13 },
+  loadingText: { color: C.ink400, fontSize: 13 },
+  errorText: { color: C.danger600, fontSize: 13 },
+  retryText: { color: C.brand600, fontSize: 13 },
   summaryRow: {
-    backgroundColor: '#1A2540', borderRadius: 10,
+    backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 12,
     padding: 10, flexDirection: 'row',
-    flexWrap: 'wrap', gap: 6, marginBottom: 12,
+    flexWrap: 'wrap', gap: 6, marginBottom: 14,
     minHeight: 40, alignItems: 'center',
   },
   summaryTag: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 4 },
-  summaryTagText: { color: '#FFFFFF', fontSize: 10, fontWeight: '500' },
-  emptyTagText: { color: '#8BA4C8', fontSize: 11 },
-  filterRow: { marginBottom: 14 },
+  summaryTagText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
+  emptyTagText: { color: C.ink400, fontSize: 11 },
+  filterRow: { marginBottom: 16 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 0.5, borderColor: '#E0E2EA',
-    backgroundColor: '#FFFFFF', marginRight: 8,
+    borderRadius: 20, borderWidth: 1, borderColor: C.line,
+    backgroundColor: C.surface, marginRight: 8,
   },
+  filterChipActive: { backgroundColor: C.ink900, borderColor: C.ink900 },
   filterChipIcon: { fontSize: 12 },
-  filterChipText: { fontSize: 12, color: '#666666', fontWeight: '500' },
+  filterChipText: { fontSize: 12, color: C.ink500, fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   filterChipCount: { fontSize: 11, color: '#FFFFFF', fontWeight: '600' },
   emptyBox: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   emptyIcon: { fontSize: 40 },
-  emptyText: { color: '#888888', fontSize: 13 },
-  uploadBtn: { backgroundColor: '#1A2540', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  uploadBtnText: { color: '#FFFFFF', fontSize: 12 },
+  emptyText: { color: C.ink400, fontSize: 13 },
+  uploadBtn: { backgroundColor: C.brand600, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  uploadBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   dateDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  dateLine: { flex: 1, height: 0.5, backgroundColor: '#E0E2EA' },
-  dateText: { color: '#888888', fontSize: 10 },
+  dateLine: { flex: 1, height: 0.5, backgroundColor: C.line },
+  dateText: { color: C.ink400, fontSize: 10 },
   timelineItem: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   timelineLeft: { alignItems: 'center', paddingTop: 4 },
   dot: { width: 13, height: 13, borderRadius: 7, borderWidth: 2.5, borderColor: '#FFFFFF' },
-  line: { width: 2, flex: 1, backgroundColor: '#D0D4E0', marginTop: 4 },
+  line: { width: 2, flex: 1, backgroundColor: C.line, marginTop: 4 },
   timelineCard: {
-    flex: 1, backgroundColor: '#FFFFFF',
-    borderRadius: 12, padding: 13, gap: 5,
-    borderWidth: 0.5, borderColor: '#E0E2EA',
+    flex: 1, backgroundColor: C.surface,
+    borderRadius: 14, padding: 13, gap: 5,
+    borderWidth: 1, borderColor: C.line,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardDate: { color: '#888888', fontSize: 11, fontWeight: '500' },
-  gpsBadge: { backgroundColor: '#ECEEF5', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  gpsBadgeText: { color: '#4A6FA5', fontSize: 10, fontWeight: '600' },
+  cardDate: { color: C.ink400, fontSize: 10.5 },
+  gpsBadge: { backgroundColor: C.sky100, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  gpsBadgeText: { color: C.brand600, fontSize: 10, fontWeight: '600' },
   typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typeBadge: {
-    width: 32, height: 32, borderRadius: 8,
+    width: 30, height: 30, borderRadius: 9,
     alignItems: 'center', justifyContent: 'center',
   },
-  typeIcon: { fontSize: 16 },
-  cardTitle: { color: '#1A2540', fontSize: 13, fontWeight: '700', flex: 1 },
-  cardSub: { color: '#666666', fontSize: 11 },
-  fileName: { color: '#94A3B8', fontSize: 9, fontStyle: 'italic' },
-  expandHint: { color: '#4A6FA5', fontSize: 10, marginLeft: 'auto' },
-  contractDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#E0E2EA', gap: 8 },
-  contractImage: { width: '100%', height: 180, borderRadius: 8, backgroundColor: '#E2E5EF' },
-  detailCard: { backgroundColor: '#F5F6FA', borderRadius: 6, padding: 8, borderLeftWidth: 3 },
+  typeIcon: { fontSize: 15 },
+  cardTitle: { color: C.ink900, fontSize: 13, fontWeight: '700', flex: 1 },
+  cardSub: { color: C.ink500, fontSize: 11.5 },
+  fileName: { color: C.ink400, fontSize: 9, fontStyle: 'italic' },
+  expandHint: { color: C.brand500, fontSize: 10.5, marginLeft: 'auto' },
+  contractDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line, gap: 8 },
+  contractImage: { width: '100%', height: 180, borderRadius: 10, backgroundColor: C.sky050 },
+  detailCard: { backgroundColor: C.sky050, borderRadius: 8, padding: 8, borderLeftWidth: 3 },
   detailTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   detailLevelIcon: { fontSize: 12 },
   detailBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 20 },
   detailBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
-  detailTitle: { color: '#1A2540', fontSize: 11, fontWeight: '600', flexShrink: 1 },
-  detailDesc: { color: '#666666', fontSize: 10, marginTop: 2 },
-  hashCard: { backgroundColor: '#F5F6FA', borderRadius: 8, padding: 10, marginBottom: 8 },
-  hashLabel: { color: '#94A3B8', fontSize: 9 },
-  hashValue: { color: '#4A6FA5', fontSize: 9 },
+  detailTitle: { color: C.ink900, fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  detailDesc: { color: C.ink500, fontSize: 10, marginTop: 2 },
+  hashCard: { backgroundColor: C.sky050, borderRadius: 10, padding: 10, marginBottom: 8 },
+  hashLabel: { color: C.ink400, fontSize: 9 },
+  hashValue: { color: C.brand600, fontSize: 9 },
   pdfBtn: {
-    backgroundColor: '#1A2540', borderRadius: 12,
-    padding: 14, alignItems: 'center', marginBottom: 10,
+    backgroundColor: C.brand600, borderRadius: 14,
+    padding: 15, alignItems: 'center', marginBottom: 10, marginTop: 4,
   },
-  pdfBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  pdfBtnText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
   floatingBtn: {
     position: 'absolute', right: 16, bottom: 32,
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#4A6FA5',
+    backgroundColor: C.brand600,
     alignItems: 'center', justifyContent: 'center',
     zIndex: 999,
   },
   floatingBtnText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
   floatingUploadBtn: {
     position: 'absolute', right: 16, bottom: 92,
-    backgroundColor: '#1A2540', borderRadius: 20,
+    backgroundColor: C.ink900, borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 10,
     zIndex: 999,
   },
@@ -647,12 +621,12 @@ const styles = StyleSheet.create({
     marginLeft: 3, // ▶ 삼각형 글자 자체가 시각적으로 왼쪽으로 치우쳐 보여서 살짝 우측으로 보정
   },
   audioPlayBtn: {
-    backgroundColor: '#4A6FA5', borderRadius: 10, padding: 14,
+    backgroundColor: C.brand600, borderRadius: 10, padding: 14,
     alignItems: 'center',
   },
   audioPlayBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  memoDetailText: { color: '#334155', fontSize: 13, lineHeight: 20 },
+  memoDetailText: { color: C.ink700, fontSize: 13, lineHeight: 20 },
   timelineCardHidden: { opacity: 0.4 },
-  hiddenBanner: { backgroundColor: '#FEF2F2', borderRadius: 6, padding: 6, marginBottom: 6 },
-  hiddenBannerText: { color: '#EF4444', fontSize: 10 },
+  hiddenBanner: { backgroundColor: C.danger100, borderRadius: 8, padding: 6, marginBottom: 6 },
+  hiddenBannerText: { color: C.danger600, fontSize: 10 },
 });
