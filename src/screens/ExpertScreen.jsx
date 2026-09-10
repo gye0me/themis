@@ -2,7 +2,6 @@ import { useCallback, useContext, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
 import {
   getExpertPosts,
@@ -13,6 +12,9 @@ import {
   unacceptExpertComment,
 } from '../services/expertBoardService';
 import { submitReport } from '../services/reportService';
+import { ScreenTopBar } from '../components/ScreenTopBar';
+import { BottomNavBar } from '../components/BottomNavBar';
+import { C } from '../theme/tokens';
 
 function formatRelativeTime(ts) {
   const date = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : null;
@@ -170,23 +172,8 @@ export function ExpertScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.wrapper}>
-      {/* 상태바 */}
-      <View style={styles.statusbar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <Text style={styles.statusApp}>Themis</Text>
-      </View>
-
-      {/* 앱바 */}
-      <View style={styles.appbar}>
-        <View style={styles.appbarLogo}>
-          <Text style={styles.appbarLogoText}>T</Text>
-        </View>
-        <View>
-          <Text style={styles.appbarTitle}>전문가 연결</Text>
-          <Text style={styles.appbarSub}>사건별 공유하고 답변 받기</Text>
-        </View>
-      </View>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+      <ScreenTopBar title="전문가 연결" subtitle="사건별 공유하고 답변 받기" />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -206,7 +193,7 @@ export function ExpertScreen({ navigation }) {
               <Text style={styles.victimBadgeRedText}>피해자 47명</Text>
             </View>
           </View>
-          <Text style={styles.hotCardDesc}>같은 집주인에게 피해를 입은 사람이 많습니다. 전문인 12명 · 제보 3건 · 집단 고소 준비 중</Text>
+          <Text style={styles.hotCardDesc}>같은 집주인에게 피해를 입은 사람이 많습니다. 전문가 12명 · 제보 3건 · 집단 고소 준비 중</Text>
           <View style={styles.tagRow}>
             <View style={styles.tag}><Text style={styles.tagText}>변호사</Text></View>
             <View style={styles.tag}><Text style={styles.tagText}>기자</Text></View>
@@ -214,31 +201,8 @@ export function ExpertScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.hotCard, { borderLeftColor: '#F97316' }]}
-          onPress={() => Alert.alert('프리랜서 대금 미지급 — IT 업계', '의뢰인으로부터 대금을 받지 못한 프리랜서들이 모이고 있습니다.\n\n상세 페이지는 아직 준비 중이에요.')}
-        >
-          <View style={styles.hotCardHeader}>
-            <View style={[styles.hotBadge, { backgroundColor: '#FFF7ED' }]}>
-              <Text style={[styles.hotBadgeText, { color: '#C2410C' }]}>금상승</Text>
-            </View>
-            <Text style={styles.hotCardTitle}>프리랜서 대금 미지급 — IT 업계</Text>
-            <View style={[styles.victimBadgeRed, { backgroundColor: '#FFF7ED' }]}>
-              <Text style={[styles.victimBadgeRedText, { color: '#C2410C' }]}>피해자 23명</Text>
-            </View>
-          </View>
-          <Text style={styles.hotCardDesc}>의뢰인으로부터 대금을 받지 못한 프리랜서들이 모이고 있습니다.</Text>
-          <View style={styles.tagRow}>
-            <View style={styles.tag}><Text style={styles.tagText}>변호사</Text></View>
-            <View style={styles.tag}><Text style={styles.tagText}>공익법무관</Text></View>
-          </View>
-        </TouchableOpacity>
-
-        {/* 구분선 */}
-        <View style={styles.divider} />
-
         {/* 일반 게시판 */}
-        <Text style={styles.sectionTitle}>일반 게시판</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 22 }]}>일반 게시판</Text>
 
         {loadingPosts ? (
           <View style={styles.loadingBox}>
@@ -468,121 +432,74 @@ export function ExpertScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* 네비바 */}
-      <View style={styles.navbar}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK)}
-        >
-          <Text style={styles.navIcon}>✏️</Text>
-          <Text style={styles.navLabel}>기록</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabelActive}>전문가</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK, { screen: CHAT_ROUTES.SOLIDARITY })}>
-          <Text style={styles.navIcon}>💬</Text>
-          <Text style={styles.navLabel}>채팅</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>홈</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNavBar active="experts" navigation={navigation} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F1F5F9' },
+  wrapper: { flex: 1, backgroundColor: C.surface },
 
-  statusbar: {
-    backgroundColor: '#0F1F3D',
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 6,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statusTime: { color: '#6B84A8', fontSize: 12 },
-  statusApp: { color: '#6B84A8', fontSize: 12 },
-
-  appbar: {
-    backgroundColor: '#1E3A5F',
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  appbarLogo: {
-    width: 28, height: 28, borderRadius: 7,
-    backgroundColor: '#3B7DD8',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  appbarLogoText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
-  appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
-  appbarSub: { color: '#7B9EC5', fontSize: 11 },
-
-  content: { flex: 1, padding: 16 },
+  content: { flex: 1, padding: 20 },
 
   sectionTitle: {
-    fontSize: 10, fontWeight: '700', color: '#64748B',
-    letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
+    fontSize: 12.5, fontWeight: '700', color: C.ink500, marginBottom: 12,
   },
 
   hotCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: C.sky050,
+    borderRadius: 16,
     padding: 14,
-    marginBottom: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
+    borderWidth: 1,
+    borderColor: C.line,
+    gap: 8,
   },
   hotCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
     flexWrap: 'wrap',
   },
   hotBadge: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  hotBadgeText: { color: '#991B1B', fontSize: 10, fontWeight: '700' },
-  hotCardTitle: { flex: 1, fontSize: 12, fontWeight: '600', color: '#0F172A' },
-  victimBadgeRed: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  victimBadgeRedText: { color: '#991B1B', fontSize: 10, fontWeight: '600' },
-  hotCardDesc: { fontSize: 11, color: '#64748B', marginBottom: 8, lineHeight: 16 },
-  tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  tag: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 6,
+    backgroundColor: C.danger100,
+    borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  tagText: { fontSize: 10, color: '#475569' },
+  hotBadgeText: { color: C.danger600, fontSize: 10.5, fontWeight: '700' },
+  hotCardTitle: { flex: 1, fontSize: 12, fontWeight: '600', color: C.ink900 },
+  victimBadgeRed: {
+    backgroundColor: C.danger100,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  victimBadgeRedText: { color: C.danger600, fontSize: 10.5, fontWeight: '700' },
+  hotCardDesc: { fontSize: 11.5, color: C.ink500, lineHeight: 17, textAlign: 'left' },
+  tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  tag: {
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  tagText: { fontSize: 10.5, color: C.ink500, fontWeight: '600' },
 
-  divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 16 },
+  divider: { height: 1, backgroundColor: C.line, marginVertical: 16 },
 
   loadingBox: { paddingVertical: 24, alignItems: 'center' },
   emptyBox: { paddingVertical: 24, alignItems: 'center' },
-  emptyText: { fontSize: 12, color: '#94A3B8' },
+  emptyText: { fontSize: 12, color: C.ink400 },
 
   postCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 8,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    padding: 15,
+    marginBottom: 10,
   },
   postTop: {
     flexDirection: 'row',
@@ -591,110 +508,110 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   avatarBlue: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#DBEAFE',
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: C.sky100,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 12, fontWeight: '600', color: '#1E3A5F' },
+  avatarText: { fontSize: 12.5, fontWeight: '700', color: C.brand600 },
   postMeta: { flex: 1 },
-  postAuthor: { fontSize: 12, fontWeight: '600', color: '#0F172A' },
-  postTime: { fontSize: 10, color: '#94A3B8' },
+  postAuthor: { fontSize: 12.5, fontWeight: '700', color: C.ink900 },
+  postTime: { fontSize: 10.5, color: C.ink400 },
   answerCountBadge: {
-    backgroundColor: '#EFF6FF', borderRadius: 6,
+    backgroundColor: C.sky100, borderRadius: 999,
     paddingHorizontal: 8, paddingVertical: 3,
   },
-  answerCountText: { fontSize: 10, color: '#1D4ED8' },
+  answerCountText: { fontSize: 10, color: C.brand600, fontWeight: '600' },
   resolvedBadge: {
-    backgroundColor: '#DCFCE7', borderRadius: 6,
+    backgroundColor: C.safe100, borderRadius: 999,
     paddingHorizontal: 8, paddingVertical: 3, marginRight: 6,
   },
-  resolvedBadgeText: { fontSize: 10, color: '#15803D', fontWeight: '700' },
-  postTitle: { fontSize: 13, fontWeight: '600', color: '#0F172A', marginBottom: 4 },
-  postBody: { fontSize: 11, color: '#64748B', lineHeight: 16, marginBottom: 8 },
+  resolvedBadgeText: { fontSize: 10, color: C.safe600, fontWeight: '700' },
+  postTitle: { fontSize: 13.5, fontWeight: '700', color: C.ink900, marginBottom: 4 },
+  postBody: { fontSize: 12, color: C.ink500, lineHeight: 17, marginBottom: 8 },
   fileAttach: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#F8FAFC', borderRadius: 6, padding: 8,
+    backgroundColor: C.sky050, borderRadius: 10, padding: 9,
   },
   fileIcon: { fontSize: 14 },
-  fileName: { fontSize: 11, color: '#475569' },
+  fileName: { fontSize: 11, color: C.brand500 },
 
   deleteBtn: { alignSelf: 'flex-end', marginTop: 8 },
-  deleteBtnText: { color: '#EF4444', fontSize: 11.5, fontWeight: '600' },
+  deleteBtnText: { color: C.danger600, fontSize: 11.5, fontWeight: '600' },
   postActionsRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
   reportBtn: { paddingVertical: 2 },
-  reportBtnText: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
+  reportBtnText: { color: C.ink400, fontSize: 11, fontWeight: '600' },
 
   commentSection: {
     marginTop: 10,
     paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: '#E2E8F0',
+    borderTopWidth: 1,
+    borderTopColor: C.line,
   },
-  noCommentText: { fontSize: 11, color: '#94A3B8', paddingVertical: 6 },
-  hiddenCommentText: { fontSize: 11, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 4 },
+  noCommentText: { fontSize: 11, color: C.ink400, paddingVertical: 6 },
+  hiddenCommentText: { fontSize: 11, color: C.ink400, fontStyle: 'italic', paddingVertical: 4 },
   commentRow: { paddingVertical: 8 },
   commentRowAccepted: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 8,
+    backgroundColor: C.safe100,
+    borderRadius: 10,
     paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: '#BBF7D0',
   },
   commentHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  commentAuthor: { fontSize: 11, fontWeight: '600', color: '#0F172A' },
+  commentAuthor: { fontSize: 11, fontWeight: '700', color: C.ink900 },
   expertBadge: {
-    backgroundColor: '#EFF6FF', borderRadius: 5,
+    backgroundColor: C.sky100, borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2,
   },
-  expertBadgeIconText: { fontSize: 9.5, color: '#1D4ED8', fontWeight: '600' },
+  expertBadgeIconText: { fontSize: 9.5, color: C.brand600, fontWeight: '600' },
   acceptedTag: {
-    backgroundColor: '#16A34A', borderRadius: 5,
+    backgroundColor: C.safe600, borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   acceptedTagText: { fontSize: 9.5, color: '#FFFFFF', fontWeight: '700' },
-  commentBody: { fontSize: 11.5, color: '#334155', marginTop: 2, lineHeight: 16 },
+  commentBody: { fontSize: 11.5, color: C.ink700, marginTop: 2, lineHeight: 16 },
   commentFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   acceptBtn: { paddingVertical: 2 },
-  acceptBtnText: { color: '#16A34A', fontSize: 11, fontWeight: '700' },
-  acceptBtnTextCancel: { color: '#64748B', fontSize: 11, fontWeight: '600' },
+  acceptBtnText: { color: C.safe600, fontSize: 11, fontWeight: '700' },
+  acceptBtnTextCancel: { color: C.ink500, fontSize: 11, fontWeight: '600' },
   commentReportBtn: { paddingVertical: 2, marginLeft: 'auto' },
-  commentReportBtnText: { color: '#CBD5E1', fontSize: 10.5, fontWeight: '600' },
+  commentReportBtnText: { color: C.ink400, fontSize: 10.5, fontWeight: '600' },
 
   anonToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 4 },
-  anonToggleText: { fontSize: 11.5, color: '#64748B' },
+  anonToggleText: { fontSize: 11.5, color: C.ink500 },
   checkboxOffSmall: {
     width: 16, height: 16, borderRadius: 4,
-    borderWidth: 1.5, borderColor: '#CBD5E1',
+    borderWidth: 1.5, borderColor: C.line,
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxOnSmall: {
     width: 16, height: 16, borderRadius: 4,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: C.brand600,
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxCheckSmall: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   commentInputRow: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' },
   commentInput: {
-    flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, color: '#0F172A',
-    backgroundColor: '#F8FAFC',
+    flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 9, fontSize: 12, color: C.ink900,
+    backgroundColor: C.surface,
   },
   commentSendBtn: {
-    backgroundColor: '#1E3A5F', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 9,
+    backgroundColor: C.brand600, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   commentSendText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '600' },
 
   bottomButtonArea: {
     position: 'absolute',
-    bottom: 82,
-    left: 16,
-    right: 16,
+    bottom: 90,
+    left: 20,
+    right: 20,
   },
   bottomButton: {
-    backgroundColor: '#1E3A5F',
-    borderRadius: 10,
-    padding: 14,
+    backgroundColor: C.brand600,
+    borderRadius: 14,
+    padding: 15,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -702,24 +619,5 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  bottomButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-
-  navbar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 0.5,
-    borderTopColor: '#E2E8F0',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    paddingBottom: 18,
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-  },
-  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6 },
-  navItemActive: {
-    backgroundColor: '#0F1F3D', borderRadius: 10, paddingVertical: 9,
-  },
-  navIcon: { fontSize: 22 },
-  navLabel: { fontSize: 11, color: '#94A3B8' },
-  navLabelActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '500' },
+  bottomButtonText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
 });
