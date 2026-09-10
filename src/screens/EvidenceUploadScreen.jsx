@@ -1,6 +1,7 @@
 import { useContext, useRef, useState } from 'react';
-import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES, CHAT_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,34 +9,13 @@ import * as Location from 'expo-location';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import { AuthContext } from '../context/AuthContext';
-import { createEvidenceRecord, getEvidenceRecords, uploadEvidenceThumbnail } from '../services/firebaseService';
+import { createEvidenceRecord, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
 import { extractTextFromImage } from '../services/ocrService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
-
-const TYPE_CONFIG = {
-  image:    { icon: '📷', color: '#EA580C' },
-  audio:    { icon: '🎙️', color: '#7C3AED' },
-  video:    { icon: '🎥', color: '#16A34A' },
-  text:     { icon: '📝', color: '#3B82F6' },
-  contract: { icon: '📑', color: '#0EA5E9' },
-  default:  { icon: '📄', color: '#94A3B8' },
-};
-
-function formatDate(capturedAt) {
-  if (!capturedAt || (typeof capturedAt.toDate !== 'function' && isNaN(new Date(capturedAt)))) {
-    return '날짜 정보 없음';
-  }
-  const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hour = date.getHours();
-  const min = String(date.getMinutes()).padStart(2, '0');
-  const ampm = hour < 12 ? '오전' : '오후';
-  const hour12 = hour % 12 || 12;
-  return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
-}
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 // 녹음 시간을 mm:ss 형식으로 표시
 function formatDuration(ms) {
@@ -44,6 +24,50 @@ function formatDuration(ms) {
   const s = totalSec % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
+
+// design/themis-interactive.html의 type-card 아이콘 (전부 브랜드 컬러 단색)
+const iconStroke = { stroke: C.brand600, strokeWidth: 2, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
+const TypeIcons = {
+  contract: () => (
+    <Svg width={21} height={21} viewBox="0 0 24 24">
+      <Path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" {...iconStroke} />
+      <Path d="M14 3v5h5" {...iconStroke} />
+      <Path d="M9.5 14l1.8 1.8L15 12" {...iconStroke} />
+    </Svg>
+  ),
+  quest: () => (
+    <Svg width={21} height={21} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={9} {...iconStroke} />
+      <Path d="m14.5 9.5-1.8 4.2-4.2 1.8 1.8-4.2Z" {...iconStroke} />
+    </Svg>
+  ),
+  image: () => (
+    <Svg width={21} height={21} viewBox="0 0 24 24">
+      <Path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" {...iconStroke} />
+      <Circle cx={12} cy={13} r={3.5} {...iconStroke} />
+    </Svg>
+  ),
+  audio: () => (
+    <Svg width={21} height={21} viewBox="0 0 24 24">
+      <Rect x={9} y={2} width={6} height={12} rx={3} {...iconStroke} />
+      <Path d="M5 11a7 7 0 0 0 14 0" {...iconStroke} />
+      <Path d="M12 18v4" {...iconStroke} />
+      <Path d="M9 22h6" {...iconStroke} />
+    </Svg>
+  ),
+  video: () => (
+    <Svg width={21} height={21} viewBox="0 0 24 24">
+      <Rect x={2.5} y={6} width={14} height={12} rx={2} {...iconStroke} />
+      <Path d="M21.5 9.5 16.5 12l5 2.5v-5Z" {...iconStroke} />
+    </Svg>
+  ),
+  text: () => (
+    <Svg width={21} height={21} viewBox="0 0 24 24">
+      <Path d="M4 20h4L18 10l-4-4L4 16v4Z" {...iconStroke} />
+      <Path d="M14 6l4 4" {...iconStroke} />
+    </Svg>
+  ),
+};
 
 const UPLOAD_TYPES = {
   image: { mimeType: 'image/*',  title: '현장 사진 증거',  label: '사진' },
@@ -240,137 +264,106 @@ export function EvidenceUploadScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
       <PhotoWatermarkStamper ref={stamperRef} />
-      <View style={styles.statusbar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <Text style={styles.statusApp}>Themis</Text>
-      </View>
-      <View style={styles.appbar}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
-          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate(APP_ROUTES.HOME_STACK))}
-        >
-          <Text style={styles.back}>‹</Text>
-        </TouchableOpacity>
-        <View style={styles.appbarLogo}>
-          <Text style={styles.appbarLogoText}>T</Text>
-        </View>
-        <View>
-          <Text style={styles.appbarTitle}>증거 업로드</Text>
-          <Text style={styles.appbarSub}>{caseType ? `${caseType} · 사건 기록 추가하기` : '사건 기록 추가하기'}</Text>
-        </View>
-      </View>
+      <BackHeader
+        title="증거 업로드"
+        subtitle={caseType ? `${caseType} · 사건 기록 추가하기` : '사건 기록 추가하기'}
+        onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate(APP_ROUTES.HOME_STACK))}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>기록 유형 선택</Text>
 
         <View style={styles.shortcutRow}>
           <TouchableOpacity
-            style={styles.shortcutCard}
+            style={styles.typeCard}
             onPress={() => navigation.push(APP_ROUTES.CONTRACT_ANALYSIS, { caseId, caseType })}
           >
-            <Text style={styles.shortcutIcon}>📋</Text>
-            <Text style={styles.shortcutTitle}>계약서 분석</Text>
-            <Text style={styles.shortcutDesc}>독소조항 자동 탐지</Text>
+            <TypeIcons.contract />
+            <Text style={styles.typeLabel}>계약서 분석</Text>
+            <Text style={styles.typeDesc}>독소조항 자동 탐지</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.shortcutCard, { borderTopColor: '#3B7DD8' }]}
+            style={styles.typeCard}
             onPress={() =>
               caseId
                 ? navigation.navigate(EXPERT_ROUTES.GUIDE, { caseId, caseType })
                 : navigation.push(RECORD_ROUTES.START, { openForm: true })
             }
           >
-            <Text style={styles.shortcutIcon}>🧭</Text>
-            <Text style={styles.shortcutTitle}>사건 대응 퀘스트</Text>
-            <Text style={styles.shortcutDesc}>
+            <TypeIcons.quest />
+            <Text style={styles.typeLabel}>사건 대응 퀘스트</Text>
+            <Text style={styles.typeDesc}>
               {caseType ? `${caseType} 단계별 안내` : '유형별 단계별 안내'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.cardGrid}>
+        <View style={styles.typeGrid}>
           <TouchableOpacity
-            style={[styles.uploadCard, { borderTopColor: '#EA580C' }]}
+            style={styles.typeCard}
             onPress={() => handlePickFile('image')}
             disabled={uploadingType !== null}
           >
-            <Text style={styles.cardIcon}>📷</Text>
+            <TypeIcons.image />
             {uploadingType === 'image' ? (
-              <ActivityIndicator color="#EA580C" style={{ marginVertical: 4 }} />
+              <ActivityIndicator color={C.brand600} style={{ marginVertical: 2 }} />
             ) : (
-              <Text style={styles.cardTitle}>사진</Text>
+              <Text style={styles.typeLabel}>사진</Text>
             )}
-            <Text style={styles.cardDesc}>갤러리에서 선택</Text>
+            <Text style={styles.typeDesc}>갤러리에서 선택</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.uploadCard, { borderTopColor: '#7C3AED' }]}
+            style={styles.typeCard}
             onPress={handleAudioPress}
             disabled={uploadingType !== null}
           >
-            <Text style={styles.cardIcon}>🎙️</Text>
+            <TypeIcons.audio />
             {uploadingType === 'audio' ? (
-              <ActivityIndicator color="#7C3AED" style={{ marginVertical: 4 }} />
+              <ActivityIndicator color={C.brand600} style={{ marginVertical: 2 }} />
             ) : (
-              <Text style={styles.cardTitle}>음성</Text>
+              <Text style={styles.typeLabel}>음성</Text>
             )}
-            <Text style={styles.cardDesc}>지금 녹음 또는 파일 선택</Text>
+            <Text style={styles.typeDesc}>지금 녹음 또는 파일 선택</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.uploadCard, { borderTopColor: '#16A34A' }]}
+            style={styles.typeCard}
             onPress={() => handlePickFile('video')}
             disabled={uploadingType !== null}
           >
-            <Text style={styles.cardIcon}>🎥</Text>
+            <TypeIcons.video />
             {uploadingType === 'video' ? (
-              <ActivityIndicator color="#16A34A" style={{ marginVertical: 4 }} />
+              <ActivityIndicator color={C.brand600} style={{ marginVertical: 2 }} />
             ) : (
-              <Text style={styles.cardTitle}>영상</Text>
+              <Text style={styles.typeLabel}>영상</Text>
             )}
-            <Text style={styles.cardDesc}>갤러리에서 선택</Text>
+            <Text style={styles.typeDesc}>동영상 파일 업로드</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.uploadCard, { borderTopColor: '#94A3B8' }]}
+            style={styles.typeCard}
             onPress={() => navigation.navigate(APP_ROUTES.UPLOAD_SCREEN, { caseId, caseType })}
           >
-            <Text style={styles.cardIcon}>📝</Text>
-            <Text style={styles.cardTitle}>상세 기록</Text>
-            <Text style={styles.cardDesc}>텍스트 직접 입력</Text>
+            <TypeIcons.text />
+            <Text style={styles.typeLabel}>상세 기록</Text>
+            <Text style={styles.typeDesc}>텍스트 직접 입력</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.gpsCaption}>📍 업로드 시 위치와 시간이 자동으로 기록돼요</Text>
+        <View style={styles.gpsCaptionRow}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.ink400} strokeWidth={2}>
+            <Path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Z" />
+            <Circle cx={12} cy={9} r={2.3} />
+          </Svg>
+          <Text style={styles.gpsCaption}>업로드 시 위치와 시간이 자동으로 기록돼요</Text>
+        </View>
 
         <View style={{ height: 90 }} />
       </ScrollView>
-{/* 
-      <View style={styles.navbar}>
-        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
-          <Text style={styles.navIconActive}>✏️</Text>
-          <Text style={styles.navLabelActive}>기록</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>전문가</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate(APP_ROUTES.CHATS_STACK)}>
-          <Text style={styles.navIcon}>💬</Text>
-          <Text style={styles.navLabel}>채팅</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => navigation.navigate(APP_ROUTES.HOME_STACK)}
-        >
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>홈</Text>
-        </TouchableOpacity>
-      </View> */}
 
       <Modal
         visible={recordModalVisible}
@@ -417,121 +410,42 @@ export function EvidenceUploadScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F1F5F9' },
-  statusbar: {
-    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  statusTime: { color: '#6B84A8', fontSize: 12 },
-  statusApp: { color: '#6B84A8', fontSize: 12 },
-  appbar: {
-    backgroundColor: '#1E3A5F',
-    paddingTop: 16,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  appbarLogo: {
-    width: 28, height: 28, borderRadius: 7,
-    backgroundColor: '#3B7DD8',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  backBtn: { paddingVertical: 4, paddingRight: 6 },
-  back: { color: '#7B9EC5', fontSize: 24 },
-  appbarLogoText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
-  appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
-  appbarSub: { color: '#7B9EC5', fontSize: 11 },
-  content: { flex: 1, padding: 16 },
+  wrapper: { flex: 1, backgroundColor: C.surface },
+  content: { flex: 1, padding: 20 },
   sectionTitle: {
-    fontSize: 10, fontWeight: '500', color: '#94A3B8',
-    letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
+    fontSize: 12.5, fontWeight: '700', color: C.ink500,
+    marginBottom: 12,
   },
   shortcutRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  shortcutCard: {
-    flex: 1,
-    backgroundColor: '#1E3A5F',
-    borderRadius: 10,
-    borderTopWidth: 3,
-    borderTopColor: '#5B8FD1',
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    gap: 4,
-  },
-  shortcutIcon: { fontSize: 22 },
-  shortcutTitle: { color: '#F1F5F9', fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  shortcutDesc: { color: '#7B9EC5', fontSize: 10, textAlign: 'center' },
-  cardGrid: {
+  typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 18,
   },
-  uploadCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 10,
-    width: '47.5%',
-    alignItems: 'center',
-    borderTopWidth: 3,
+  typeCard: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: C.surface,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: C.line,
+    alignItems: 'flex-start',
+    gap: 4,
   },
-  cardIcon: { fontSize: 28, marginBottom: 6 },
-  cardTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600', marginBottom: 2 },
-  cardDesc: { color: '#94A3B8', fontSize: 11, textAlign: 'center' },
+  typeLabel: { color: C.ink900, fontSize: 13, fontWeight: '700' },
+  typeDesc: { color: C.ink500, fontSize: 10.5 },
+  gpsCaptionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   gpsCaption: {
-    color: '#94A3B8',
-    fontSize: 11,
+    color: C.ink400,
+    fontSize: 11.5,
     textAlign: 'center',
   },
-  recorderOverlay: {
-    flex: 1, backgroundColor: 'rgba(15,23,42,0.6)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  recorderCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 20,
-    padding: 28, alignItems: 'center', gap: 8, width: '78%',
-  },
-  recorderDot: {
-    width: 14, height: 14, borderRadius: 7, backgroundColor: '#EF4444', marginBottom: 6,
-  },
-  recorderTimer: { fontSize: 32, fontWeight: '700', color: '#0F172A' },
-  recorderLabel: { fontSize: 12, color: '#94A3B8', marginBottom: 12 },
-  recorderBtnRow: { flexDirection: 'row', gap: 10, width: '100%' },
-  recorderCancelBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center',
-  },
-  recorderCancelBtnText: { color: '#64748B', fontSize: 13, fontWeight: '600' },
-  recorderStopBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 10,
-    backgroundColor: '#1E3A5F', alignItems: 'center',
-  },
-  recorderStopBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  navbar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 0.5,
-    borderTopColor: '#E2E8F0',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    paddingBottom: 18,
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-  },
-  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6 },
-  navItemActive: {
-    backgroundColor: '#0F1F3D', borderRadius: 10, paddingVertical: 9,
-  },
-  navIcon: { fontSize: 22 },
-  navIconActive: { fontSize: 22 },
-  navLabel: { fontSize: 11, color: '#94A3B8' },
-  navLabelActive: { fontSize: 11, color: '#FFFFFF', fontWeight: '500' },
   recordBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
@@ -548,28 +462,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: 'center',
   },
-  recordTitle: { color: '#0F172A', fontSize: 15, fontWeight: '700', marginBottom: 12 },
-  recordTimer: { color: '#1E3A5F', fontSize: 32, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 24 },
+  recordTitle: { color: C.ink900, fontSize: 15, fontWeight: '700', marginBottom: 12 },
+  recordTimer: { color: C.brand600, fontSize: 32, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 24 },
   recordStartBtn: {
     backgroundColor: '#7C3AED', borderRadius: 30,
     paddingHorizontal: 28, paddingVertical: 14,
   },
   recordStartBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   recordStopBtn: {
-    backgroundColor: '#DC2626', borderRadius: 30,
+    backgroundColor: C.danger600, borderRadius: 30,
     paddingHorizontal: 28, paddingVertical: 14,
   },
   recordStopBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   recordActionRow: { flexDirection: 'row', gap: 10 },
   recordRetryBtn: {
-    borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10,
+    borderWidth: 1, borderColor: C.line, borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 12,
   },
-  recordRetryBtnText: { color: '#64748B', fontSize: 12, fontWeight: '600' },
+  recordRetryBtnText: { color: C.ink500, fontSize: 12, fontWeight: '600' },
   recordConfirmBtn: {
-    backgroundColor: '#1E3A5F', borderRadius: 10,
+    backgroundColor: C.brand600, borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 12,
   },
   recordConfirmBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
-  recordCloseText: { color: '#94A3B8', fontSize: 12 },
+  recordCloseText: { color: C.ink400, fontSize: 12 },
 });

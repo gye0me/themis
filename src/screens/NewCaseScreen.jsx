@@ -9,6 +9,7 @@ import { CASE_TYPES, CASE_TYPE_META, SUGGESTED_TAGS } from '../services/response
 import { APP_ROUTES, RECORD_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { getMatchingRoomForCaseType, joinRoom } from '../services/chatService';
 import { ScreenTopBar } from '../components/ScreenTopBar';
+import { BackHeader } from '../components/BackHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
 
@@ -61,14 +62,6 @@ const QUICK_TILES = [
     ),
   },
 ];
-
-function BackIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={C.ink900} strokeWidth={2}>
-      <Path d="m15 18-6-6 6-6" />
-    </Svg>
-  );
-}
 
 function formatCaseDate(createdAt) {
   const date = createdAt?.toDate ? createdAt.toDate() : createdAt ? new Date(createdAt) : null;
@@ -201,12 +194,7 @@ export function NewCaseScreen({ navigation }) {
   if (showForm) {
     return (
       <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
-        <View style={styles.backHeader}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => setShowForm(false)}>
-            <BackIcon />
-          </TouchableOpacity>
-          <Text style={styles.backHeaderTitle}>새 사건 시작</Text>
-        </View>
+        <BackHeader title="새 사건 시작" onBack={() => setShowForm(false)} />
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.fieldLabel}>사건 유형</Text>
@@ -418,15 +406,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
   dashedRowText: { color: C.brand600, fontSize: 13, fontWeight: '700' },
-
-  // 뒤로가기 헤더 (새 사건 시작 폼)
-  backHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 18, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: C.line,
-  },
-  backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  backHeaderTitle: { fontSize: 17, fontWeight: '700', color: C.ink900 },
 
   fieldLabel: { fontSize: 12.5, fontWeight: '700', color: C.ink700, marginBottom: 10, marginTop: 20 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 20 },
