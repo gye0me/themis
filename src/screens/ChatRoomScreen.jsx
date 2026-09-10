@@ -6,6 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { getChatRoomMeta, subscribeToMessages, subscribeToMembers, sendMessage } from '../services/chatService';
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 function formatTime(ts) {
   if (!ts) return '';
@@ -86,39 +88,17 @@ export function ChatRoomScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      {/* 상태바 */}
-      <View style={styles.statusbar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <Text style={styles.statusApp}>Themis</Text>
-      </View>
-
-      {/* 앱바 */}
-      <View style={styles.appbar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>‹</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.appbarTitle}>{roomName}</Text>
-          <Text style={styles.appbarSub}>{roomMeta?.type === 'expert' ? '전문가 채널' : '같은 피해, 함께 대응'}</Text>
-        </View>
-      </View>
-
-      {/* 채팅방 정보 카드 */}
-      <View style={styles.roomInfoCard}>
-        <View style={styles.roomInfoLeft}>
-          <Text style={styles.roomInfoName}>{roomName}</Text>
-          <Text style={styles.roomInfoDesc}>{roomMeta?.description ?? '실시간으로 연결된 채팅방입니다'}</Text>
-        </View>
-        <View style={styles.memberBadge}>
-          <Text style={styles.memberBadgeText}>{memberCount}명</Text>
-        </View>
-      </View>
+      <BackHeader
+        title={roomName}
+        subtitle={`참여 ${memberCount}명`}
+        onBack={() => navigation.goBack()}
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -188,7 +168,7 @@ export function ChatRoomScreen({ navigation, route }) {
         <TextInput
           style={styles.input}
           placeholder="메시지 입력..."
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={C.ink400}
           value={draft}
           onChangeText={setDraft}
           onSubmitEditing={sendCurrentDraft}
@@ -205,103 +185,66 @@ export function ChatRoomScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F1F5F9' },
-
-  statusbar: {
-    backgroundColor: '#0F1F3D',
-    paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  statusTime: { color: '#6B84A8', fontSize: 12 },
-  statusApp: { color: '#6B84A8', fontSize: 12 },
-
-  appbar: {
-    backgroundColor: '#1E3A5F',
-    paddingBottom: 12, paddingHorizontal: 16, paddingTop: 6,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-  },
-  backBtn: { paddingRight: 4 },
-  backIcon: { color: '#FFFFFF', fontSize: 28, lineHeight: 30, fontWeight: '300' },
-  appbarTitle: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
-  appbarSub: { color: '#7B9EC5', fontSize: 11 },
-
-  roomInfoCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
-    borderRadius: 10, padding: 14,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
-  roomInfoLeft: { flex: 1 },
-  roomInfoName: { fontSize: 14, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
-  roomInfoDesc: { fontSize: 11, color: '#64748B' },
-  memberBadge: {
-    backgroundColor: '#0F1F3D', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  memberBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  wrapper: { flex: 1, backgroundColor: C.surface },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { color: '#94A3B8', fontSize: 13 },
-  errorText: { color: '#DC2626', fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
+  loadingText: { color: C.ink400, fontSize: 13 },
+  errorText: { color: C.danger600, fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
   emptyBox: { alignItems: 'center', paddingVertical: 32 },
-  emptyText: { color: '#94A3B8', fontSize: 12 },
+  emptyText: { color: C.ink400, fontSize: 12 },
 
   chatArea: { flex: 1 },
-  chatContent: { padding: 16, gap: 12 },
+  chatContent: { padding: 20, gap: 14 },
 
   dateDivider: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 4,
   },
-  dateLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  dateText: { fontSize: 11, color: '#94A3B8' },
+  dateLine: { flex: 1, height: 1, backgroundColor: C.line },
+  dateText: { fontSize: 11, color: C.ink400 },
 
-  otherMsgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  otherMsgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, maxWidth: '78%' },
   avatar: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#E2E8F0',
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: C.sky100,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 12, fontWeight: '700', color: '#1E3A5F' },
-  senderName: { fontSize: 10, color: '#94A3B8', marginBottom: 2 },
-  otherMsgBody: { gap: 2 },
+  avatarText: { fontSize: 12, fontWeight: '700', color: C.brand600 },
+  senderName: { fontSize: 10.5, color: C.ink400, marginBottom: 2 },
+  otherMsgBody: { gap: 3 },
   otherBubble: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12, borderBottomLeftRadius: 2,
-    paddingHorizontal: 12, paddingVertical: 8,
-    maxWidth: 240,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
+    backgroundColor: C.sky050,
+    borderRadius: 16, borderBottomLeftRadius: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
-  otherBubbleText: { fontSize: 13, color: '#0F172A', lineHeight: 19 },
+  otherBubbleText: { fontSize: 13, color: C.ink900, lineHeight: 19 },
 
   myMsgRow: {
     flexDirection: 'row', justifyContent: 'flex-end',
-    alignItems: 'flex-end', gap: 6,
+    alignItems: 'flex-end', gap: 6, alignSelf: 'flex-end', maxWidth: '78%',
   },
   myBubble: {
-    backgroundColor: '#1E3A5F',
-    borderRadius: 12, borderBottomRightRadius: 2,
-    paddingHorizontal: 12, paddingVertical: 8,
-    maxWidth: 240,
+    backgroundColor: C.ink950,
+    borderRadius: 16, borderBottomRightRadius: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   myBubbleText: { fontSize: 13, color: '#FFFFFF', lineHeight: 19 },
 
-  msgTime: { fontSize: 10, color: '#94A3B8' },
+  msgTime: { fontSize: 9.5, color: C.ink400 },
 
   inputBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 0.5, borderTopColor: '#E2E8F0',
-    paddingHorizontal: 12, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.surface,
+    borderTopWidth: 1, borderTopColor: C.line,
+    paddingHorizontal: 16, paddingVertical: 10,
   },
   input: {
-    flex: 1, backgroundColor: '#F1F5F9', borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 8,
-    fontSize: 13, color: '#0F172A', maxHeight: 80,
+    flex: 1, backgroundColor: C.sky050, borderRadius: 999,
+    paddingHorizontal: 16, paddingVertical: 10,
+    fontSize: 13, color: C.ink900, maxHeight: 80,
   },
   sendBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#0F1F3D',
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: C.ink950,
     alignItems: 'center', justifyContent: 'center',
   },
   sendIcon: { color: '#FFFFFF', fontSize: 14 },
