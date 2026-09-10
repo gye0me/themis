@@ -17,6 +17,8 @@ import {
 } from '../services/responseGuideSteps';
 import { getCaseById, saveCaseQuestSteps, saveCaseAiHistory } from '../services/firebaseService';
 import { askCaseAssistant } from '../services/caseAssistantService';
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 export default function ResponseGuideScreen({ navigation, route }) {
   // 계약서 조항 체크리스트 흐름 (기존)
@@ -151,32 +153,16 @@ export default function ResponseGuideScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.wrapper}>
-      <View style={styles.statusbar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <Text style={styles.statusApp}>Themis</Text>
-      </View>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 16 }}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.back}>‹</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>대응 가이드</Text>
-          <Text style={styles.subtitle}>
-            {isQuestMode ? `${routeCaseType ?? ''} 단계별 대응 안내` : '단계별 법적 대응 안내'}
-          </Text>
-        </View>
-        <View style={{ width: 24 }} />
-      </View>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+      <BackHeader
+        title="대응 가이드"
+        subtitle={isQuestMode ? `${routeCaseType ?? ''} 단계별 대응 안내` : '단계별 법적 대응 안내'}
+        onBack={() => navigation.goBack()}
+      />
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#3B7DD8" />
+          <ActivityIndicator size="large" color={C.brand600} />
         </View>
       ) : (
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -252,7 +238,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
                   <TextInput
                     style={styles.noteInput}
                     placeholder="질문이나 메모를 기록해 두세요..."
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={C.ink400}
                     value={item.note}
                     onChangeText={(text) => handleNoteChange(item.id, text)}
                     onBlur={() => handleNoteSave(item.id)}
@@ -298,7 +284,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
             <TextInput
               style={styles.input}
               placeholder="추가할 항목 입력..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={C.ink400}
               value={newTitle}
               onChangeText={setNewTitle}
             />
@@ -325,7 +311,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
             <TextInput
               style={styles.aiInput}
               placeholder="예) 내용증명 혼자 작성할 수 있나요?"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={C.ink400}
               value={aiInput}
               onChangeText={setAiInput}
             />
@@ -379,132 +365,116 @@ export default function ResponseGuideScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
-  statusbar: {
-    backgroundColor: '#0F1F3D', paddingTop: 12, paddingHorizontal: 16, paddingBottom: 6,
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  statusTime: { color: '#6B84A8', fontSize: 12 },
-  statusApp: { color: '#6B84A8', fontSize: 12 },
-  header: {
-    backgroundColor: '#1E3A5F', paddingTop: 16, paddingBottom: 14,
-    paddingHorizontal: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'space-between',
-  },
-  backBtn: { paddingVertical: 4, paddingRight: 6 },
-  back: { color: '#7B9EC5', fontSize: 24 },
-  title: { color: '#F1F5F9', fontSize: 15, fontWeight: '500' },
-  subtitle: { color: '#7B9EC5', fontSize: 11 },
-  content: { flex: 1, padding: 16 },
+  wrapper: { flex: 1, backgroundColor: C.surface },
+  content: { flex: 1, padding: 20 },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   noteInput: {
-    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8,
-    padding: 8, fontSize: 11, color: '#0F172A', marginTop: 6,
-    minHeight: 40, textAlignVertical: 'top',
+    borderWidth: 1, borderColor: C.line, borderRadius: 10,
+    padding: 10, fontSize: 11.5, color: C.ink900, marginTop: 6,
+    minHeight: 40, textAlignVertical: 'top', backgroundColor: C.surface,
   },
-  savingText: { color: '#94A3B8', fontSize: 9, marginTop: 2 },
+  savingText: { color: C.ink400, fontSize: 9, marginTop: 2 },
   progressCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    padding: 14, marginBottom: 16,
+    backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 14,
+    padding: 14, marginBottom: 20,
   },
   progressTop: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 8,
   },
-  progressLabel: { color: '#64748B', fontSize: 12 },
-  progressCount: { color: '#1E3A5F', fontSize: 12, fontWeight: '700' },
+  progressLabel: { color: C.ink500, fontSize: 12 },
+  progressCount: { color: C.brand600, fontSize: 12, fontWeight: '700' },
   progressBarBg: {
-    height: 6, backgroundColor: '#E2E8F0', borderRadius: 3,
+    height: 6, backgroundColor: C.line, borderRadius: 3,
   },
   progressBarFill: {
-    height: 6, backgroundColor: '#3B7DD8', borderRadius: 3,
+    height: 6, backgroundColor: C.brand500, borderRadius: 3,
   },
   sectionTitle: {
-    fontSize: 10, fontWeight: '700', color: '#64748B',
-    letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase',
+    fontSize: 12.5, fontWeight: '700', color: C.ink500, marginBottom: 12,
   },
   emptyBox: { alignItems: 'center', paddingVertical: 30 },
-  emptyText: { color: '#94A3B8', fontSize: 12, textAlign: 'center' },
+  emptyText: { color: C.ink400, fontSize: 12, textAlign: 'center' },
   questCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    padding: 14, marginBottom: 8,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: 14,
+    padding: 14, marginBottom: 10,
     flexDirection: 'row', gap: 12,
   },
   questCardDone: { opacity: 0.7 },
   questLeft: { paddingTop: 2 },
   checkbox: {
-    width: 22, height: 22, borderRadius: 6,
-    borderWidth: 2, borderColor: '#CBD5E1',
+    width: 22, height: 22, borderRadius: 7,
+    borderWidth: 2, borderColor: C.line,
     alignItems: 'center', justifyContent: 'center',
   },
-  checkboxDone: { backgroundColor: '#1E3A5F', borderColor: '#1E3A5F' },
+  checkboxDone: { backgroundColor: C.safe600, borderColor: C.safe600 },
   checkmark: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   questBody: { flex: 1, gap: 3 },
   questTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  questTitle: { color: '#0F172A', fontSize: 13, fontWeight: '600', flex: 1 },
-  questTitleDone: { color: '#94A3B8', textDecorationLine: 'line-through' },
+  questTitle: { color: C.ink900, fontSize: 13, fontWeight: '700', flex: 1 },
+  questTitleDone: { color: C.ink400, textDecorationLine: 'line-through' },
   doneBadge: {
-    backgroundColor: '#DCFCE7', borderRadius: 6,
-    paddingHorizontal: 6, paddingVertical: 2,
-    color: '#15803D', fontSize: 9, fontWeight: '600',
+    backgroundColor: C.safe100, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3,
+    color: C.safe600, fontSize: 9, fontWeight: '700', overflow: 'hidden',
   },
-  questDesc: { color: '#64748B', fontSize: 11 },
-  questEvidence: { color: '#3B7DD8', fontSize: 10 },
+  questDesc: { color: C.ink500, fontSize: 11.5 },
+  questEvidence: { color: C.brand600, fontSize: 10 },
   linkBtn: {
-    alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderRadius: 8,
+    alignSelf: 'flex-start', backgroundColor: C.sky100, borderRadius: 10,
     paddingHorizontal: 10, paddingVertical: 6, marginTop: 2,
   },
-  linkBtnText: { color: '#1D4ED8', fontSize: 10.5, fontWeight: '600' },
-  questMissing: { color: '#EF4444', fontSize: 10 },
-  questLegal: { color: '#94A3B8', fontSize: 9, fontStyle: 'italic' },
+  linkBtnText: { color: C.brand600, fontSize: 10.5, fontWeight: '600' },
+  questMissing: { color: C.danger600, fontSize: 10 },
+  questLegal: { color: C.ink400, fontSize: 9, fontStyle: 'italic' },
   removeBtn: { alignSelf: 'flex-start', marginTop: 4 },
-  removeBtnText: { color: '#EF4444', fontSize: 10 },
+  removeBtnText: { color: C.danger600, fontSize: 10 },
   inputCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 10,
-    padding: 14, marginBottom: 8, gap: 10,
+    backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 14,
+    padding: 14, marginBottom: 10, gap: 10,
   },
   input: {
-    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8,
-    padding: 10, fontSize: 13, color: '#0F172A',
+    borderWidth: 1, borderColor: C.line, borderRadius: 10,
+    padding: 10, fontSize: 13, color: C.ink900, backgroundColor: C.surface,
   },
   inputBtnRow: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   cancelBtn: {
     paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0',
+    borderRadius: 10, borderWidth: 1, borderColor: C.line,
   },
-  cancelBtnText: { color: '#64748B', fontSize: 12 },
+  cancelBtnText: { color: C.ink500, fontSize: 12 },
   addBtn: {
     paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 8, backgroundColor: '#1E3A5F',
+    borderRadius: 10, backgroundColor: C.brand600,
   },
-  addBtnText: { color: '#FFFFFF', fontSize: 12 },
+  addBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   addItemBtn: {
-    borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 10,
+    borderWidth: 1.5, borderColor: C.line, borderRadius: 14,
     borderStyle: 'dashed', padding: 14,
-    alignItems: 'center', marginBottom: 12,
+    alignItems: 'center', marginBottom: 16,
   },
-  addItemBtnText: { color: '#94A3B8', fontSize: 12 },
+  addItemBtnText: { color: C.brand600, fontSize: 12.5, fontWeight: '700' },
   expertBtn: {
-    backgroundColor: '#1E3A5F', borderRadius: 10,
-    padding: 14, alignItems: 'center',
+    backgroundColor: C.brand600, borderRadius: 14,
+    padding: 15, alignItems: 'center',
   },
-  expertBtnText: { color: '#F1F5F9', fontSize: 13, fontWeight: '500' },
-  aiCard: { backgroundColor: '#FFFFFF', borderRadius: 10, padding: 14, marginBottom: 12 },
-  aiTitle: { color: '#1E3A5F', fontSize: 13, fontWeight: '700', marginBottom: 2 },
-  aiDesc: { color: '#94A3B8', fontSize: 11, marginBottom: 10 },
+  expertBtnText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
+  aiCard: { backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14, marginBottom: 14 },
+  aiTitle: { color: C.brand700, fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  aiDesc: { color: C.ink400, fontSize: 11, marginBottom: 10 },
   aiInputRow: { flexDirection: 'row', gap: 8 },
-  aiInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, fontSize: 12, color: '#0F172A' },
-  aiSendBtn: { backgroundColor: '#3B7DD8', borderRadius: 8, width: 40, alignItems: 'center', justifyContent: 'center' },
+  aiInput: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, fontSize: 12, color: C.ink900, backgroundColor: C.surface },
+  aiSendBtn: { backgroundColor: C.brand600, borderRadius: 10, width: 40, alignItems: 'center', justifyContent: 'center' },
   aiSendBtnText: { color: '#FFFFFF', fontSize: 16 },
-  aiResponse: { marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10 },
-  aiResponseLabel: { color: '#3B7DD8', fontSize: 11, fontWeight: '700' },
-  aiResponseText: { color: '#0F172A', fontSize: 12, lineHeight: 18 },
-  aiDisclaimer: { color: '#EF4444', fontSize: 10, marginTop: 4 },
-  aiHistorySection: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 10 },
+  aiResponse: { marginTop: 12, backgroundColor: C.surface, borderRadius: 10, padding: 10 },
+  aiResponseLabel: { color: C.brand600, fontSize: 11, fontWeight: '700' },
+  aiResponseText: { color: C.ink900, fontSize: 12, lineHeight: 18 },
+  aiDisclaimer: { color: C.danger600, fontSize: 10, marginTop: 4 },
+  aiHistorySection: { marginTop: 10, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10 },
   aiHistoryToggle: { alignSelf: 'flex-start' },
-  aiHistoryToggleText: { color: '#3B7DD8', fontSize: 11, fontWeight: '600' },
+  aiHistoryToggleText: { color: C.brand600, fontSize: 11, fontWeight: '600' },
   aiHistoryList: { marginTop: 8, gap: 10 },
-  aiHistoryItem: { backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10 },
-  aiHistoryQuestion: { color: '#1E3A5F', fontSize: 11, fontWeight: '700', marginBottom: 4 },
-  aiHistoryAnswer: { color: '#475569', fontSize: 11, lineHeight: 16 },
+  aiHistoryItem: { backgroundColor: C.surface, borderRadius: 10, padding: 10 },
+  aiHistoryQuestion: { color: C.brand700, fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  aiHistoryAnswer: { color: C.ink700, fontSize: 11, lineHeight: 16 },
 });
