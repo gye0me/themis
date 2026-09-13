@@ -1,5 +1,5 @@
 import { useContext, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator } from "react-native";
 import { APP_ROUTES } from "../navigation/routes";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -27,24 +27,25 @@ import {
   formatManwonToKorean,
   getPreviousYearMonth,
 } from "../services/realEstateService";
+import { BackHeader } from "../components/BackHeader";
+import { C } from "../theme/tokens";
 
 const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
 
 const levelColor = {
-  danger: "#EF4444",
-  warning: "#F59E0B",
-  safe: "#10B981",
+  danger: C.danger600,
+  warning: C.warn600,
+  safe: C.safe600,
+};
+const levelBg = {
+  danger: C.danger100,
+  warning: C.warn100,
+  safe: C.safe100,
 };
 const levelIcon = {
   danger: "🔴",
   warning: "🟡",
   safe: "🟢",
-};
-
-const levelLabel = {
-  danger: "위험",
-  warning: "주의",
-  safe: "양호",
 };
 
 function buildAnalysisNote(result) {
@@ -134,7 +135,6 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     }
   };
 
-
   const handleFetchTrades = async () => {
     const lawdCd = REGION_CODES[selectedRegion];
     if (!lawdCd || !/^\d{6}$/.test(dealYmd)) {
@@ -201,57 +201,50 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtn}>‹</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>계약서 분석</Text>
-          <Text style={styles.headerSub}>독소조항 탐지 — {selectedType} 특화</Text>
-        </View>
-        <Text style={styles.appName}>Themis</Text>
-      </View>
+  const missingClauses = (results?.checklistItems ?? []).filter((i) => !i.completed);
 
-      <ScrollView>
-        <View style={styles.body}>
+  return (
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+      <BackHeader
+        title="계약서 분석"
+        subtitle={`독소조항 탐지 · ${selectedType} 특화`}
+        onBack={() => navigation.goBack()}
+      />
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* 계약 유형 토글 */}
-        <Text style={styles.label}>계약 유형</Text>
-        <View style={styles.toggleRow}>
+        <Text style={styles.fieldLabel}>계약 유형</Text>
+        <View style={styles.chipRow}>
           {CONTRACT_TYPES.map((type) => (
             <TouchableOpacity
               key={type}
               onPress={() => setSelectedType(type)}
-              style={[
-                styles.toggleBtn,
-                { backgroundColor: selectedType === type ? "#1E3A5F" : "#1a2942" },
-              ]}
+              style={[styles.chip, selectedType === type && styles.chipActive]}
             >
-              <Text style={[
-                styles.toggleText,
-                { color: selectedType === type ? "#fff" : "#8da3c1" },
-              ]}>
-                {type}
-              </Text>
+              <Text style={[styles.chipText, selectedType === type && styles.chipTextActive]}>{type}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity
-          onPress={() => setPreprocessEnabled((value) => !value)}
-          style={[styles.toggleBtn, styles.preprocessToggle, { backgroundColor: preprocessEnabled ? "#0f766e" : "#334155" }]}
-        >
-          <Text style={styles.toggleText}>{preprocessEnabled ? "회전·크기 보정 ON" : "보정 OFF"}</Text>
-        </TouchableOpacity>
+        <View style={styles.chipRow}>
+          <TouchableOpacity
+            onPress={() => setPreprocessEnabled((value) => !value)}
+            style={[styles.chip, preprocessEnabled && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, preprocessEnabled && styles.chipTextActive]}>
+              🔄 {preprocessEnabled ? "회전·크기 보정 ON" : "보정 OFF"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* 전월세 계약 시 국토교통부 실거래가 기반 전세가율(깡통전세 위험) 체크 */}
         {selectedType === "전월세" && (
           <View style={styles.realEstateBox}>
-            <Text style={styles.label}>전세가율 위험도 체크 (국토교통부 실거래가 연동)</Text>
+            <Text style={styles.fieldLabel}>
+              전세가율 위험도 체크 <Text style={styles.fieldLabelMuted}>(국토교통부 실거래가 연동)</Text>
+            </Text>
 
-            <View style={styles.toggleRow}>
+            <View style={styles.chipRow}>
               {Object.entries(HOUSING_TYPE_LABELS).map(([type, label]) => (
                 <TouchableOpacity
                   key={type}
@@ -261,98 +254,100 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                     setSelectedBuilding(null);
                     setTradesSearched(false);
                   }}
-                  style={[styles.toggleBtn, { backgroundColor: housingType === type ? "#1E3A5F" : "#1a2942" }]}
+                  style={[styles.chip, housingType === type && styles.chipActive]}
                 >
-                  <Text style={[styles.toggleText, styles.housingToggleText, { color: housingType === type ? "#fff" : "#8da3c1" }]}>
-                    {label}
-                  </Text>
+                  <Text style={[styles.chipText, housingType === type && styles.chipTextActive]}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.regionScroll}>
-              {Object.keys(REGION_CODES).map((region) => (
-                <TouchableOpacity
-                  key={region}
-                  onPress={() => setSelectedRegion(region)}
-                  style={[styles.regionChip, selectedRegion === region && styles.regionChipActive]}
-                >
-                  <Text style={[styles.regionChipText, selectedRegion === region && styles.regionChipTextActive]}>
-                    {region}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.chipRow}>
+                {Object.keys(REGION_CODES).map((region) => (
+                  <TouchableOpacity
+                    key={region}
+                    onPress={() => setSelectedRegion(region)}
+                    style={[styles.chip, selectedRegion === region && styles.chipActive]}
+                  >
+                    <Text style={[styles.chipText, selectedRegion === region && styles.chipTextActive]}>
+                      {region}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </ScrollView>
 
-            <View style={styles.dealYmdRow}>
-              <Text style={styles.dealYmdLabel}>기준월</Text>
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldRowLabel}>기준월</Text>
               <TextInput
-                style={styles.dealYmdInput}
+                style={styles.textInput}
                 value={dealYmd}
                 onChangeText={setDealYmd}
                 placeholder="YYYYMM"
-                placeholderTextColor="#6B7280"
+                placeholderTextColor={C.ink400}
                 keyboardType="number-pad"
                 maxLength={6}
               />
               <TouchableOpacity
-                style={styles.tradeSearchBtn}
+                style={[styles.chip, styles.chipActive]}
                 onPress={handleFetchTrades}
                 disabled={tradesLoading}
               >
-                <Text style={styles.tradeSearchBtnText}>{tradesLoading ? "조회 중..." : "건물 조회"}</Text>
+                <Text style={styles.chipTextActive}>{tradesLoading ? "조회 중..." : "건물 조회"}</Text>
               </TouchableOpacity>
             </View>
 
             {buildingGroups.length > 0 && (
               <>
-                <Text style={styles.dealYmdLabel2}>계약서와 같은 건물을 선택하세요 (최근 3개월 매매 건수)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.regionScroll}>
-                  {buildingGroups.map((g) => (
-                    <TouchableOpacity
-                      key={`${g.dong}-${g.buildingName}`}
-                      onPress={() => setSelectedBuilding(g)}
-                      style={[styles.regionChip, selectedBuilding?.buildingName === g.buildingName && styles.regionChipActive]}
-                    >
-                      <Text style={[styles.regionChipText, selectedBuilding?.buildingName === g.buildingName && styles.regionChipTextActive]}>
-                        {g.buildingName} ({g.count})
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <Text style={styles.hintText}>계약서와 같은 건물을 선택하세요 (최근 3개월 매매 건수)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.chipRow}>
+                    {buildingGroups.map((g) => (
+                      <TouchableOpacity
+                        key={`${g.dong}-${g.buildingName}`}
+                        onPress={() => setSelectedBuilding(g)}
+                        style={[styles.chip, selectedBuilding?.buildingName === g.buildingName && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, selectedBuilding?.buildingName === g.buildingName && styles.chipTextActive]}>
+                          {g.buildingName} ({g.count})
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </ScrollView>
               </>
             )}
             {tradesSearched && !tradesLoading && buildingGroups.length === 0 && (
-              <Text style={styles.tradeEmptyText}>
+              <Text style={styles.emptyText}>
                 해당 조건의 매매 실거래 내역이 없습니다. 기준월을 바꾸거나 주택유형을 확인해보세요.
               </Text>
             )}
 
             {selectedBuilding && (
               <View style={styles.tradesResultBox}>
-                <Text style={styles.tradesAvg}>
+                <Text style={styles.tradesTitle}>
                   {selectedBuilding.dong} {selectedBuilding.buildingName} · 최근 3개월 매매 {selectedBuilding.count}건
                 </Text>
 
-                <View style={styles.dealYmdRow}>
-                  <Text style={styles.dealYmdLabel}>전용면적(㎡)</Text>
+                <View style={styles.fieldRow}>
+                  <Text style={styles.fieldRowLabelWide}>전용면적(㎡)</Text>
                   <TextInput
-                    style={styles.dealYmdInput}
+                    style={styles.textInput}
                     value={contractArea}
                     onChangeText={setContractArea}
                     placeholder="예: 84 (선택)"
-                    placeholderTextColor="#6B7280"
+                    placeholderTextColor={C.ink400}
                     keyboardType="numeric"
                   />
                 </View>
-                <View style={styles.dealYmdRow}>
-                  <Text style={styles.dealYmdLabel}>전세보증금(만원)</Text>
+                <View style={styles.fieldRow}>
+                  <Text style={styles.fieldRowLabelWide}>전세보증금(만원)</Text>
                   <TextInput
-                    style={styles.dealYmdInput}
+                    style={styles.textInput}
                     value={depositAmount}
                     onChangeText={setDepositAmount}
                     placeholder="예: 45000"
-                    placeholderTextColor="#6B7280"
+                    placeholderTextColor={C.ink400}
                     keyboardType="number-pad"
                   />
                 </View>
@@ -363,33 +358,13 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                 </Text>
 
                 {jeonseRatio != null && jeonseRisk && (
-                  <View
-                    style={[
-                      styles.warningBanner,
-                      {
-                        backgroundColor: jeonseRisk === "danger" ? "#FEE2E2" : jeonseRisk === "warning" ? "#FEF3C7" : "#DCFCE7",
-                        borderLeftColor: levelColor[jeonseRisk],
-                      },
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <Text style={styles.warningIcon}>{levelIcon[jeonseRisk]}</Text>
-                        <Text
-                          style={[
-                            styles.warningTitle,
-                            { color: jeonseRisk === "danger" ? "#991B1B" : jeonseRisk === "warning" ? "#92400E" : "#166534" },
-                          ]}
-                        >
-                          전세가율 {jeonseRatio}% — {jeonseRiskLabel[jeonseRisk]}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[
-                          styles.warningDesc,
-                          { color: jeonseRisk === "danger" ? "#991B1B" : jeonseRisk === "warning" ? "#92400E" : "#166534" },
-                        ]}
-                      >
+                  <View style={[styles.warningBanner, { backgroundColor: levelBg[jeonseRisk], borderLeftColor: levelColor[jeonseRisk] }]}>
+                    <Text style={styles.warningIcon}>{levelIcon[jeonseRisk]}</Text>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={[styles.warningTitle, { color: levelColor[jeonseRisk] }]}>
+                        전세가율 {jeonseRatio}% — {jeonseRiskLabel[jeonseRisk]}
+                      </Text>
+                      <Text style={[styles.warningDesc, { color: levelColor[jeonseRisk] }]}>
                         보증금이 이 건물 실거래 매매가 대비 {jeonseRatio}% 수준입니다. 80% 이상이면 집값 하락 시 보증금을
                         돌려받지 못하는 깡통전세 위험이 커지니, 전세보증보험 가입 여부를 꼭 확인하세요.
                       </Text>
@@ -437,65 +412,53 @@ export default function ContractAnalysisScreen({ navigation, route }) {
           <TouchableOpacity
             onPress={handleAnalyze}
             disabled={!image || loading}
-            style={[
-              styles.analyzeBtn,
-              { backgroundColor: image && !loading ? "#1E3A5F" : "#374151" },
-            ]}
+            style={[styles.cta, (!image || loading) && styles.ctaDisabled]}
           >
-            <Text style={styles.analyzeBtnText}>
-              {loading ? "분석 중..." : "분석하기"}
-            </Text>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>분석하기</Text>}
           </TouchableOpacity>
         )}
 
         {/* 결과 */}
         {results && (
           <View>
-
             {results.documentSummary ? (
-              <View style={styles.comparisonBox}>
-                <Text style={styles.comparisonTitle}>📄 인식된 문서</Text>
-                <Text style={styles.comparisonText}>{results.documentSummary}</Text>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCardTitle}>📄 인식된 문서</Text>
+                <Text style={styles.summaryCardText}>{results.documentSummary}</Text>
               </View>
             ) : null}
 
             <View style={styles.summaryBanner}>
-              <Text style={styles.summaryText}>{results.summary}</Text>
+              <Text style={styles.summaryBannerText}>{results.summary}</Text>
             </View>
-            {(results?.checklistItems ?? []).filter(i => !i.completed).length > 0 && (
-              <View style={styles.warningBanner}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Text style={styles.warningIcon}>⚠️</Text>
-                    <Text style={styles.warningTitle}>특약 누락 경고</Text>
-                  </View>
-                  <Text style={styles.warningDesc}>
-                    필수 조항 {(results?.checklistItems ?? []).filter(i => !i.completed).length}개가 계약서에 없습니다
+
+            {missingClauses.length > 0 && (
+              <View style={[styles.warningBanner, { backgroundColor: C.warn100, borderLeftColor: C.warn600 }]}>
+                <Text style={styles.warningIcon}>⚠️</Text>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={[styles.warningTitle, { color: C.warn600 }]}>특약 누락 경고</Text>
+                  <Text style={[styles.warningDesc, { color: C.warn600 }]}>
+                    필수 조항 {missingClauses.length}개가 계약서에 없습니다
                   </Text>
-                  {(results?.checklistItems ?? []).filter(i => !i.completed).map((item, i) => (
-                    <View key={i} style={styles.warningItem}>
-                      <Text style={styles.warningItemText}>• {item.title}</Text>
-                    </View>
+                  {missingClauses.map((item, i) => (
+                    <Text key={i} style={[styles.warningDesc, { color: C.warn600 }]}>• {item.title}</Text>
                   ))}
                 </View>
               </View>
             )}
 
             {results.items.map((item, i) => (
-              <View
-                key={i}
-                style={[styles.card, { borderLeftColor: levelColor[item.level] }]}
-              >
-                <View style={styles.cardTop}>
+              <View key={i} style={[styles.resultCard, { borderLeftColor: levelColor[item.level] }]}>
+                <View style={styles.resultCardTop}>
                   <Text style={styles.levelIcon}>{levelIcon[item.level]}</Text>
-                  <View style={[styles.badge, { backgroundColor: levelColor[item.level] }]}>
-                    <Text style={styles.badgeText}>{item.score}</Text>
+                  <View style={[styles.scoreBadge, { backgroundColor: levelBg[item.level] }]}>
+                    <Text style={[styles.scoreBadgeText, { color: levelColor[item.level] }]}>{item.score}점</Text>
                   </View>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.resultCardTitle}>{item.title}</Text>
                 </View>
-                <Text style={styles.cardDesc}>{item.desc}</Text>
+                <Text style={styles.resultCardDesc}>{item.desc}</Text>
                 {item.example && (
-                  <Text style={styles.cardExample}>일반적인 사례{"\n"}"{item.example}"</Text>
+                  <Text style={styles.resultCardExample}>일반적인 사례{"\n"}"{item.example}"</Text>
                 )}
               </View>
             ))}
@@ -505,92 +468,95 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             </Text>
 
             <TouchableOpacity
-              style={styles.expertBtn}
+              style={styles.cta}
               onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_UPLOAD)}
             >
-              <Text style={styles.expertBtnText}>전문가에게 계약서 검토 요청하기</Text>
+              <Text style={styles.ctaText}>전문가에게 계약서 검토 요청하기</Text>
             </TouchableOpacity>
           </View>
         )}
-        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0b1220" },
-  header: { backgroundColor: "#1E3A5F", paddingHorizontal: 16, paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  backBtn: { color: "#fff", fontSize: 28, marginRight: 8 },
-  headerTitle: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  headerSub: { color: "#8da3c1", fontSize: 11, marginTop: 2 },
-  appName: { color: "#8da3c1", fontSize: 12 },
-  body: { padding: 16 },
-  label: { color: "#8da3c1", fontSize: 12, marginBottom: 8 },
-  toggleRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  toggleBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
-  toggleText: { fontWeight: "bold", fontSize: 14 },
-  preprocessToggle: { marginBottom: 12, alignItems: "center" },
-  sampleBtn: { backgroundColor: "#1D4ED8", padding: 12, borderRadius: 10, alignItems: "center", marginBottom: 12 },
-  sampleBtnDisabled: { opacity: 0.7 },
-  sampleBtnText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
-  uploadBox: { backgroundColor: "#1a2942", borderRadius: 12, padding: 40, alignItems: "center", marginBottom: 12 },
-  uploadIcon: { fontSize: 40, marginBottom: 8 },
-  uploadText: { color: "#8da3c1", fontSize: 13 },
-  captureGuide: { color: "#93C5FD", fontSize: 12, marginBottom: 10, lineHeight: 18 },
-  preview: { width: "100%", height: 200, borderRadius: 12, marginBottom: 12 },
-  btnRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  halfBtn: { flex: 1, backgroundColor: "#1a2942", padding: 12, borderRadius: 8, alignItems: "center" },
-  halfBtnText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
-  analyzeBtn: { padding: 14, borderRadius: 12, alignItems: "center", marginBottom: 16 },
-  analyzeBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  summaryBanner: { backgroundColor: "#7f1d1d", padding: 12, borderRadius: 8, marginBottom: 12 },
-  summaryText: { color: "#FCA5A5", fontSize: 13, fontWeight: "bold" },
-  card: { backgroundColor: "#1a2942", borderRadius: 8, padding: 14, marginBottom: 10, borderLeftWidth: 4 },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  levelIcon: { fontSize: 16, marginRight: 2 },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  badgeText: { color: "#fff", fontSize: 11, fontWeight: "bold" },
-  cardTitle: { color: "#fff", fontWeight: "bold", fontSize: 15 },
-  cardDesc: { color: "#8da3c1", fontSize: 13, marginTop: 4 },
-  cardExample: { color: "#6B7280", fontSize: 12, backgroundColor: "#0b1220", padding: 8, borderRadius: 6, marginTop: 6 },
-  disclaimer: { color: "#EF4444", fontSize: 11, textAlign: "center", marginVertical: 12 },
-  expertBtn: { backgroundColor: "#1E3A5F", padding: 14, borderRadius: 12, alignItems: "center", marginBottom: 40 },
-  expertBtnText: { color: "#fff", fontSize: 15, fontWeight: "bold" },
-  comparisonBox: { backgroundColor: "#0f172a", borderRadius: 12, padding: 12, marginTop: 12, marginBottom: 16, borderWidth: 1, borderColor: "#334155" },
-  comparisonTitle: { color: "#F8FAFC", fontSize: 13, fontWeight: "bold", marginBottom: 6 },
-  comparisonText: { color: "#CBD5E1", fontSize: 12, marginTop: 2 },
-  sampleReportBox: { backgroundColor: "#111827", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#334155" },
-  sampleReportText: { color: "#CBD5E1", fontSize: 12, marginTop: 4 },
-  warningBanner: {
-  backgroundColor: '#FEF3C7', borderRadius: 10,
-  padding: 14, marginBottom: 12,
-  flexDirection: 'row', alignItems: 'center', gap: 10,
-  borderLeftWidth: 4, borderLeftColor: '#F59E0B',
+  wrapper: { flex: 1, backgroundColor: C.surface },
+  content: { flex: 1, padding: 20 },
+
+  fieldLabel: { fontSize: 12.5, fontWeight: '700', color: C.ink700, marginBottom: 10 },
+  fieldLabelMuted: { fontWeight: '500', color: C.ink400 },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  chip: {
+    borderWidth: 1, borderColor: C.line, borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: C.surface,
   },
-  warningIcon: { fontSize: 24 },
-  warningTitle: { color: '#92400E', fontSize: 13, fontWeight: '700' },
-  warningDesc: { color: '#92400E', fontSize: 11, marginTop: 2 },
-  warningItem: { marginTop: 4 },
-  warningItemText: { color: '#92400E', fontSize: 11 },
-  realEstateBox: { backgroundColor: "#111827", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#334155" },
-  regionScroll: { marginTop: 8, marginBottom: 10 },
-  regionChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, backgroundColor: "#1a2942", marginRight: 6 },
-  regionChipActive: { backgroundColor: "#1E3A5F" },
-  regionChipText: { color: "#8da3c1", fontSize: 12 },
-  regionChipTextActive: { color: "#fff", fontWeight: "bold" },
-  dealYmdRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  dealYmdLabel: { color: "#8da3c1", fontSize: 12, width: 88 },
-  dealYmdLabel2: { color: "#8da3c1", fontSize: 12, marginTop: 4, marginBottom: 4 },
-  compareAvgText: { color: "#93C5FD", fontSize: 12, marginBottom: 10 },
-  dealYmdInput: { flex: 1, backgroundColor: "#0b1220", color: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, borderWidth: 1, borderColor: "#334155" },
-  tradeSearchBtn: { backgroundColor: "#1D4ED8", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8 },
-  tradeSearchBtnText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  housingToggleText: { fontSize: 12 },
-  tradesResultBox: { marginTop: 12 },
-  tradesAvg: { color: "#F8FAFC", fontSize: 13, fontWeight: "bold", marginBottom: 8 },
-  tradeRow: { paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#1f2937" },
-  tradeAptName: { color: "#CBD5E1", fontSize: 12 },
-  tradeAmount: { color: "#93C5FD", fontSize: 12, marginTop: 2 },
-  tradeEmptyText: { color: "#6B7280", fontSize: 12, marginTop: 10, textAlign: "center" },
+  chipActive: { backgroundColor: C.ink900, borderColor: C.ink900 },
+  chipText: { fontSize: 12, fontWeight: '600', color: C.ink700 },
+  chipTextActive: { fontSize: 12, fontWeight: '700', color: '#fff' },
+
+  realEstateBox: {
+    backgroundColor: C.sky050, borderRadius: 16, padding: 14, marginBottom: 16, gap: 4,
+  },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  fieldRowLabel: { fontSize: 12, color: C.ink500, width: 56, flexShrink: 0 },
+  fieldRowLabelWide: { fontSize: 12, color: C.ink500, width: 100, flexShrink: 0 },
+  textInput: {
+    flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, color: C.ink900, backgroundColor: C.surface,
+  },
+  hintText: { fontSize: 12, color: C.ink500, marginBottom: 8 },
+  emptyText: { color: C.ink400, fontSize: 12, marginTop: 10, textAlign: 'center' },
+
+  tradesResultBox: { marginTop: 12, gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
+  tradesTitle: { color: C.ink900, fontSize: 13, fontWeight: '700' },
+  compareAvgText: { color: C.brand500, fontSize: 12 },
+  tradeRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: C.line },
+  tradeAptName: { color: C.ink500, fontSize: 12 },
+  tradeAmount: { color: C.brand500, fontSize: 12 },
+
+  warningBanner: {
+    borderRadius: 14, padding: 14, marginBottom: 16,
+    flexDirection: 'row', gap: 10, borderLeftWidth: 4,
+  },
+  warningIcon: { fontSize: 22 },
+  warningTitle: { fontSize: 13, fontWeight: '700' },
+  warningDesc: { fontSize: 11.5, lineHeight: 17 },
+
+  uploadBox: {
+    backgroundColor: C.sky050, borderRadius: 16, padding: 40, alignItems: 'center', marginBottom: 12, gap: 6,
+  },
+  uploadIcon: { fontSize: 32 },
+  uploadText: { color: C.ink500, fontSize: 13 },
+  captureGuide: { color: C.ink400, fontSize: 11.5, marginBottom: 16, lineHeight: 17 },
+  preview: { width: '100%', height: 200, borderRadius: 14, marginBottom: 12 },
+
+  btnRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  halfBtn: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14, alignItems: 'center' },
+  halfBtnText: { color: C.ink900, fontSize: 13, fontWeight: '700' },
+
+  cta: { backgroundColor: C.brand600, borderRadius: 999, padding: 16, alignItems: 'center', marginBottom: 16 },
+  ctaDisabled: { backgroundColor: C.line },
+  ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  summaryCard: { backgroundColor: C.sky050, borderRadius: 14, padding: 12, marginBottom: 12 },
+  summaryCardTitle: { color: C.ink900, fontSize: 13, fontWeight: '700' },
+  summaryCardText: { color: C.ink500, fontSize: 12, marginTop: 6, lineHeight: 17 },
+
+  summaryBanner: { backgroundColor: C.danger100, borderRadius: 10, padding: 12, marginBottom: 12 },
+  summaryBannerText: { color: C.danger600, fontSize: 13, fontWeight: '700' },
+
+  resultCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14, marginBottom: 10, borderLeftWidth: 4, gap: 6 },
+  resultCardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  levelIcon: { fontSize: 16 },
+  scoreBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  scoreBadgeText: { fontSize: 10.5, fontWeight: '700' },
+  resultCardTitle: { flex: 1, color: C.ink900, fontWeight: '700', fontSize: 15 },
+  resultCardDesc: { color: C.ink500, fontSize: 13 },
+  resultCardExample: { color: C.ink400, fontSize: 12, backgroundColor: C.sky050, padding: 8, borderRadius: 8 },
+
+  disclaimer: { color: C.danger600, fontSize: 11, textAlign: 'center', marginVertical: 12 },
 });

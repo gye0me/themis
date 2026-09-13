@@ -9,12 +9,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { useAuth } from '../hooks/useAuth';
 import { createEvidenceRecord } from '../services/firebaseService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
+import { BackHeader } from '../components/BackHeader';
+import { C } from '../theme/tokens';
 
 const evidenceTypes = [
   { key: 'image', label: '이미지', icon: '📷' },
@@ -165,17 +168,9 @@ export function UploadScreen({ navigation, route }) {
   }
 
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
       <PhotoWatermarkStamper ref={stamperRef} />
-      <View style={styles.appbar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>‹ 뒤로</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>증거 업로드</Text>
-          <Text style={styles.subtitle}>Storage + Firestore + GPS + 타임스탬프</Text>
-        </View>
-      </View>
+      <BackHeader title="상세 기록" subtitle="직접 입력" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionCard}>
@@ -184,62 +179,63 @@ export function UploadScreen({ navigation, route }) {
           <Text style={styles.helperText}>로그인한 사용자: {user?.email ?? '비로그인'}</Text>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionLabel}>기록 유형</Text>
-          <View style={styles.typeRow}>
+        <View style={styles.section}>
+          <Text style={styles.fieldLabel}>기록 유형</Text>
+          <View style={styles.typeGrid}>
             {evidenceTypes.map((item) => {
               const active = evidenceType === item.key;
 
               return (
                 <TouchableOpacity
                   key={item.key}
-                  style={[styles.typeChip, active && styles.typeChipActive]}
+                  style={[styles.typeCard, active && styles.typeCardActive]}
                   onPress={() => setEvidenceType(item.key)}
                 >
                   <Text style={styles.typeIcon}>{item.icon}</Text>
-                  <Text style={[styles.typeText, active && styles.typeTextActive]}>{item.label}</Text>
+                  <Text style={styles.typeText}>{item.label}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionLabel}>증거 제목</Text>
+        <View style={styles.section}>
+          <Text style={styles.fieldLabel}>증거 제목</Text>
           <TextInput
             style={styles.input}
             placeholder="예: 3월 2일 집 앞 사진"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={C.ink400}
             value={title}
             onChangeText={setTitle}
           />
-
-          <Text style={styles.sectionLabel}>메모</Text>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.fieldLabel}>메모</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder={evidenceType === 'text' ? '텍스트 내용을 입력하세요' : '상황 설명을 적어두면 나중에 찾기 쉽습니다'}
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={C.ink400}
             value={note}
             onChangeText={setNote}
             multiline
           />
-
-          <TouchableOpacity style={styles.fileButton} onPress={pickFile}>
-            <Text style={styles.fileButtonText}>
-              {evidenceType === 'text' ? '파일 첨부하기(선택)' : '파일 선택하기'}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.fileInfoBox}>
-            <Text style={styles.fileInfoLabel}>첨부 파일</Text>
-            <Text style={styles.fileInfoValue}>{file?.name ?? '선택된 파일 없음'}</Text>
-            {!!file?.size && <Text style={styles.fileInfoMeta}>{Math.round(file.size / 1024)} KB</Text>}
-          </View>
         </View>
 
-        <View style={styles.sectionCard}>
+        <TouchableOpacity style={styles.dashedRow} onPress={pickFile}>
+          <Text style={styles.dashedRowText}>
+            + {evidenceType === 'text' ? '파일 첨부하기(선택)' : '파일 선택하기'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.fileInfoBox}>
+          <Text style={styles.fileInfoLabel}>첨부 파일</Text>
+          <Text style={styles.fileInfoValue}>{file?.name ?? '선택된 파일 없음'}</Text>
+          {!!file?.size && <Text style={styles.fileInfoMeta}>{Math.round(file.size / 1024)} KB</Text>}
+        </View>
+
+        <View style={styles.section}>
           <View style={styles.rowBetween}>
-            <Text style={styles.sectionLabel}>GPS</Text>
+            <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>GPS</Text>
             <TouchableOpacity onPress={loadLocation}>
               <Text style={styles.linkText}>다시 가져오기</Text>
             </TouchableOpacity>
@@ -252,8 +248,8 @@ export function UploadScreen({ navigation, route }) {
           </Text>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionLabel}>타임스탬프</Text>
+        <View style={styles.section}>
+          <Text style={styles.fieldLabel}>타임스탬프</Text>
           <Text style={styles.timestampText}>{formatDateTime(savedAt)}</Text>
           <Text style={styles.helperText}>저장 시점은 Firestore createdAt과 capturedAt에 함께 기록됩니다.</Text>
         </View>
@@ -265,108 +261,88 @@ export function UploadScreen({ navigation, route }) {
           </View>
         )}
 
-        <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#F8FAFC" /> : <Text style={styles.saveButtonText}>Storage + DB 저장</Text>}
+        <TouchableOpacity style={[styles.cta, saving && styles.ctaDisabled]} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Storage + DB 저장</Text>}
         </TouchableOpacity>
 
         <View style={{ height: 24 }} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
-  appbar: {
-    backgroundColor: '#1E3A5F',
-    padding: 16,
-    paddingTop: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  back: { color: '#7B9EC5', fontSize: 16 },
-  title: { color: '#F8FAFC', fontSize: 16, fontWeight: '600' },
-  subtitle: { color: '#7B9EC5', fontSize: 11 },
-  content: { padding: 16, gap: 12 },
+  wrapper: { flex: 1, backgroundColor: C.surface },
+  content: { padding: 20, gap: 20 },
+  section: { gap: 10 },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 10,
+    borderColor: C.line,
+    gap: 6,
   },
-  sectionLabel: {
-    color: '#1E3A5F',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  caseTitle: { color: '#0F172A', fontSize: 18, fontWeight: '700' },
-  helperText: { color: '#64748B', fontSize: 12, lineHeight: 18 },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  typeChip: {
+  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.06, textTransform: 'uppercase', color: C.ink400 },
+  fieldLabel: { fontSize: 12.5, fontWeight: '700', color: C.ink700, marginBottom: 10 },
+  caseTitle: { color: C.ink900, fontSize: 18, fontWeight: '700' },
+  helperText: { color: C.ink500, fontSize: 12, lineHeight: 18 },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  typeCard: {
     flexGrow: 1,
     minWidth: '45%',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: C.line,
+    paddingVertical: 14,
     paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: 4,
   },
-  typeChipActive: {
-    borderColor: '#1E3A5F',
-    backgroundColor: '#E2E8F0',
+  typeCardActive: {
+    borderColor: C.brand500,
+    backgroundColor: C.sky050,
   },
   typeIcon: { fontSize: 18 },
-  typeText: { color: '#475569', fontSize: 13, fontWeight: '600' },
-  typeTextActive: { color: '#1E3A5F' },
+  typeText: { color: C.ink900, fontSize: 13, fontWeight: '700' },
   input: {
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#F8FAFC',
+    borderColor: C.line,
+    backgroundColor: C.sky050,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#0F172A',
-    fontSize: 14,
+    color: C.ink900,
+    fontSize: 13.5,
   },
   textArea: {
     minHeight: 96,
     textAlignVertical: 'top',
   },
-  fileButton: {
-    backgroundColor: '#1E3A5F',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+  dashedRow: {
+    borderWidth: 1.5, borderColor: C.line, borderStyle: 'dashed', borderRadius: 14,
+    paddingVertical: 14, alignItems: 'center',
   },
-  fileButtonText: { color: '#F8FAFC', fontSize: 14, fontWeight: '600' },
+  dashedRowText: { color: C.brand500, fontSize: 13, fontWeight: '700' },
   fileInfoBox: {
-    borderRadius: 12,
-    backgroundColor: '#EFF6FF',
-    padding: 12,
-    gap: 4,
-  },
-  fileInfoLabel: { color: '#1D4ED8', fontSize: 12, fontWeight: '700' },
-  fileInfoValue: { color: '#0F172A', fontSize: 13, fontWeight: '600' },
-  fileInfoMeta: { color: '#475569', fontSize: 11 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  linkText: { color: '#1D4ED8', fontSize: 12, fontWeight: '600' },
-  locationText: { color: '#0F172A', fontSize: 14, fontWeight: '600' },
-  timestampText: { color: '#0F172A', fontSize: 14, fontWeight: '600' },
-  saveButton: {
-    backgroundColor: '#0F1F3D',
     borderRadius: 14,
+    backgroundColor: C.sky050,
+    padding: 12,
+    gap: 2,
+  },
+  fileInfoLabel: { color: C.brand600, fontSize: 12, fontWeight: '700' },
+  fileInfoValue: { color: C.ink900, fontSize: 13, fontWeight: '600' },
+  fileInfoMeta: { color: C.ink500, fontSize: 11 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  linkText: { color: C.brand500, fontSize: 13, fontWeight: '700' },
+  locationText: { color: C.ink900, fontSize: 14, fontWeight: '600' },
+  timestampText: { color: C.ink900, fontSize: 14, fontWeight: '600' },
+  cta: {
+    backgroundColor: C.brand600,
+    borderRadius: 999,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 4,
   },
-  saveButtonDisabled: { opacity: 0.7 },
-  saveButtonText: { color: '#F8FAFC', fontSize: 15, fontWeight: '700' },
+  ctaDisabled: { opacity: 0.7 },
+  ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
