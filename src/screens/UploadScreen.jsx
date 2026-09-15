@@ -17,6 +17,7 @@ import { createEvidenceRecord } from '../services/firebaseService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
 import { BackHeader } from '../components/BackHeader';
+import { EventTimeInputModal } from '../components/EventTimeInputModal';
 import { C } from '../theme/tokens';
 
 const evidenceTypes = [
@@ -44,6 +45,10 @@ export function UploadScreen({ navigation, route }) {
   const [savedAt, setSavedAt] = useState(null);
   const [savedId, setSavedId] = useState('');
   const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
+
+  // 텍스트 메모는 파일에 담긴 촬영/녹음 시각이 없으므로 사용자가 사건 발생 시각을 직접 입력한다.
+  const [eventDate, setEventDate] = useState(() => new Date());
+  const [eventTimeModalVisible, setEventTimeModalVisible] = useState(false);
 
   useEffect(() => {
     void loadLocation();
@@ -142,6 +147,8 @@ export function UploadScreen({ navigation, route }) {
         }
       }
 
+      // 텍스트 메모는 사용자가 직접 입력한 사건 발생 시각을 그대로 사용.
+      // 그 외 유형(이 화면에서 파일만 첨부하는 경우)은 별도 자동 추출 없이 업로드 시각을 사건 발생 시각으로 둔다.
       const savedRecord = await createEvidenceRecord({
         userId: user?.uid ?? null,
         caseId,
@@ -151,6 +158,8 @@ export function UploadScreen({ navigation, route }) {
         evidenceType,
         file: fileToUpload,
         location,
+        eventTime: evidenceType === 'text' ? eventDate : null,
+        eventTimeSource: evidenceType === 'text' ? 'manual' : null,
       });
 
       setSavedId(savedRecord.id);
@@ -159,6 +168,7 @@ export function UploadScreen({ navigation, route }) {
       setTitle('');
       setNote('');
       setFile(null);
+      setEventDate(new Date());
     } catch (error) {
       console.error('증거 저장 실패:', error);
       Alert.alert('저장 실패', '증거를 저장하지 못했습니다. 다시 시도해 주세요.');
@@ -248,8 +258,22 @@ export function UploadScreen({ navigation, route }) {
           </Text>
         </View>
 
+        {evidenceType === 'text' && (
+          <View style={styles.section}>
+            <Text style={styles.fieldLabel}>사건 발생 시각</Text>
+            <TouchableOpacity style={styles.dateRow} onPress={() => setEventTimeModalVisible(true)}>
+              <Text style={styles.dateRowText}>{formatDateTime(eventDate)}</Text>
+              <Text style={styles.linkText}>변경</Text>
+            </TouchableOpacity>
+            <Text style={styles.helperText}>
+              텍스트 메모는 파일에 촬영·녹음 시각이 없어 실제 사건이 일어난 시각을 직접 입력해야 해요.
+              타임라인에는 이 시각이 크게 표시되고, 업로드 시각은 작게 함께 표시됩니다.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.section}>
-          <Text style={styles.fieldLabel}>타임스탬프</Text>
+          <Text style={styles.fieldLabel}>업로드 시각</Text>
           <Text style={styles.timestampText}>{formatDateTime(savedAt)}</Text>
           <Text style={styles.helperText}>저장 시점은 Firestore createdAt과 capturedAt에 함께 기록됩니다.</Text>
         </View>
@@ -267,6 +291,18 @@ export function UploadScreen({ navigation, route }) {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      <EventTimeInputModal
+        visible={eventTimeModalVisible}
+        title="사건 발생 시각 입력"
+        description="이 메모가 실제로 일어난 시각을 입력해주세요."
+        initialDate={eventDate}
+        onConfirm={(date) => {
+          setEventDate(date);
+          setEventTimeModalVisible(false);
+        }}
+        onCancel={() => setEventTimeModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -336,6 +372,12 @@ const styles = StyleSheet.create({
   linkText: { color: C.brand500, fontSize: 13, fontWeight: '700' },
   locationText: { color: C.ink900, fontSize: 14, fontWeight: '600' },
   timestampText: { color: C.ink900, fontSize: 14, fontWeight: '600' },
+  dateRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderWidth: 1, borderColor: C.line, backgroundColor: C.sky050,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  dateRowText: { color: C.ink900, fontSize: 14, fontWeight: '700' },
   cta: {
     backgroundColor: C.brand600,
     borderRadius: 999,

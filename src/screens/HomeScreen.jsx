@@ -63,6 +63,84 @@ function formatCaseDate(ts) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일~`;
 }
 
+// 사건 카드 — 진행 중/완료 사건 모두 같은 모양으로 보여준다. 기본은 배지+제목+날짜+한 줄
+// 요약만 보이는 압축된 모양이고, 탭하면 그 자리에서 진행도 바·체크리스트·증거 타입별 개수까지
+// 펼쳐진다(TimelineScreen/ResponseGuideScreen의 아코디언 패턴과 동일). 사건이 여러 개 쌓여도
+// 화면이 안 지저분해지면서, 모든 카드가 항상 같은 모양으로 시작해 통일감도 유지된다.
+function CaseCard({ entry, navigation, isExpanded, onToggleExpand }) {
+  const { case: c, meta, items, progress, evidence, isDone } = entry;
+  const previewItems = items.slice(0, 4);
+  return (
+    <TouchableOpacity
+      style={styles.caseCard}
+      activeOpacity={0.85}
+      onPress={() => onToggleExpand(c.id)}
+    >
+      <View style={styles.caseHead}>
+        <View style={[styles.badge, isDone ? styles.badgeSafe : styles.badgeDanger]}>
+          <Text style={[styles.badgeText, isDone ? styles.badgeTextSafe : styles.badgeTextDanger]}>
+            {isDone ? '완료' : '진행 중'}
+          </Text>
+        </View>
+        <Text style={styles.caseTitle} numberOfLines={1}>{meta.icon} {c.title || '이름 없는 사건'}</Text>
+        <Text style={styles.caseDate}>{formatCaseDate(c.createdAt)}</Text>
+      </View>
+
+      <View style={styles.caseSummaryRow}>
+        <Text style={styles.caseSummaryText}>퀘스트 {progress.label} · 증거 {evidence.total ?? 0}건</Text>
+        <Text style={styles.expandHint}>{isExpanded ? '접기 ▲' : '자세히 보기 ▼'}</Text>
+      </View>
+
+      {isExpanded && (
+        <>
+          <View>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>퀘스트 진행도</Text>
+              <Text style={styles.progressValue}>{progress.label}</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress.percent}%`, backgroundColor: isDone ? C.safe600 : C.brand500 }]} />
+            </View>
+          </View>
+
+          {previewItems.length > 0 && (
+            <View style={styles.checkGrid}>
+              {previewItems.map((item) => (
+                <View key={item.id} style={styles.checkItem}>
+                  <View style={[styles.checkDot, item.completed && styles.checkDotDone]}>
+                    {item.completed && <Text style={styles.checkMark}>✓</Text>}
+                  </View>
+                  <Text style={[styles.checkItemText, item.completed && styles.checkItemTextDone]} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <View style={styles.evidenceRow}>
+            {EVIDENCE_TILES.map((tile) => (
+              <View key={tile.type} style={[styles.evidenceTile, { backgroundColor: tile.bg }]}>
+                <Text style={[styles.evidenceNum, { color: tile.color }]}>{evidence.byType?.[tile.type] ?? 0}</Text>
+                <Text style={[styles.evidenceLabel, { color: tile.color }]}>{tile.label}</Text>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={styles.timelineBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: c.id } });
+              }}
+            >
+              <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ---- 히어로 일러스트 (design/themis-interactive.html의 방패 SVG 그대로) ----
 function ShieldIllustration() {
   return (
@@ -131,6 +209,8 @@ export function HomeScreen({ navigation }) {
   const [cases, setCases] = useState([]);
   const [evidenceByCase, setEvidenceByCase] = useState({});
   const [loading, setLoading] = useState(true);
+  const [showCompletedCases, setShowCompletedCases] = useState(false);
+  const [expandedCaseIds, setExpandedCaseIds] = useState(() => new Set());
 
   const [deadmanEnabled, setDeadmanEnabled] = useState(false);
   const [editingContact, setEditingContact] = useState(false);
@@ -421,8 +501,26 @@ export function HomeScreen({ navigation }) {
   };
 
   const totalEvidence = Object.values(evidenceByCase).reduce((sum, v) => sum + (v?.total ?? 0), 0);
-  const activeCase = cases[0] ?? null;
-  const restCases = cases.slice(1);
+
+  // 사건마다 카드에 필요한 값(진행도·체크리스트·증거)을 미리 계산해두고,
+  // 진행 중/완료로 나눠 완료된 사건은 기본적으로 접어서 보여준다.
+  const casesWithMeta = cases.map((c) => {
+    const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁' };
+    const { items, progress } = buildQuestSteps(c.caseType, c.questSteps ?? []);
+    const evidence = evidenceByCase[c.id] ?? { total: 0, byType: {} };
+    return { case: c, meta, items, progress, evidence, isDone: progress.percent === 100 };
+  });
+  const inProgressCases = casesWithMeta.filter((entry) => !entry.isDone);
+  const completedCases = casesWithMeta.filter((entry) => entry.isDone);
+
+  function toggleCaseExpand(caseId) {
+    setExpandedCaseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(caseId)) next.delete(caseId);
+      else next.add(caseId);
+      return next;
+    });
+  }
 
   return (
     <SafeAreaView style={styles.wrapper} edges={['top']}>
@@ -628,7 +726,7 @@ export function HomeScreen({ navigation }) {
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color={C.brand500} />
             </View>
-          ) : !activeCase ? (
+          ) : cases.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>📂</Text>
               <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
@@ -643,94 +741,37 @@ export function HomeScreen({ navigation }) {
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>내 사건 기록</Text>
 
-              {(() => {
-                const meta = CASE_TYPE_META[activeCase.caseType] ?? { icon: '📁' };
-                const { items, progress } = buildQuestSteps(activeCase.caseType, activeCase.questSteps ?? []);
-                const evidence = evidenceByCase[activeCase.id] ?? { total: 0, byType: {} };
-                const previewItems = items.slice(0, 4);
-                const isDone = progress.percent === 100;
-                return (
+              {inProgressCases.map((entry) => (
+                <CaseCard
+                  key={entry.case.id}
+                  entry={entry}
+                  navigation={navigation}
+                  isExpanded={expandedCaseIds.has(entry.case.id)}
+                  onToggleExpand={toggleCaseExpand}
+                />
+              ))}
+
+              {completedCases.length > 0 && (
+                <>
                   <TouchableOpacity
-                    style={styles.caseCard}
-                    activeOpacity={0.85}
-                    onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: activeCase.id } })}
+                    style={styles.completedToggle}
+                    onPress={() => setShowCompletedCases((v) => !v)}
                   >
-                    <View style={styles.caseHead}>
-                      <View style={[styles.badge, isDone ? styles.badgeSafe : styles.badgeDanger]}>
-                        <Text style={[styles.badgeText, isDone ? styles.badgeTextSafe : styles.badgeTextDanger]}>
-                          {isDone ? '완료' : '진행 중'}
-                        </Text>
-                      </View>
-                      <Text style={styles.caseTitle} numberOfLines={1}>{meta.icon} {activeCase.title || '이름 없는 사건'}</Text>
-                      <Text style={styles.caseDate}>{formatCaseDate(activeCase.createdAt)}</Text>
-                    </View>
-
-                    <View>
-                      <View style={styles.progressRow}>
-                        <Text style={styles.progressLabel}>퀘스트 진행도</Text>
-                        <Text style={styles.progressValue}>{progress.label}</Text>
-                      </View>
-                      <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, { width: `${progress.percent}%`, backgroundColor: isDone ? C.safe600 : C.brand500 }]} />
-                      </View>
-                    </View>
-
-                    {previewItems.length > 0 && (
-                      <View style={styles.checkGrid}>
-                        {previewItems.map((item) => (
-                          <View key={item.id} style={styles.checkItem}>
-                            <View style={[styles.checkDot, item.completed && styles.checkDotDone]}>
-                              {item.completed && <Text style={styles.checkMark}>✓</Text>}
-                            </View>
-                            <Text style={[styles.checkItemText, item.completed && styles.checkItemTextDone]} numberOfLines={1}>
-                              {item.title}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    <View style={styles.evidenceRow}>
-                      {EVIDENCE_TILES.map((tile) => (
-                        <View key={tile.type} style={[styles.evidenceTile, { backgroundColor: tile.bg }]}>
-                          <Text style={[styles.evidenceNum, { color: tile.color }]}>{evidence.byType?.[tile.type] ?? 0}</Text>
-                          <Text style={[styles.evidenceLabel, { color: tile.color }]}>{tile.label}</Text>
-                        </View>
-                      ))}
-                      <View style={styles.timelineBtn}>
-                        <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
-                      </View>
-                    </View>
+                    <Text style={styles.completedToggleText}>
+                      {showCompletedCases ? '완료된 사건 접기 ▲' : `완료된 사건 ${completedCases.length}개 보기 ▼`}
+                    </Text>
                   </TouchableOpacity>
-                );
-              })()}
-
-              {restCases.map((c) => {
-                const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁' };
-                const { progress } = buildQuestSteps(c.caseType, c.questSteps ?? []);
-                const evidence = evidenceByCase[c.id] ?? { total: 0 };
-                const isDone = progress.percent === 100;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={styles.caseRow}
-                    onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: c.id } })}
-                  >
-                    <View style={styles.caseRowIcon}>
-                      <Text style={{ fontSize: 17 }}>{meta.icon}</Text>
-                    </View>
-                    <View style={styles.caseRowText}>
-                      <Text style={styles.caseRowTitle} numberOfLines={1}>{c.title || '이름 없는 사건'}</Text>
-                      <Text style={styles.caseRowSub}>증거 {evidence.total}건 · 퀘스트 {progress.label}</Text>
-                    </View>
-                    <View style={[styles.badge, isDone ? styles.badgeSafe : styles.badgeDanger]}>
-                      <Text style={[styles.badgeText, isDone ? styles.badgeTextSafe : styles.badgeTextDanger]}>
-                        {isDone ? '완료' : '진행 중'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+                  {showCompletedCases && completedCases.map((entry) => (
+                    <CaseCard
+                      key={entry.case.id}
+                      entry={entry}
+                      navigation={navigation}
+                      isExpanded={expandedCaseIds.has(entry.case.id)}
+                      onToggleExpand={toggleCaseExpand}
+                    />
+                  ))}
+                </>
+              )}
 
               <TouchableOpacity
                 style={styles.dashedRow}
@@ -839,6 +880,9 @@ const styles = StyleSheet.create({
   badgeTextSafe: { color: C.safe600 },
   caseTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: C.ink900 },
   caseDate: { fontSize: 11, color: C.ink400 },
+  caseSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  caseSummaryText: { fontSize: 12, color: C.ink500 },
+  expandHint: { fontSize: 11, color: C.brand500, fontWeight: '600' },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   progressLabel: { fontSize: 11.5, color: C.ink500 },
   progressValue: { fontSize: 11.5, fontWeight: '700', color: C.ink700 },
@@ -858,14 +902,8 @@ const styles = StyleSheet.create({
   timelineBtn: { width: 60, borderRadius: 12, backgroundColor: C.ink900, alignItems: 'center', justifyContent: 'center', paddingVertical: 4 },
   timelineBtnText: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
 
-  caseRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: C.line,
-  },
-  caseRowIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: C.sky100, alignItems: 'center', justifyContent: 'center' },
-  caseRowText: { flex: 1, minWidth: 0, gap: 2 },
-  caseRowTitle: { fontSize: 13.5, fontWeight: '700', color: C.ink900 },
-  caseRowSub: { fontSize: 11.5, color: C.ink500 },
+  completedToggle: { alignItems: 'center', paddingVertical: 10 },
+  completedToggleText: { color: C.ink400, fontSize: 12, fontWeight: '600' },
 
   dashedRow: {
     alignItems: 'center', justifyContent: 'center', paddingVertical: 14,

@@ -29,7 +29,9 @@
         {
           "color": "#1E3A5F"
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-status-bar"
     ],
     "android": {
       "package": "com.themis.app",

@@ -15,6 +15,7 @@ import {
 } from "../services/imagePreprocess";
 import { createEvidenceRecord } from "../services/firebaseService";
 import { buildChecklist } from "../services/requiredClauseChecklist";
+import { parseContractDateString } from "../utils/parseContractDate";
 import {
   REGION_CODES,
   HOUSING_TYPE_LABELS,
@@ -62,6 +63,11 @@ function buildAnalysisNote(result) {
 async function saveAnalysisToTimeline({ userId, caseId, contractType, image, result, geminiRawResults = [] }) {
   const checklist = buildChecklist(contractType, geminiRawResults);
 
+  // AI가 계약서 안에서 읽어낸 날짜를 "사건 발생 시각"으로 사용한다 (업로드 시각이 아니라
+  // 계약서에 실제로 적힌 날짜 기준으로 타임라인/보고서가 정렬되도록).
+  // 파싱에 실패하면(날짜 없음/인식 불가) createEvidenceRecord가 업로드 시각으로 자동 대체한다.
+  const parsedContractDate = parseContractDateString(result.contractDate);
+
   await createEvidenceRecord({
     userId,
     caseId: caseId ?? 'general',
@@ -69,12 +75,16 @@ async function saveAnalysisToTimeline({ userId, caseId, contractType, image, res
     note: buildAnalysisNote(result),
     evidenceType: 'contract',
     file: image ?? null,
+    eventTime: parsedContractDate,
+    eventTimeSource: parsedContractDate ? 'contract_ai' : null,
     extra: {
       contractType,
       analysisSummary: result.summary ?? null,
       analysisItems: result.items ?? [],
       requiredClauseChecklist: checklist.items,
       requiredClauseProgress: checklist.progress,
+      // 계약서에서 읽은 원문 날짜 문자열 — 타임라인/보고서에서 "계약서상 날짜: ..."로 표시
+      contractDate: result.contractDate ?? null,
     },
   });
 }

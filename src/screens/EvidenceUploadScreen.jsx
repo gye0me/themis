@@ -15,7 +15,23 @@ import { extractTextFromImage } from '../services/ocrService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
 import { BackHeader } from '../components/BackHeader';
+import { EventTimeInputModal } from '../components/EventTimeInputModal';
+import { extractPhotoCaptureDate, extractContainerCreationTime } from '../utils/mediaEventTime';
 import { C } from '../theme/tokens';
+
+// 타입별로 "사건 발생 시각"을 자동으로 구해본다. 실패하면 null을 반환하고,
+// 호출부에서 필요 시(음성/영상) 사용자에게 직접 입력을 받는다.
+async function resolveAutoEventTime(evidenceType, file) {
+  if (evidenceType === 'image') {
+    const date = await extractPhotoCaptureDate({ uri: file.uri, exif: file.exif, mimeType: file.mimeType });
+    return { date, source: date ? 'exif' : null };
+  }
+  if (evidenceType === 'video' || evidenceType === 'audio') {
+    const date = await extractContainerCreationTime(file.uri);
+    return { date, source: date ? 'media_metadata' : null };
+  }
+  return { date: null, source: null };
+}
 
 // 녹음 시간을 mm:ss 형식으로 표시
 function formatDuration(ms) {
@@ -87,9 +103,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
   const [recordModalVisible, setRecordModalVisible] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
+  const recordingStartRef = useRef(null); // 앱 안에서 직접 녹음할 때 시작 시각(정확한 사건 발생 시각)
+
+  // 자동 추출이 실패한 음성/영상 파일의 사건 발생 시각을 직접 입력받기 위한 대기 상태
+  const [pendingManualEntry, setPendingManualEntry] = useState(null); // { evidenceType, file }
 
   // 파일 선택/녹음 두 경로가 공통으로 쓰는 업로드 처리 (위치 기록 → 클로바 변환 → Firestore 저장 → 결과 안내)
-  const uploadEvidence = async (evidenceType, file) => {
+  // eventTime/eventTimeSource: 사건 발생 시각을 이미 구해둔 경우(EXIF, 앱 내 녹음 시작 시각 등) 전달
+  const uploadEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null) => {
     const cfg = UPLOAD_TYPES[evidenceType];
     setUploadingType(evidenceType);
     try {
@@ -139,6 +160,8 @@ export function EvidenceUploadScreen({ navigation, route }) {
         file,
         location,
         extra,
+        eventTime,
+        eventTimeSource,
       });
 
       let msg;
@@ -168,6 +191,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: evidenceType === 'image' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
           quality: 0.8,
+          exif: evidenceType === 'image', // 사진일 때만 EXIF(촬영 시각 포함) 요청
         });
         if (result.canceled || !result.assets?.length) return;
         const asset = result.assets[0];
@@ -175,7 +199,18 @@ export function EvidenceUploadScreen({ navigation, route }) {
           uri: asset.uri,
           name: asset.fileName ?? `${evidenceType}-${Date.now()}.${evidenceType === 'image' ? 'jpg' : 'mp4'}`,
           mimeType: asset.mimeType ?? (evidenceType === 'image' ? 'image/jpeg' : 'video/mp4'),
+          exif: asset.exif ?? null,
         };
+
+        // 사진: 워터마크 합성 전에 원본에서 EXIF 촬영 시각을 먼저 읽어둔다
+        // (워터마크 합성 과정에서 새 파일로 다시 인코딩되면 EXIF가 사라질 수 있음).
+        let autoEventTime = null;
+        let autoEventTimeSource = null;
+        if (evidenceType === 'image') {
+          const { date, source } = await resolveAutoEventTime('image', file);
+          autoEventTime = date;
+          autoEventTimeSource = source;
+        }
 
         // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
         // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
@@ -187,20 +222,50 @@ export function EvidenceUploadScreen({ navigation, route }) {
           } catch (stampError) {
             console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
           }
+          // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음
+          await uploadEvidence('image', file, autoEventTime, autoEventTimeSource);
+          return;
         }
 
-        await uploadEvidence(evidenceType, file);
+        // 영상: 파일 자체의 촬영 시각(mp4 컨테이너 메타데이터)을 읽어보고, 없으면 직접 입력받는다
+        const { date: videoDate, source: videoSource } = await resolveAutoEventTime('video', file);
+        if (videoDate) {
+          await uploadEvidence('video', file, videoDate, videoSource);
+        } else {
+          setPendingManualEntry({ evidenceType: 'video', file });
+        }
         return;
       }
 
       const cfg = UPLOAD_TYPES[evidenceType];
       const result = await DocumentPicker.getDocumentAsync({ type: cfg.mimeType });
       if (result.canceled || !result.assets?.length) return;
-      await uploadEvidence(evidenceType, result.assets[0]);
+      const file = result.assets[0];
+
+      if (evidenceType === 'audio') {
+        // 음성 파일(파일 탐색기에서 선택): 컨테이너에 녹음 시각이 있으면 자동 사용, 없으면 직접 입력
+        const { date, source } = await resolveAutoEventTime('audio', file);
+        if (date) {
+          await uploadEvidence('audio', file, date, source);
+        } else {
+          setPendingManualEntry({ evidenceType: 'audio', file });
+        }
+        return;
+      }
+
+      await uploadEvidence(evidenceType, file);
     } catch (error) {
       console.error('파일 선택 실패:', error);
       Alert.alert('오류', '파일을 선택하지 못했습니다.');
     }
+  };
+
+  // 자동 추출 실패 시(영상/파일에서 가져온 음성) 사용자가 직접 입력한 시각으로 업로드 진행
+  const handleManualEventTimeConfirm = async (date) => {
+    const entry = pendingManualEntry;
+    setPendingManualEntry(null);
+    if (!entry) return;
+    await uploadEvidence(entry.evidenceType, entry.file, date, 'manual');
   };
 
   // "음성" 카드 탭: 새로 녹음할지 / 기존 음성 메모 파일을 가져올지 선택
@@ -224,6 +289,8 @@ export function EvidenceUploadScreen({ navigation, route }) {
       setHasRecorded(false);
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
+      recordingStartRef.current = new Date(); // 앱 안에서 직접 녹음 → 시작 시각을 정확히 알 수 있음
+
     } catch (error) {
       console.error('녹음 시작 실패:', error);
       Alert.alert('녹음 시작 실패', error.message ?? String(error));
@@ -256,11 +323,18 @@ export function EvidenceUploadScreen({ navigation, route }) {
       Alert.alert('오류', '녹음 파일을 찾을 수 없습니다. 다시 시도해주세요.');
       return;
     }
-    await uploadEvidence('audio', {
-      uri,
-      name: `recording-${Date.now()}.m4a`,
-      mimeType: 'audio/m4a',
-    });
+    const eventTime = recordingStartRef.current ?? null;
+    recordingStartRef.current = null;
+    await uploadEvidence(
+      'audio',
+      {
+        uri,
+        name: `recording-${Date.now()}.m4a`,
+        mimeType: 'audio/m4a',
+      },
+      eventTime,
+      eventTime ? 'app_recording' : null
+    );
   };
 
   return (
@@ -405,6 +479,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      <EventTimeInputModal
+        visible={!!pendingManualEntry}
+        title={pendingManualEntry?.evidenceType === 'video' ? '영상 촬영 시각 입력' : '음성 녹음 시각 입력'}
+        description="파일에서 촬영/녹음 시각을 찾지 못했어요. 실제 사건이 발생한 시각을 입력해주세요."
+        onConfirm={handleManualEventTimeConfirm}
+        onCancel={() => setPendingManualEntry(null)}
+      />
     </SafeAreaView>
   );
 }

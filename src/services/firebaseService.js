@@ -372,9 +372,20 @@ export async function createEvidenceRecord({
   file = null,
   location = null,
   extra = {}, // 계약서 분석 결과처럼 타입별 추가 데이터를 넣을 때 사용 (선택)
+  // 실제 "사건 발생 시각" — 사진 EXIF, 영상/음성 파일 자체 촬영·녹음 시각,
+  // 계약서에 적힌 날짜, 사용자가 직접 입력한 날짜 등 타입별로 화면단에서 계산해 전달한다.
+  // 넘기지 않으면(추출 실패 등) 업로드 시각(capturedAt)을 그대로 사건 발생 시각으로 간주한다.
+  eventTime = null,
+  // eventTime을 어떻게 구했는지 표시용 메타 정보: 'exif' | 'media_metadata' | 'contract_ai' | 'manual' | 'upload_fallback'
+  eventTimeSource = null,
 }) {
   try {
-    const capturedAt = Timestamp.now(); // 표시용 — 기기 시계 기준이라 조작 가능성이 있음
+    const capturedAt = Timestamp.now(); // 업로드(기기가 서버에 기록을 남긴) 시각 — 기기 시계 기준이라 조작 가능성이 있음
+    const resolvedEventTime =
+      eventTime instanceof Date && !Number.isNaN(eventTime.getTime())
+        ? Timestamp.fromDate(eventTime)
+        : capturedAt; // 사건 발생 시각을 못 구했으면 업로드 시각으로 대체
+    const resolvedEventTimeSource = eventTime ? (eventTimeSource ?? 'unknown') : 'upload_fallback';
     let storagePath = null;
     let downloadURL = null;
     let originalFileName = null;
@@ -406,7 +417,9 @@ export async function createEvidenceRecord({
       storagePath,
       downloadURL,
       location,
-      capturedAt,
+      capturedAt, // 업로드 시각 (타임라인 카드에 "작게" 표시)
+      eventTime: resolvedEventTime, // 사건 발생 시각 (타임라인 카드에 "크게" 표시, 정렬 기준)
+      eventTimeSource: resolvedEventTimeSource,
       createdAt: capturedAt,
       // 클라이언트 기기 시계는 조작 가능하므로, 서버가 실제로 문서를 받은 시점을
       // 별도로 기록해 무결성 검증 근거로 쓴다 (capturedAt과 별개로 유지).
@@ -432,6 +445,8 @@ export async function createEvidenceRecord({
       downloadURL,
       location,
       capturedAt,
+      eventTime: resolvedEventTime,
+      eventTimeSource: resolvedEventTimeSource,
       hidden: false,
       ...extra,
     };
@@ -457,7 +472,8 @@ export async function setEvidenceHidden(recordId, hidden) {
 }
 
 /**
- * 증거 목록 조회 (userId 기준, capturedAt 내림차순)
+ * 증거 목록 조회 (userId 기준, 사건 발생 시각(eventTime) 내림차순).
+ * eventTime이 없는(마이그레이션 이전) 문서는 capturedAt(업로드 시각)으로 폴백한다.
  */
 export async function getEvidenceRecords(userId, caseId = null) {
   try {
@@ -468,8 +484,8 @@ export async function getEvidenceRecords(userId, caseId = null) {
     const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     // 복합 인덱스 없이도 동작하도록 클라이언트에서 정렬
     docs.sort((a, b) => {
-      const aTime = a.capturedAt?.toDate?.() ?? new Date(a.capturedAt ?? 0);
-      const bTime = b.capturedAt?.toDate?.() ?? new Date(b.capturedAt ?? 0);
+      const aTime = resolveRecordEventDate(a);
+      const bTime = resolveRecordEventDate(b);
       return bTime - aTime;
     });
     return docs;
@@ -477,6 +493,16 @@ export async function getEvidenceRecords(userId, caseId = null) {
     console.error('증거 목록 조회 오류:', error);
     throw error;
   }
+}
+
+/**
+ * evidenceRecords 문서 하나에서 "사건 발생 시각"을 Date로 뽑아낸다.
+ * eventTime → capturedAt → createdAt 순으로 폴백 (구버전 문서 호환).
+ */
+export function resolveRecordEventDate(record) {
+  const value = record?.eventTime ?? record?.capturedAt ?? record?.createdAt;
+  if (!value) return new Date(0);
+  return value?.toDate ? value.toDate() : new Date(value);
 }
 
 // ==================== 사건(Case) & 대응 퀘스트 ====================
