@@ -62,3 +62,61 @@ export function formatLawContext(laws) {
   );
   return `[국가법령정보센터 최신 조회 결과]\n${lines.join('\n')}`;
 }
+
+/**
+ * 키워드(사건 유형, 위험 조항 제목 등)로 관련 판례를 검색한다.
+ * searchLaw()와 같은 lawSearch.do 엔드포인트를 target=prec으로 호출하는 것뿐이라
+ * 같은 OC 키를 그대로 쓰고 별도 활용신청이 필요 없다.
+ * @param {string} query - 검색할 키워드 (예: '위약금 비대칭', '주택임대차보호법')
+ * @param {number} display - 최대 결과 개수 (기본 3)
+ * @returns {Promise<Array<{caseName: string, caseNumber: string, court: string, judgmentDate: string, caseType: string, precId: string, detailUrl: string}>>}
+ */
+export async function searchPrecedent(query, display = 3) {
+  const oc = process.env.EXPO_PUBLIC_LAW_OC;
+  if (!oc) {
+    console.warn('EXPO_PUBLIC_LAW_OC가 설정되지 않아 판례 검색을 건너뜁니다.');
+    return [];
+  }
+
+  const url = `${LAW_SEARCH_URL}?OC=${oc}&target=prec&type=JSON&query=${encodeURIComponent(query)}&display=${display}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`판례 검색 API 오류 (${res.status})`);
+      return [];
+    }
+    const data = await res.json();
+
+    // 법령 검색과 동일하게 결과가 1건이면 객체, 여러 건이면 배열로 내려오는 구조라 방어적으로 배열화한다.
+    const raw = data?.PrecSearch?.prec ?? [];
+    const list = Array.isArray(raw) ? raw : [raw];
+
+    return list
+      .filter((item) => item && item['사건명'])
+      .map((item) => ({
+        caseName: item['사건명'] ?? '',
+        caseNumber: item['사건번호'] ?? '',
+        court: item['법원명'] ?? '',
+        judgmentDate: item['선고일자'] ?? '',
+        caseType: item['사건종류명'] ?? '',
+        precId: item['판례일련번호'] ?? '',
+        detailUrl: item['판례상세링크'] ? `https://www.law.go.kr${item['판례상세링크']}` : '',
+      }));
+  } catch (err) {
+    console.warn('판례 검색 API 호출 실패:', err.message);
+    return []; // 실패해도 호출부(협상 문구 등)는 계속 진행되도록 빈 배열 반환
+  }
+}
+
+/**
+ * 판례 검색 결과를 프롬프트에 붙일 수 있는 짧은 텍스트 블록으로 변환한다.
+ * @param {Array} precedents - searchPrecedent()의 반환값
+ */
+export function formatPrecedentContext(precedents) {
+  if (!precedents || precedents.length === 0) return '';
+  const lines = precedents.map(
+    (p) => `- ${p.caseName} (${p.court || '법원정보없음'}, 선고일자: ${p.judgmentDate || '정보없음'}, 사건번호: ${p.caseNumber || '정보없음'})`
+  );
+  return `[국가법령정보센터 판례 조회 결과]\n${lines.join('\n')}`;
+}
