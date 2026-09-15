@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator } from "react-native";
 import { APP_ROUTES } from "../navigation/routes";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,9 +19,11 @@ import {
   REGION_CODES,
   HOUSING_TYPE_LABELS,
   fetchRecentTrades,
+  fetchRecentRentTrades,
   groupTradesByBuilding,
   filterTradesByArea,
   calcAverageDealAmount,
+  calcAverageDeposit,
   calcJeonseRatio,
   getJeonseRiskLevel,
   formatManwonToKorean,
@@ -94,12 +96,45 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const [depositAmount, setDepositAmount] = useState("");
   const [tradesLoading, setTradesLoading] = useState(false);
   const [tradesSearched, setTradesSearched] = useState(false);
+  const [rentTrades, setRentTrades] = useState([]);
+  const [rentLoading, setRentLoading] = useState(false);
 
   const filteredBuildingTrades = selectedBuilding ? filterTradesByArea(selectedBuilding.trades, contractArea) : [];
   const compareAvgAmount = selectedBuilding ? calcAverageDealAmount(filteredBuildingTrades) : null;
   const jeonseRatio = calcJeonseRatio(depositAmount, compareAvgAmount);
   const jeonseRisk = getJeonseRiskLevel(jeonseRatio);
   const jeonseRiskLabel = { danger: "깡통전세 위험", warning: "주의 필요", safe: "비교적 안전" };
+
+  const filteredRentTrades = filterTradesByArea(rentTrades, contractArea).filter((t) => t.isJeonse);
+  const avgDeposit = calcAverageDeposit(filteredRentTrades);
+
+  // 건물을 고르면(매매 쪽 선택), 같은 건물·같은 지역의 전월세 실거래도 같이 가져와서
+  // "다른 세입자들은 실제로 얼마 냈는지" 비교할 수 있게 한다.
+  // (selectedBuilding이 null일 때의 rentTrades 초기화는 이펙트가 아니라 selectedBuilding을
+  // 바꾸는 이벤트 핸들러들에서 직접 처리한다 — 이펙트 본문에서 곧장 setState하지 않기 위함)
+  useEffect(() => {
+    const lawdCd = REGION_CODES[selectedRegion];
+    if (!selectedBuilding || !lawdCd) return;
+
+    let cancelled = false;
+    (async () => {
+      setRentLoading(true);
+      try {
+        const all = await fetchRecentRentTrades({ housingType, lawdCd, baseYmd: dealYmd, months: 3 });
+        if (cancelled) return;
+        const sameBuilding = all.filter(
+          (t) => t.buildingName === selectedBuilding.buildingName && t.dong === selectedBuilding.dong
+        );
+        setRentTrades(sameBuilding);
+      } finally {
+        if (!cancelled) setRentLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBuilding, housingType, selectedRegion, dealYmd]);
 
   const handleCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -144,6 +179,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     setTradesLoading(true);
     setTradesSearched(true);
     setSelectedBuilding(null);
+    setRentTrades([]);
     try {
       // 구 단위 평균은 편차가 커서, 최근 3개월치를 모아 건물별로 묶어야
       // 계약서와 같은 건물을 골라 정확하게 비교할 수 있다.
@@ -252,6 +288,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                     setHousingType(type);
                     setBuildingGroups([]);
                     setSelectedBuilding(null);
+                    setRentTrades([]);
                     setTradesSearched(false);
                   }}
                   style={[styles.chip, housingType === type && styles.chipActive]}
@@ -305,7 +342,10 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                     {buildingGroups.map((g) => (
                       <TouchableOpacity
                         key={`${g.dong}-${g.buildingName}`}
-                        onPress={() => setSelectedBuilding(g)}
+                        onPress={() => {
+                          setSelectedBuilding(g);
+                          setRentTrades([]);
+                        }}
                         style={[styles.chip, selectedBuilding?.buildingName === g.buildingName && styles.chipActive]}
                       >
                         <Text style={[styles.chipText, selectedBuilding?.buildingName === g.buildingName && styles.chipTextActive]}>
@@ -355,6 +395,10 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                 <Text style={styles.compareAvgText}>
                   비교 매매 평균가: {formatManwonToKorean(compareAvgAmount) || "정보없음"} ({filteredBuildingTrades.length}건 기준
                   {contractArea ? `, ${contractArea}㎡ 근접` : ""})
+                </Text>
+                <Text style={styles.compareAvgText}>
+                  같은 건물 다른 세입자 평균 보증금: {rentLoading ? "조회 중..." : (formatManwonToKorean(avgDeposit) || "전세 거래 없음")}
+                  {!rentLoading && filteredRentTrades.length > 0 ? ` (${filteredRentTrades.length}건 기준)` : ""}
                 </Text>
 
                 {jeonseRatio != null && jeonseRisk && (

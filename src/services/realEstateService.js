@@ -25,6 +25,19 @@ const TRADE_ENDPOINTS = {
   },
 };
 
+// 전월세(전세/월세) 실거래가 API. 매매와 같은 지역코드 체계를 쓰고 건물명 태그도 동일해
+// TRADE_ENDPOINTS와 같은 방식으로 다룰 수 있다.
+const RENT_ENDPOINTS = {
+  apt: {
+    url: 'http://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent',
+    nameTag: 'aptNm',
+  },
+  villa: {
+    url: 'http://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent',
+    nameTag: 'mhouseNm',
+  },
+};
+
 export const HOUSING_TYPE_LABELS = {
   apt: '아파트',
   villa: '연립다세대·빌라',
@@ -181,6 +194,115 @@ export async function fetchAptTrades(params) {
 /** 연립다세대(빌라) 매매 실거래가를 조회한다. @param {{lawdCd: string, dealYmd: string, numOfRows?: number}} params */
 export async function fetchVillaTrades(params) {
   return fetchTrades('villa', params);
+}
+
+function parseRentItemBlock(block, nameTag) {
+  return {
+    buildingName: extractTag(block, nameTag),
+    deposit: extractTag(block, 'deposit').replace(/,/g, ''), // 보증금, 만원 단위
+    monthlyRent: extractTag(block, 'monthlyRent').replace(/,/g, ''), // 월세, 0이면 순수 전세
+    contractType: extractTag(block, 'contractType'), // 신규 | 갱신
+    area: extractTag(block, 'excluUseAr'),
+    floor: extractTag(block, 'floor'),
+    buildYear: extractTag(block, 'buildYear'),
+    dealYear: extractTag(block, 'dealYear'),
+    dealMonth: extractTag(block, 'dealMonth'),
+    dealDay: extractTag(block, 'dealDay'),
+    dong: extractTag(block, 'umdNm'),
+    jibun: extractTag(block, 'jibun'),
+  };
+}
+
+function parseRentItems(xmlText, nameTag) {
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRegex.exec(xmlText)) !== null) {
+    items.push(parseRentItemBlock(match[1], nameTag));
+  }
+  return items;
+}
+
+/**
+ * 지역(법정동코드)·계약년월 기준 전월세 실거래가를 조회한다.
+ * @param {'apt'|'villa'} housingType
+ * @param {{lawdCd: string, dealYmd: string, numOfRows?: number}} params
+ * @returns {Promise<Array<{buildingName, deposit, depositKorean, monthlyRent, isJeonse, area, floor, dong, jibun, dealDate}>>}
+ */
+async function fetchRentTradesOnce(housingType, { lawdCd, dealYmd, numOfRows = 100 }) {
+  const config = RENT_ENDPOINTS[housingType];
+  if (!config) return [];
+
+  const serviceKey = process.env.EXPO_PUBLIC_REALESTATE_API_KEY;
+  if (!serviceKey) {
+    console.warn('EXPO_PUBLIC_REALESTATE_API_KEY가 설정되지 않아 전월세 실거래가 조회를 건너뜁니다.');
+    return [];
+  }
+  if (!lawdCd || !dealYmd) return [];
+
+  const url = `${config.url}?serviceKey=${serviceKey}&LAWD_CD=${lawdCd}&DEAL_YMD=${dealYmd}&numOfRows=${numOfRows}&pageNo=1`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`전월세 실거래가 API 오류 (${res.status})`);
+      return [];
+    }
+    const xmlText = await res.text();
+
+    if (!/<item>/.test(xmlText)) {
+      const resultMsg = extractTag(xmlText, 'resultMsg') || extractTag(xmlText, 'returnAuthMsg');
+      if (resultMsg && !/^(NORMAL|정상)/i.test(resultMsg)) {
+        console.warn('전월세 실거래가 API 응답 오류:', resultMsg);
+      }
+      return [];
+    }
+
+    return parseRentItems(xmlText, config.nameTag)
+      .filter((item) => item.buildingName)
+      .map((item) => ({
+        ...item,
+        housingType,
+        // monthlyRent가 0이면 순수 전세, 그 외엔 (반)월세라 보증금 액수 자체가 비교 기준이 다르다.
+        isJeonse: Number(item.monthlyRent) === 0,
+        depositKorean: formatManwonToKorean(item.deposit),
+        dealDate:
+          item.dealYear && item.dealMonth && item.dealDay
+            ? `${item.dealYear}.${item.dealMonth.padStart(2, '0')}.${item.dealDay.padStart(2, '0')}`
+            : '',
+      }))
+      .sort((a, b) => (a.dealDate < b.dealDate ? 1 : -1));
+  } catch (err) {
+    console.warn('전월세 실거래가 API 호출 실패:', err.message);
+    return [];
+  }
+}
+
+/**
+ * 기준월 포함 최근 N개월치 전월세 실거래가를 합쳐서 가져온다. fetchRecentTrades()의 전월세 버전.
+ * @param {{housingType: 'apt'|'villa', lawdCd: string, baseYmd: string, months?: number}} params
+ */
+export async function fetchRecentRentTrades({ housingType = 'apt', lawdCd, baseYmd, months = 3 }) {
+  if (!lawdCd || !baseYmd) return [];
+  const ymds = buildRecentYmds(baseYmd, months);
+  const results = await Promise.all(ymds.map((dealYmd) => fetchRentTradesOnce(housingType, { lawdCd, dealYmd })));
+  return results.flat();
+}
+
+/**
+ * 전월세 실거래 목록의 평균 보증금(만원)을 계산한다. 월세가 섞이면 보증금 액수 자체가
+ * 훨씬 작아 평균이 왜곡되므로, 기본적으로 순수 전세(monthlyRent === 0) 거래만 사용한다.
+ * @param {Array<{deposit: string, isJeonse: boolean}>} rentTrades
+ * @param {{jeonseOnly?: boolean}} [options]
+ * @returns {number|null}
+ */
+export function calcAverageDeposit(rentTrades, { jeonseOnly = true } = {}) {
+  const source = jeonseOnly ? (rentTrades ?? []).filter((t) => t.isJeonse) : (rentTrades ?? []);
+  const amounts = source
+    .map((t) => Number(String(t.deposit).replace(/,/g, '')))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (!amounts.length) return null;
+  return Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length);
 }
 
 /**

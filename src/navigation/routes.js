@@ -34,6 +34,10 @@ export const EXPERT_ROUTES = {
   GUIDE: 'ResponseGuide',
 };
 
+export const PREVENTION_ROUTES = {
+  CONSULT: 'PreventionConsult',
+};
+
 export const CHAT_ROUTES = {
   SOLIDARITY: 'ChatScreen',
   ROOM: 'ChatRoom',

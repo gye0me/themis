@@ -19,6 +19,7 @@ import { AuthContext } from '../context/AuthContext';
 import ResponseGuideScreen from '../screens/ResponseGuideScreen';
 import ReportPreviewScreen from '../screens/ReportPreviewScreen';
 import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
+import PreventionConsultScreen from '../screens/PreventionConsultScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -26,6 +27,7 @@ import {
   RECORD_ROUTES,
   EXPERT_ROUTES,
   CHAT_ROUTES,
+  PREVENTION_ROUTES,
 } from './routes';
 
 const RootStack = createNativeStackNavigator();
@@ -179,6 +181,7 @@ function AppStack() {
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
       <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );

@@ -7,7 +7,7 @@ import Svg, { Defs, LinearGradient as SvgGradient, Stop, Ellipse, Circle, Path }
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
-import { APP_ROUTES, RECORD_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, PREVENTION_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
 import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
 import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
@@ -598,6 +598,31 @@ export function HomeScreen({ navigation }) {
             </View>
           </View>
 
+          {/* 사전 예방 상담 */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>사전 예방 상담</Text>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate(PREVENTION_ROUTES.CONSULT)}
+            >
+              <LinearGradient
+                colors={[C.sky050, C.surface]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0.6 }}
+                style={styles.preventionCard}
+              >
+                <View style={styles.preventionIconWrap}>
+                  <Text style={{ fontSize: 20 }}>💬</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.preventionTitle}>이거 해도 될까요?</Text>
+                  <Text style={styles.preventionDesc}>계약·거래·이직 전에 미리 물어보세요</Text>
+                </View>
+                <Text style={styles.preventionArrow}>›</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
           {/* 내 사건 기록 */}
           {loading ? (
             <View style={styles.loadingBox}>
@@ -775,6 +800,16 @@ const styles = StyleSheet.create({
   statusPillText: { fontSize: 10.5, fontWeight: '700', color: C.safe600 },
   statusPillTextOff: { color: C.ink400 },
   safetyDesc: { fontSize: 12, color: C.ink500, lineHeight: 18, marginTop: 3 },
+
+  // 사전 예방 상담 카드
+  preventionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 16,
+  },
+  preventionIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.sky100, alignItems: 'center', justifyContent: 'center' },
+  preventionTitle: { fontSize: 14, fontWeight: '700', color: C.ink900 },
+  preventionDesc: { fontSize: 11.5, color: C.ink500, marginTop: 2 },
+  preventionArrow: { fontSize: 20, color: C.ink400 },
   safetyBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   countdownBlock: { gap: 2 },
   countdownLabel: { fontSize: 10.5, color: C.ink400 },
