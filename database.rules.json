@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "chatRooms": {
+      "$roomId": {
+        "messages": {
+          ".read": "auth != null",
+          "$messageId": {
+            ".write": "auth != null && (!data.exists() || data.child('senderId').val() === auth.uid) && (newData.child('senderId').val() === auth.uid)"
+          }
+        },
+        "meta": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "members": {
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    }
+  }
+}
