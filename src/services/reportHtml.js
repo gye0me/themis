@@ -52,9 +52,21 @@ function buildWatermarkDataUri({ opacityMin = 0.05, opacityMax = 0.09 } = {}) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// 사건 발생 시각(eventTime)이 없는 구버전 문서는 업로드 시각(capturedAt)으로 대체
+function resolveEventDate(record) {
+  return toDate(record.eventTime ?? record.capturedAt);
+}
+
 function buildEvidenceCard(record) {
   const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
-  const dateStr = formatDateTime(record.capturedAt);
+  const eventDate = resolveEventDate(record);
+  const uploadDate = toDate(record.capturedAt);
+  const dateStr = formatDateTime(eventDate);
+  // 사건 발생 시각과 업로드 시각이 다를 때만(자동 추출/AI 판독/직접 입력이 실제로 적용된 경우)
+  // 업로드 시각을 별도로 함께 표기해 근거를 남긴다.
+  const uploadDiffers = eventDate && uploadDate && Math.abs(eventDate - uploadDate) > 60 * 1000;
+  const uploadStr = uploadDiffers ? formatDateTime(uploadDate) : '';
+  const contractDateStr = record.contractDate ? escapeHtml(String(record.contractDate)) : '';
   const gpsStr = record.location
     ? `📍 위도 ${record.location.latitude?.toFixed(5)}, 경도 ${record.location.longitude?.toFixed(5)}`
     : '';
@@ -75,7 +87,8 @@ function buildEvidenceCard(record) {
 
   return `
   <div class="card evidence-card">
-    <div class="card-meta">📅 ${escapeHtml(dateStr)} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
+    <div class="card-meta">📅 사건 발생: ${escapeHtml(dateStr)}${uploadStr ? ` &nbsp;·&nbsp; 업로드: ${escapeHtml(uploadStr)}` : ''} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
+    ${contractDateStr ? `<div class="card-meta">📑 계약서상 날짜: ${contractDateStr}</div>` : ''}
     <div class="card-type">${typeLabel}${record.title ? ` — ${escapeHtml(record.title)}` : ''}</div>
     ${mediaHtml ? `<div class="media">${mediaHtml}</div>` : ''}
     ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
@@ -110,9 +123,9 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 
   const completedQuests = (questItems ?? []).filter((q) => q.completed);
 
-  // 타임라인 항목을 날짜순으로 병합
+  // 타임라인 항목을 "사건 발생 시각" 기준 오름차순으로 병합 (업로드 순서가 아니라 실제 사건 순서)
   const timelineEntries = [
-    ...visibleRecords.map((r) => ({ type: 'evidence', date: toDate(r.capturedAt), html: buildEvidenceCard(r) })),
+    ...visibleRecords.map((r) => ({ type: 'evidence', date: resolveEventDate(r), html: buildEvidenceCard(r) })),
     ...completedQuests.map((q) => ({ type: 'quest', date: toDate(q.completedAt), html: buildQuestCard(q) })),
   ]
     .filter((e) => e.date)

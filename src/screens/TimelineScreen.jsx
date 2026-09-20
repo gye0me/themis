@@ -33,9 +33,10 @@ const FILTER_OPTIONS = [
 const LEVEL_COLOR = { danger: '#EF4444', warning: '#F59E0B', safe: '#10B981' };
 const LEVEL_ICON = { danger: '🔴', warning: '🟡', safe: '🟢' };
 
-function formatDate(capturedAt) {
-  if (!capturedAt) return '';
-  const date = capturedAt?.toDate ? capturedAt.toDate() : new Date(capturedAt);
+function formatDate(value) {
+  if (!value) return '';
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
   const month = date.getMonth() + 1;
   const day = date.getDate();
   const hour = date.getHours();
@@ -43,6 +44,20 @@ function formatDate(capturedAt) {
   const ampm = hour < 12 ? '오전' : '오후';
   const hour12 = hour % 12 || 12;
   return `${month}월 ${day}일 ${ampm} ${hour12}:${min}`;
+}
+
+// 사건 발생 시각(eventTime)이 없는 구버전 문서는 업로드 시각(capturedAt)으로 대체 표시
+function getEventTime(item) {
+  return item?.eventTime ?? item?.capturedAt;
+}
+
+// 사건 발생 시각과 업로드 시각이 사실상 같으면(자동 추출 실패로 업로드 시각을 그대로 쓴 경우)
+// 업로드 시각을 굳이 중복 표시하지 않는다.
+function isSameMinute(a, b) {
+  if (!a || !b) return false;
+  const da = a?.toDate ? a.toDate() : new Date(a);
+  const db = b?.toDate ? b.toDate() : new Date(b);
+  return Math.abs(da.getTime() - db.getTime()) < 60 * 1000;
 }
 
 function buildSummary(records) {
@@ -366,7 +381,14 @@ export function TimelineScreen({ navigation, route }) {
                         </View>
                       )}
                       <View style={styles.cardHeader}>
-                        <Text style={styles.cardDate}>{formatDate(item.capturedAt)}</Text>
+                        <View style={styles.cardDateGroup}>
+                          {/* 크게: 사건 발생 시간 */}
+                          <Text style={styles.cardDateEvent}>{formatDate(getEventTime(item))}</Text>
+                          {/* 작게: 업로드 시간 (사건 발생 시각과 사실상 같으면 생략) */}
+                          {item.capturedAt && !isSameMinute(getEventTime(item), item.capturedAt) && (
+                            <Text style={styles.cardDateUpload}>업로드 {formatDate(item.capturedAt)}</Text>
+                          )}
+                        </View>
                         {item.location && (
                           <View style={styles.gpsBadge}>
                             <Text style={styles.gpsBadgeText}>📍 GPS 확인됨</Text>
@@ -557,8 +579,10 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 13, gap: 5,
     borderWidth: 1, borderColor: C.line,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardDate: { color: C.ink400, fontSize: 10.5 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardDateGroup: { gap: 1 },
+  cardDateEvent: { color: C.ink700, fontSize: 12.5, fontWeight: '700' }, // 크게: 사건 발생 시간
+  cardDateUpload: { color: C.ink400, fontSize: 9.5 }, // 작게: 업로드 시간
   gpsBadge: { backgroundColor: C.sky100, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   gpsBadgeText: { color: C.brand600, fontSize: 10, fontWeight: '600' },
   typeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

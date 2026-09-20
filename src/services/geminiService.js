@@ -16,6 +16,9 @@ const OUTPUT_FORMAT = `
 * desc: 피해자 입장에서 왜 위험한지 1~2문장, 전문 용어는 괄호로 쉬운 말 병기
 * example: 해당 조항을 유리하게 수정할 때 쓰는 문구 예시. 수정 불필요면 null
 * items: 최대 6개 (danger 우선 정렬)
+* contractDate: 계약서에 실제로 적힌 날짜 — 타임라인에서 "사건 발생 시각"으로 쓰인다.
+  우선순위: (1) 계약 체결일/작성일 (2) 계약 시작일(임대차 시작일, 입주일 등) (3) 계약서 상단에 적힌 날짜.
+  "YYYY-MM-DD" 형식으로 반환하고, 일자를 특정할 수 없으면 "YYYY-MM"도 허용. 계약서에서 날짜를 전혀 찾을 수 없으면 null.
 
 * 선택된 계약 유형과 실제 문서 유형이 다르더라도 items를 비우지 마세요. documentSummary에 실제 유형을 밝히고, 계약서 일반 원칙(공정성·대금지급·해지조건·책임소재 등) 기준으로 최선을 다해 위험 조항을 분석하세요.
 
@@ -25,6 +28,7 @@ const OUTPUT_FORMAT = `
   "documentSummary": "인식한 문서 내용 요약",
   "extractedText": "이미지에서 읽은 계약서 원문 전체 (조항 구분 유지)",
   "summary": "위험 조항 N개 · 주의 조항 N개 · 양호 조항 N개 발견",
+  "contractDate": "2026-08-01",
   "items": []
 }`.trim();
 
@@ -247,7 +251,12 @@ function buildResult(parsed) {
     cleanStringValue(parsed.summary) ||
     `위험 조항 ${danger}개 · 주의 조항 ${warning}개 · 양호 조항 ${safe}개 발견`;
 
-  return { summary, items, extractedText, documentSummary };
+  // "null", "없음" 같은 문자열도 실제 null로 정규화 (타임라인 eventTime 계산에서 걸러내기 쉽도록)
+  const rawContractDate = cleanStringValue(parsed.contractDate);
+  const contractDate =
+    rawContractDate && !/^(null|없음|미상|알 수 없음)$/i.test(rawContractDate) ? rawContractDate : null;
+
+  return { summary, items, extractedText, documentSummary, contractDate };
 }
 
 export function buildPreprocessPrompt(contractType) {
