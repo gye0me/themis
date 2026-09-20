@@ -6,7 +6,7 @@
 //
 // 별도 날짜 선택 라이브러리 의존 없이 년/월/일/시/분 숫자 입력으로 구성.
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { C } from '../theme/tokens';
 
@@ -53,10 +53,14 @@ export function EventTimeInputModal({
   onCancel,
 }) {
   const [fields, setFields] = useState(() => toFields(initialDate));
-
-  useEffect(() => {
+  // 모달이 새로 열릴 때마다 initialDate로 필드를 초기화한다. 이펙트 대신 렌더 중
+  // 상태 조정(React가 권장하는 "prop 변화에 맞춰 state 조정" 패턴)으로 처리해,
+  // 열리자마자 한 번 더 리렌더되는 것을 피한다.
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
     if (visible) setFields(toFields(initialDate));
-  }, [visible, initialDate]);
+  }
 
   const update = (key) => (text) => {
     const digitsOnly = text.replace(/[^0-9]/g, '');
