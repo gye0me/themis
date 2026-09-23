@@ -215,7 +215,7 @@ function parseGeminiResponse(rawText) {
   try {
     const parsed = JSON.parse(cleaned);
     return buildResult(parsed);
-  } catch (_) {}
+  } catch { /* 다음 파싱 방식으로 폴백 */ }
 
   // 2차: 중괄호 블록 추출
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
@@ -223,7 +223,7 @@ function parseGeminiResponse(rawText) {
     try {
       const parsed = JSON.parse(jsonMatch[0]);
       return buildResult(parsed);
-    } catch (_) {}
+    } catch { /* 다음 파싱 방식으로 폴백 */ }
   }
 
   // 3차: items 배열만 추출
@@ -232,7 +232,7 @@ function parseGeminiResponse(rawText) {
     try {
       const items = JSON.parse(arrMatch[1]);
       return buildResult({ items });
-    } catch (_) {}
+    } catch { /* 다음 파싱 방식으로 폴백 */ }
   }
 
   // 최종 폴백: 빈 결과
@@ -428,14 +428,14 @@ function parseChecklistResponse(rawText) {
   try {
     const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed.results)) return parsed.results;
-  } catch (_) {}
+  } catch { /* 다음 파싱 방식으로 폴백 */ }
 
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (match) {
     try {
       const parsed = JSON.parse(match[0]);
       if (Array.isArray(parsed.results)) return parsed.results;
-    } catch (_) {}
+    } catch { /* 다음 파싱 방식으로 폴백 */ }
   }
 
   return [];

@@ -27,7 +27,7 @@ export const extractTextFromImage = async (imageUri) => {
             reject(e);
           }
         };
-        img.onerror = (e) => reject(new Error('이미지 로드 실패'));
+        img.onerror = () => reject(new Error('이미지 로드 실패'));
         img.src = imageUri;
       });
     } else {

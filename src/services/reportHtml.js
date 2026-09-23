@@ -143,7 +143,16 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 <meta charset="UTF-8" />
 <title>${escapeHtml(caseData.title || '사건 보고서')} - Themis 증거 보고서</title>
 <style>
-  body { font-family: -apple-system, 'Malgun Gothic', sans-serif; background: #F1F5F9; color: #0F172A; margin: 0; padding: 20px; position: relative; }
+  :root {
+    --ink-950: #0A1628; --brand-700: #1E3A72; --brand-600: #2A50B8; --brand-500: #3D6FE0;
+    --sky-100: #E9F1FD; --sky-050: #F4F9FE; --surface: #FFFFFF;
+    --ink-900: #101828; --ink-700: #33405C; --ink-500: #5B6B8C; --ink-400: #8894AC; --line: #E7ECF5;
+    --danger-600: #DC2626; --safe-600: #16A672;
+  }
+  body {
+    font-family: "IBM Plex Sans KR", -apple-system, 'Malgun Gothic', sans-serif;
+    background: var(--sky-050); color: var(--ink-900); margin: 0; padding: 20px; position: relative;
+  }
   .watermark {
     position: fixed; inset: 0; z-index: 0;
     background-image: url("${watermarkDataUri}");
@@ -151,47 +160,72 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     pointer-events: none;
   }
   .container { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
-  .summary-card { background: #1E3A5F; color: #F1F5F9; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-  .summary-card h1 { margin: 0 0 8px; font-size: 20px; }
-  .summary-card .meta { font-size: 13px; color: #B9D0EA; margin-bottom: 4px; }
-  .summary-card .counts { margin-top: 12px; font-size: 13px; }
-  .card { background: rgba(255,255,255,0.92); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
-  .quest-card { background: rgba(236,253,245,0.92); border-left: 4px solid #10B981; }
-  .card-meta { font-size: 11px; color: #64748B; margin-bottom: 6px; }
-  .card-type { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-  .thumb { max-width: 100%; border-radius: 8px; margin: 6px 0; }
-  audio, video { width: 100%; margin: 6px 0; }
-  .transcript { font-size: 12px; color: #475569; margin: 4px 0; }
-  .summary { font-size: 12px; color: #1E3A5F; margin: 4px 0; }
-  .hash { font-size: 10px; color: #94A3B8; margin-top: 6px; word-break: break-all; }
-  .disclaimer { font-size: 11px; color: #94A3B8; text-align: center; margin-top: 24px; line-height: 1.6; }
-  .signature-section { margin-top: 32px; border-top: 1px solid #E2E8F0; padding-top: 20px; }
-  .signature-legal { font-size: 11px; color: #64748B; line-height: 1.8; margin-bottom: 20px; }
-  .signature-box { border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; max-width: 280px; }
-  .signature-label { font-size: 11px; color: #94A3B8; margin-bottom: 8px; }
+
+  .report-summary {
+    background: linear-gradient(160deg, var(--ink-950), var(--brand-700));
+    color: #fff; border-radius: 18px; padding: 22px; margin-bottom: 20px;
+  }
+  .report-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #9DB3E8; }
+  .report-name { display: block; font-size: 20px; font-weight: 700; margin: 6px 0 10px; }
+  .report-meta { font-size: 12.5px; color: #B9CBF2; margin: 2px 0; }
+  .report-counts { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.18); font-size: 12.5px; color: #E9F1FD; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-400); margin: 22px 0 12px;
+  }
+
+  .tl-item { display: flex; gap: 10px; }
+  .tl-left { display: flex; flex-direction: column; align-items: center; padding-top: 4px; flex-shrink: 0; width: 12px; }
+  .tl-dot { width: 12px; height: 12px; border-radius: 999px; border: 2.5px solid #fff; box-shadow: 0 0 0 1.5px var(--line); flex-shrink: 0; }
+  .tl-line { width: 2px; flex: 1; background: var(--line); margin-top: 4px; min-height: 20px; }
+  .card {
+    flex: 1; background: rgba(255,255,255,0.94); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .quest-card { background: rgba(228,247,239,0.94); border-color: var(--safe-600); }
+  .card-meta { font-size: 11px; color: var(--ink-400); }
+  .card-type { font-size: 14px; font-weight: 700; color: var(--ink-900); }
+  .thumb { max-width: 100%; border-radius: 10px; margin: 4px 0; }
+  audio, video { width: 100%; margin: 4px 0; border-radius: 10px; }
+  .transcript { font-size: 12px; color: var(--ink-700); margin: 2px 0; }
+  .summary { font-size: 12px; color: var(--brand-600); margin: 2px 0; }
+  .empty-note { text-align: center; color: var(--ink-400); font-size: 13px; }
+
+  .signature-section { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+  .signature-legal { font-size: 11px; color: var(--ink-500); line-height: 1.8; margin-bottom: 16px; }
+  .signature-box { border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 280px; }
+  .signature-label { font-size: 11px; color: var(--ink-400); margin-bottom: 8px; }
   .signature-img { max-width: 100%; height: 80px; object-fit: contain; }
-  .signature-empty { height: 80px; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 12px; }
-  .signature-date { font-size: 10px; color: #94A3B8; margin-top: 8px; }
+  .signature-empty {
+    height: 56px; border: 1.5px dashed var(--line); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; color: var(--ink-400); font-size: 11.5px;
+  }
+  .signature-date { font-size: 10.5px; color: var(--ink-400); margin-top: 8px; }
 </style>
 </head>
 <body>
 <div class="watermark"></div>
 <div class="container">
 
-  <div class="summary-card">
-    <h1>${escapeHtml(caseData.title || '이름 없는 사건')}</h1>
-    <div class="meta">${caseTypeIcon} 사건 유형: ${escapeHtml(caseData.caseType || '미지정')}</div>
-    <div class="meta">기록 시작일: ${escapeHtml(formatDateOnly(caseData.createdAt) || '-')}</div>
-    <div class="meta">보고서 생성일: ${formatDateOnly(now)}</div>
-    <div class="counts">
-      증거 총 ${visibleRecords.length}건
-      (사진 ${counts.image ?? 0} · 음성 ${counts.audio ?? 0} · 영상 ${counts.video ?? 0} · 메모 ${counts.text ?? 0})
+  <div class="report-summary">
+    <span class="report-eyebrow">${caseTypeIcon} 사건 보고서</span>
+    <span class="report-name">${escapeHtml(caseData.title || '이름 없는 사건')}</span>
+    <div class="report-meta">사건 유형: ${escapeHtml(caseData.caseType || '미지정')}</div>
+    <div class="report-meta">기록 시작일: ${escapeHtml(formatDateOnly(caseData.createdAt) || '-')} · 보고서 생성일: ${formatDateOnly(now)}</div>
+    <div class="report-counts">
+      증거 총 ${visibleRecords.length}건 (사진 ${counts.image ?? 0} · 음성 ${counts.audio ?? 0} · 영상 ${counts.video ?? 0} · 메모 ${counts.text ?? 0})
     </div>
   </div>
 
+  <div class="section-label">증거 타임라인</div>
   ${timelineEntries.length === 0
-    ? '<p style="text-align:center;color:#94A3B8;">등록된 증거 또는 완료된 대응 조치가 없습니다.</p>'
-    : timelineEntries.map((e) => e.html).join('\n')}
+    ? '<p class="empty-note">등록된 증거 또는 완료된 대응 조치가 없습니다.</p>'
+    : timelineEntries.map((e, i) => `
+  <div class="tl-item">
+    <div class="tl-left"><div class="tl-dot" style="background:${e.type === 'quest' ? 'var(--safe-600)' : 'var(--brand-500)'};"></div>${i < timelineEntries.length - 1 ? '<div class="tl-line"></div>' : ''}</div>
+    ${e.html}
+  </div>`).join('\n')}
 
   <div class="signature-section">
     <p class="signature-legal">

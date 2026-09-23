@@ -3,9 +3,9 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { C } from '../theme/tokens';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignupScreen } from '../screens/auth/SignupScreen';
-import { NavigationPlaceholderScreen } from '../screens/shared/NavigationPlaceholderScreen';
 import ContractAnalysisScreen from '../screens/ContractAnalysisScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { TimelineScreen } from '../screens/TimelineScreen';
@@ -192,9 +192,9 @@ export function AppNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#0b1220', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#4d7cff" />
-        <Text style={{ color: '#8fd3ff', marginTop: 12, fontSize: 13 }}>로딩 중...</Text>
+      <View style={{ flex: 1, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color={C.brand600} />
+        <Text style={{ color: C.ink500, marginTop: 12, fontSize: 13 }}>로딩 중...</Text>
       </View>
     );
   }
