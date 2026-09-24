@@ -437,6 +437,13 @@ export function TimelineScreen({ navigation, route }) {
                                 <Text style={styles.detailTitle}>{detail.title}</Text>
                               </View>
                               <Text style={styles.detailDesc}>{detail.desc}</Text>
+                              {detail.negotiationPhrase && (
+                                <View style={styles.negotiationBox}>
+                                  <Text style={styles.negotiationLabel}>💬 협상할 때 이렇게 말해보세요</Text>
+                                  <Text style={styles.negotiationPhrase}>"{detail.negotiationPhrase}"</Text>
+                                  {detail.legalBasis && <Text style={styles.negotiationLegal}>근거: {detail.legalBasis}</Text>}
+                                </View>
+                              )}
                             </View>
                           ))}
                         </View>
@@ -604,6 +611,10 @@ const styles = StyleSheet.create({
   detailBadgeText: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
   detailTitle: { color: C.ink900, fontSize: 11, fontWeight: '600', flexShrink: 1 },
   detailDesc: { color: C.ink500, fontSize: 10, marginTop: 2 },
+  negotiationBox: { backgroundColor: C.sky100, borderRadius: 10, padding: 9, gap: 3, marginTop: 6 },
+  negotiationLabel: { color: C.brand700, fontSize: 10, fontWeight: '700' },
+  negotiationPhrase: { color: C.ink900, fontSize: 11, lineHeight: 15 },
+  negotiationLegal: { color: C.brand600, fontSize: 9.5, fontWeight: '600' },
   hashCard: { backgroundColor: C.sky050, borderRadius: 10, padding: 10, marginBottom: 8 },
   hashLabel: { color: C.ink400, fontSize: 9 },
   hashValue: { color: C.brand600, fontSize: 9 },

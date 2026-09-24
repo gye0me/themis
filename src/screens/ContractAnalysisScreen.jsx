@@ -514,6 +514,13 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                 {item.example && (
                   <Text style={styles.resultCardExample}>일반적인 사례{"\n"}"{item.example}"</Text>
                 )}
+                {item.negotiationPhrase && (
+                  <View style={styles.negotiationBox}>
+                    <Text style={styles.negotiationLabel}>💬 협상할 때 이렇게 말해보세요</Text>
+                    <Text style={styles.negotiationPhrase}>"{item.negotiationPhrase}"</Text>
+                    {item.legalBasis && <Text style={styles.negotiationLegal}>근거: {item.legalBasis}</Text>}
+                  </View>
+                )}
               </View>
             ))}
 
@@ -611,6 +618,10 @@ const styles = StyleSheet.create({
   resultCardTitle: { flex: 1, color: C.ink900, fontWeight: '700', fontSize: 15 },
   resultCardDesc: { color: C.ink500, fontSize: 13 },
   resultCardExample: { color: C.ink400, fontSize: 12, backgroundColor: C.sky050, padding: 8, borderRadius: 8 },
+  negotiationBox: { backgroundColor: C.sky100, borderRadius: 10, padding: 10, gap: 4 },
+  negotiationLabel: { color: C.brand700, fontSize: 11, fontWeight: '700' },
+  negotiationPhrase: { color: C.ink900, fontSize: 12.5, lineHeight: 18 },
+  negotiationLegal: { color: C.brand600, fontSize: 10.5, fontWeight: '600' },
 
   disclaimer: { color: C.danger600, fontSize: 11, textAlign: 'center', marginVertical: 12 },
 });

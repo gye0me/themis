@@ -1,5 +1,5 @@
 import Svg, { Path } from 'react-native-svg';
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform, Modal, PanResponder } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -7,9 +7,18 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { buildQuestSteps } from '../services/responseGuideSteps';
-import { buildCaseReportHtml } from '../services/reportHtml';
+import { buildCaseReportHtml, buildReportHashPayload } from '../services/reportHtml';
+import { hashContent } from '../services/signatureService';
+import { finalizeCaseReport } from '../services/firebaseService';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+
+function toJsDate(value) {
+  if (!value) return null;
+  if (value?.toDate) return value.toDate();
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 const EMPTY_RECORDS = [];
 
@@ -21,32 +30,41 @@ export default function ReportPreviewScreen({ navigation, route }) {
   const records = route?.params?.records ?? EMPTY_RECORDS;
   const [saving, setSaving] = useState(false);
   const [savingPdf, setSavingPdf] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [webviewLoading, setWebviewLoading] = useState(true);
   const [signatureModal, setSignatureModal] = useState(false);
   const [signed, setSigned] = useState(false);
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
-  const canvasRef = useRef(null);
-  const [signatureDataUrl, setSignatureDataUrl] = useState(null);
 
-  const buildHtml = useCallback((sigUrl) => {
-    console.log('buildHtml sigUrl:', sigUrl);
-  const { items: questItems } = caseData
-    ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? [])
-    : { items: [] };
-  return buildCaseReportHtml({
-    caseData: {
-      title: caseData?.title || '증거 정리 보고서',
-      caseType: caseData?.caseType || null,
-      createdAt: caseData?.createdAt ?? records[records.length - 1]?.capturedAt,
-    },
+  // 이 사건이 이미 예전에 확정된 적 있으면(caseData.reportFinalizedAt) 그 기록을 그대로 보여준다.
+  const [signatureDataUrl, setSignatureDataUrl] = useState(caseData?.reportSignatureDataUrl ?? null);
+  const [finalizationHash, setFinalizationHash] = useState(caseData?.reportFinalizationHash ?? null);
+  const [finalizedAt, setFinalizedAt] = useState(() => toJsDate(caseData?.reportFinalizedAt) ?? null);
+
+  const questItems = useMemo(
+    () => (caseData ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? []).items : []),
+    [caseData]
+  );
+
+  const effectiveCaseData = useMemo(() => ({
+    title: caseData?.title || '증거 정리 보고서',
+    caseType: caseData?.caseType || null,
+    createdAt: caseData?.createdAt ?? records[records.length - 1]?.capturedAt,
+  }), [caseData, records]);
+
+  const buildHtml = useCallback((sigUrl, hash, finalizedAtValue) => buildCaseReportHtml({
+    caseData: effectiveCaseData,
     records,
     questItems,
     signatureDataUrl: sigUrl ?? null,
-  });
-}, [caseData, records]);
+    finalization: hash ? { hash, finalizedAt: finalizedAtValue } : null,
+  }), [effectiveCaseData, records, questItems]);
 
-const html = useMemo(() => buildHtml(null), [buildHtml]);
+  const html = useMemo(
+    () => buildHtml(signatureDataUrl, finalizationHash, finalizedAt),
+    [buildHtml, signatureDataUrl, finalizationHash, finalizedAt]
+  );
 
   async function saveOnAndroidToPickedFolder(fileName) {
     const SAF = FileSystem.StorageAccessFramework;
@@ -123,9 +141,9 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
     return true;
   }
 
-  async function handleDownloadPdfWithHtml(customHtml) {
-  const htmlToUse = customHtml ?? buildHtml(null);
-  if (savingPdf) return;
+  async function handleDownloadPdf() {
+    const htmlToUse = html;
+    if (savingPdf) return;
     setSavingPdf(true);
     try {
       // 웹은 브라우저 인쇄 대화상자를 통해 사용자가 직접 "PDF로 저장"을 선택한다.
@@ -166,6 +184,61 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
     }
   }
 
+  // 서명 → 확정: 서명은 "내가 확인했다"는 증거, 해시는 "확정 이후 안 바뀌었다"는 증거로 함께 남긴다.
+  async function handleFinalize() {
+    if (!signed || finalizing) return;
+    setFinalizing(true);
+    try {
+      let sigUrl = null;
+      if (Platform.OS === 'web' && paths.length > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 150;
+        const ctx = canvas.getContext('2d');
+        ctx.strokeStyle = '#1E3A5F';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        paths.forEach((path) => {
+          if (path.length < 2) return;
+          ctx.beginPath();
+          ctx.moveTo(path[0].x, path[0].y);
+          path.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+          ctx.stroke();
+        });
+        sigUrl = canvas.toDataURL('image/png');
+      } else if (paths.length > 0) {
+        const svgPaths = paths.map((path) => {
+          if (path.length < 2) return '';
+          const d = path.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+          return `<path d="${d}" stroke="#1E3A5F" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+        }).join('');
+        const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">${svgPaths}</svg>`;
+        sigUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+      }
+
+      const hash = await hashContent(buildReportHashPayload({ caseData: effectiveCaseData, records, questItems }));
+      const confirmedAt = new Date();
+
+      // 사건에 연결된 보고서(caseData.id가 있는 경우)만 Firestore에 확정 기록을 남긴다 —
+      // caseId 없이(일반 기록) 열람 중인 보고서는 이번에 내려받는 파일에만 반영된다.
+      if (caseData?.id) {
+        await finalizeCaseReport(caseData.id, { hash, signatureDataUrl: sigUrl });
+      }
+
+      setSignatureDataUrl(sigUrl);
+      setFinalizationHash(hash);
+      setFinalizedAt(confirmedAt);
+      setSignatureModal(false);
+      Alert.alert('확정 완료', '보고서가 서명·해시값과 함께 확정되었습니다.');
+    } catch (err) {
+      console.error('보고서 확정 오류:', err);
+      Alert.alert('오류', '보고서를 확정하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
       <BackHeader
@@ -196,6 +269,18 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
         )}
       </View>
 
+      {/* 확정 상태 배너 — 서명 = "내가 확인했다"는 증거, 해시 = "확정 이후 안 바뀌었다"는 증거 */}
+      {finalizationHash ? (
+        <View style={styles.finalizedBanner}>
+          <Text style={styles.finalizedBannerTitle}>✅ 보고서 확정됨 · {finalizedAt ? finalizedAt.toLocaleString('ko-KR') : ''}</Text>
+          <Text style={styles.finalizedBannerHash} numberOfLines={1}>해시 {finalizationHash}</Text>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.finalizeRow} onPress={() => setSignatureModal(true)}>
+          <Text style={styles.finalizeRowText}>✍️ 서명하고 보고서 확정하기</Text>
+        </TouchableOpacity>
+      )}
+
       {/* 팀 결정 확인 전까지 HTML을 기본(큰 버튼)으로 유지 — PDF는 옆에 보조 옵션으로만 둠 */}
       <View style={styles.downloadRow}>
         <TouchableOpacity style={styles.downloadBtn} onPress={handleDownload} disabled={saving}>
@@ -205,7 +290,7 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
             <Text style={styles.downloadBtnText}>⬇ HTML 파일로 다운로드</Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.downloadBtnSecondary} onPress={() => setSignatureModal(true)} disabled={savingPdf}>
+        <TouchableOpacity style={styles.downloadBtnSecondary} onPress={handleDownloadPdf} disabled={savingPdf}>
           {savingPdf ? (
             <ActivityIndicator color={C.brand600} />
           ) : (
@@ -221,11 +306,11 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
       >
         <View style={sigStyles.backdrop}>
           <View style={sigStyles.card}>
-            <Text style={sigStyles.title}>서명 후 PDF를 저장합니다</Text>
+            <Text style={sigStyles.title}>서명 후 보고서를 확정합니다</Text>
             <Text style={sigStyles.desc}>
-              본 보고서는 Themis 앱에서 자동 생성된 증거 정리 자료입니다.{'\n'}
-              법적 효력은 담당 기관에 문의하세요.{'\n\n'}
-              서명란에 서명 후 PDF를 저장해주세요.
+              서명은 "내가 이 보고서를 확인했다"는 증거이고, 확정 시 함께 남는 해시값은{'\n'}
+              "이후 내용이 바뀌지 않았다"는 증거예요. 확정 후에도 HTML/PDF 다운로드는 자유롭게 하실 수 있습니다.{'\n\n'}
+              서명란에 서명 후 아래 버튼으로 확정해주세요.
             </Text>
 
             <View style={sigStyles.padWrap}>
@@ -287,43 +372,11 @@ const html = useMemo(() => buildHtml(null), [buildHtml]);
                 <Text style={sigStyles.cancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[sigStyles.confirmBtn, !signed && { opacity: 0.4 }]}
-                disabled={!signed}
-                onPress={async () => {
-                  let sigUrl = null;
-                  if (Platform.OS === 'web' && paths.length > 0) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 300;
-                    canvas.height = 150;
-                    const ctx = canvas.getContext('2d');
-                    ctx.strokeStyle = '#1E3A5F';
-                    ctx.lineWidth = 2;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    paths.forEach((path) => {
-                      if (path.length < 2) return;
-                      ctx.beginPath();
-                      ctx.moveTo(path[0].x, path[0].y);
-                      path.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-                      ctx.stroke();
-                    });
-                    sigUrl = canvas.toDataURL('image/png');
-                   } else if (paths.length > 0) {
-                    const svgPaths = paths.map((path) => {
-                      if (path.length < 2) return '';
-                      const d = path.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-                      return `<path d="${d}" stroke="#1E3A5F" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-                    }).join('');
-                    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">${svgPaths}</svg>`;
-                    sigUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
-                  } 
-                  setSignatureDataUrl(sigUrl);
-                  setSignatureModal(false);
-                  const finalHtml = buildHtml(sigUrl);
-                  await handleDownloadPdfWithHtml(finalHtml);
-                }}
+                style={[sigStyles.confirmBtn, (!signed || finalizing) && { opacity: 0.4 }]}
+                disabled={!signed || finalizing}
+                onPress={handleFinalize}
               >
-                <Text style={sigStyles.confirmBtnText}>PDF 저장</Text>
+                {finalizing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={sigStyles.confirmBtnText}>보고서 확정</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -342,6 +395,17 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: C.surface,
   },
+  finalizeRow: {
+    backgroundColor: C.sky050, borderTopWidth: 1, borderTopColor: C.line,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  finalizeRowText: { color: C.brand600, fontSize: 13.5, fontWeight: '700' },
+  finalizedBanner: {
+    backgroundColor: C.safe100, borderTopWidth: 1, borderTopColor: C.line,
+    paddingVertical: 10, paddingHorizontal: 16, gap: 2,
+  },
+  finalizedBannerTitle: { color: C.safe600, fontSize: 12.5, fontWeight: '700' },
+  finalizedBannerHash: { color: C.ink500, fontSize: 10.5, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
   downloadRow: { flexDirection: 'row', gap: 1 },
   downloadBtn: {
     flex: 3, backgroundColor: C.brand600, padding: 16,

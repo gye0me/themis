@@ -556,6 +556,19 @@ export async function saveCaseAiHistory(caseId, history) {
 }
 
 /**
+ * 보고서 확정 기록 저장 — 서명 + 확정 시각(서버 타임스탬프) + 확정 시점 증거 내용의 SHA-256 해시.
+ * 서명은 "본인이 확인했다"는 증거, 해시는 "확정 이후 증거 내용이 안 바뀌었다"는 증거로 함께 쓰인다.
+ * (해시는 signatureService.hashContent로 호출부에서 미리 계산해서 넘긴다.)
+ */
+export async function finalizeCaseReport(caseId, { hash, signatureDataUrl }) {
+  return updateDocument('cases', caseId, {
+    reportFinalizedAt: serverTimestamp(),
+    reportFinalizationHash: hash,
+    reportSignatureDataUrl: signatureDataUrl ?? null,
+  });
+}
+
+/**
  * 사건 삭제 (사건 문서 + 소속 증거 기록 + Storage 파일까지 함께 정리).
  * 되돌릴 수 없으므로 화면단에서 반드시 확인(Alert) 후 호출할 것.
  */

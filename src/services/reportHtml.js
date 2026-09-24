@@ -106,11 +106,42 @@ function buildQuestCard(step) {
 }
 
 /**
+ * 보고서 확정("서명 + 확정" 기능) 시 해시로 남길 "내용"만 뽑아낸다 — 렌더링용 HTML 전체를
+ * 그대로 해시하면 매번 랜덤하게 바뀌는 워터마크 때문에 내용이 같아도 값이 달라져 버린다.
+ * ReportPreviewScreen에서 이 payload를 signatureService.hashContent()에 그대로 넘겨서
+ * "확정 시점 해시"를 만들고, 이후 같은 caseData/records로 다시 계산해 비교하면 위변조 여부를 알 수 있다.
+ */
+export function buildReportHashPayload({ caseData = {}, records = [], questItems = [] }) {
+  const visibleRecords = records.filter((r) => !r.hidden);
+  const completedQuests = (questItems ?? []).filter((q) => q.completed);
+  return {
+    title: caseData.title ?? null,
+    caseType: caseData.caseType ?? null,
+    createdAt: toDate(caseData.createdAt)?.toISOString() ?? null,
+    records: visibleRecords
+      .map((r) => ({
+        id: r.id ?? null,
+        type: r.evidenceType ?? null,
+        title: r.title ?? null,
+        note: r.note ?? null,
+        transcript: r.transcript ?? r.transcribedText ?? null,
+        eventTime: resolveEventDate(r)?.toISOString() ?? null,
+        downloadURL: r.downloadURL ?? null,
+      }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
+    completedQuests: completedQuests
+      .map((q) => ({ title: q.title, completedAt: toDate(q.completedAt)?.toISOString() ?? null }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+  };
+}
+
+/**
  * @param {Object} caseData - { title, caseType, createdAt }
  * @param {Array} records - evidenceRecords 배열
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
+ * @param {{ hash: string, finalizedAt: (Date|string|null) }|null} finalization - 확정 정보(서명은 signatureDataUrl로 별도 전달)
  */
-export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], signatureDataUrl = null }) {
+export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], signatureDataUrl = null, finalization = null }) {
   // 숨김 처리된 증거(hidden === true)는 보고서에서 제외한다 — 삭제는 무결성이 깨질 수 있어
   // 대신 hidden 플래그로 처리하는 항목이라, 타임라인 화면에는 흐릿하게 남아있어도 정식 보고서에는 안 나가야 한다.
   const visibleRecords = records.filter((r) => !r.hidden);
@@ -194,7 +225,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 
   .signature-section { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
   .signature-legal { font-size: 11px; color: var(--ink-500); line-height: 1.8; margin-bottom: 16px; }
-  .signature-box { border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 280px; }
+  .signature-box { border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 420px; }
   .signature-label { font-size: 11px; color: var(--ink-400); margin-bottom: 8px; }
   .signature-img { max-width: 100%; height: 80px; object-fit: contain; }
   .signature-empty {
@@ -202,6 +233,16 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     display: flex; align-items: center; justify-content: center; color: var(--ink-400); font-size: 11.5px;
   }
   .signature-date { font-size: 10.5px; color: var(--ink-400); margin-top: 8px; }
+  .finalize-badge {
+    display: inline-block; margin-top: 10px; font-size: 11.5px; font-weight: 700; color: var(--safe-600);
+    background: #E4F7EF; border-radius: 999px; padding: 4px 10px;
+  }
+  .hash-label { font-size: 10px; color: var(--ink-400); margin-top: 10px; }
+  .hash-value {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; color: var(--ink-700);
+    word-break: break-all; margin-top: 3px;
+  }
+  .hash-note { font-size: 10px; color: var(--ink-400); line-height: 1.6; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -235,8 +276,14 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     </p>
     <div class="signature-box">
       <div class="signature-label">서명</div>
-      ${signatureDataUrl ? `<img src="${signatureDataUrl}" class="signature-img" alt="서명" />` : '<div class="signature-empty">서명 없음</div>'}
-      <div class="signature-date">서명일: ${formatDateOnly(now)}</div>
+      ${signatureDataUrl ? `<img src="${signatureDataUrl}" class="signature-img" alt="서명" />` : '<div class="signature-empty">서명 없음 — 확정 전</div>'}
+      ${finalization?.hash
+        ? `
+      <div class="finalize-badge">✅ 보고서 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
+      <div class="hash-label">확정 시점 내용 해시 (SHA-256)</div>
+      <div class="hash-value">${escapeHtml(finalization.hash)}</div>
+      <p class="hash-note">이 해시는 확정 시점의 증거 내용으로 계산됩니다. 이후 내용이 바뀌면 같은 방식으로 다시 계산한 값이 이 값과 달라져, 위변조 여부를 확인할 수 있습니다.</p>`
+        : `<div class="signature-date">아직 확정되지 않은 보고서입니다.</div>`}
     </div>
   </div>
 </div>
