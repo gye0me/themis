@@ -436,6 +436,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
           <Text style={styles.gpsCaption}>업로드 시 위치와 시간이 자동으로 기록돼요</Text>
         </View>
 
+        <View style={styles.noticeBox}>
+          <Text style={styles.noticeTitle}>수집 전에 확인해 주세요</Text>
+          <Text style={styles.noticeText}>
+            상대방의 동의 없는 녹음·촬영·수집은 법적 문제가 될 수 있습니다. 본인이 참여하지 않은 타인 간의 대화는 녹음하지 마세요.
+            수집한 자료를 다른 사람에게 공개하면 별도의 책임이 생길 수 있습니다.
+          </Text>
+        </View>
+
         <View style={{ height: 90 }} />
       </ScrollView>
 
@@ -528,6 +536,12 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     textAlign: 'center',
   },
+  noticeBox: {
+    marginTop: 16, padding: 14, borderRadius: 14,
+    backgroundColor: C.warn100, borderWidth: 1, borderColor: C.warn600, gap: 4,
+  },
+  noticeTitle: { color: C.warn600, fontSize: 12.5, fontWeight: '700' },
+  noticeText: { color: C.warn600, fontSize: 11.5, lineHeight: 17 },
   recordBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',

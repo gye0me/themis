@@ -285,6 +285,12 @@ export function NewCaseScreen({ navigation }) {
             multiline
             textAlignVertical="top"
           />
+          <View style={styles.noticeBox}>
+            <Text style={styles.noticeText}>
+              이곳에 남기는 기록은 피해 상황에 대비하는 개인 기록입니다. 법적 효력을 보장하지 않으며, 증거 채택 여부는
+              수사기관과 법원이 판단합니다.
+            </Text>
+          </View>
           <Text style={styles.disclaimer}>본 앱은 법률 정보 제공이며 법률 조언이 아닙니다.</Text>
           <View style={{ height: 20 }} />
         </ScrollView>
@@ -445,6 +451,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 14,
     fontSize: 13, color: C.ink900, backgroundColor: C.surface, minHeight: 90,
   },
+  noticeBox: {
+    marginTop: 20, backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 12,
+  },
+  noticeText: { color: C.ink500, fontSize: 11.5, lineHeight: 17 },
   disclaimer: { color: C.ink400, fontSize: 10, textAlign: 'center', marginTop: 16 },
 
   ctaBar: { padding: 16, paddingBottom: 22, borderTopWidth: 1, borderTopColor: C.line },

@@ -1,6 +1,5 @@
 import { useContext, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator } from "react-native";
-import { APP_ROUTES } from "../navigation/routes";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { AuthContext } from "../context/AuthContext";
@@ -108,6 +107,13 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const [tradesSearched, setTradesSearched] = useState(false);
   const [rentTrades, setRentTrades] = useState([]);
   const [rentLoading, setRentLoading] = useState(false);
+  const [buildingQuery, setBuildingQuery] = useState("");
+
+  // 조회된 건물이 많아 칩만으로는 찾기 어려워서, 건물명/동 이름으로 걸러볼 수 있게 한다.
+  const trimmedQuery = buildingQuery.trim().toLowerCase();
+  const visibleBuildingGroups = trimmedQuery
+    ? buildingGroups.filter((g) => `${g.dong} ${g.buildingName}`.toLowerCase().includes(trimmedQuery))
+    : buildingGroups;
 
   const filteredBuildingTrades = selectedBuilding ? filterTradesByArea(selectedBuilding.trades, contractArea) : [];
   const compareAvgAmount = selectedBuilding ? calcAverageDealAmount(filteredBuildingTrades) : null;
@@ -115,7 +121,8 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const jeonseRisk = getJeonseRiskLevel(jeonseRatio);
   const jeonseRiskLabel = { danger: "깡통전세 위험", warning: "주의 필요", safe: "비교적 안전" };
 
-  const filteredRentTrades = filterTradesByArea(rentTrades, contractArea).filter((t) => t.isJeonse);
+  const areaRentTrades = filterTradesByArea(rentTrades, contractArea);
+  const filteredRentTrades = areaRentTrades.filter((t) => t.isJeonse);
   const avgDeposit = calcAverageDeposit(filteredRentTrades);
 
   // 건물을 고르면(매매 쪽 선택), 같은 건물·같은 지역의 전월세 실거래도 같이 가져와서
@@ -190,6 +197,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     setTradesSearched(true);
     setSelectedBuilding(null);
     setRentTrades([]);
+    setBuildingQuery("");
     try {
       // 구 단위 평균은 편차가 커서, 최근 3개월치를 모아 건물별로 묶어야
       // 계약서와 같은 건물을 골라 정확하게 비교할 수 있다.
@@ -299,6 +307,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                     setBuildingGroups([]);
                     setSelectedBuilding(null);
                     setRentTrades([]);
+                    setBuildingQuery("");
                     setTradesSearched(false);
                   }}
                   style={[styles.chip, housingType === type && styles.chipActive]}
@@ -347,9 +356,20 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             {buildingGroups.length > 0 && (
               <>
                 <Text style={styles.hintText}>계약서와 같은 건물을 선택하세요 (최근 3개월 매매 건수)</Text>
+                <TextInput
+                  style={[styles.textInput, styles.searchInput]}
+                  value={buildingQuery}
+                  onChangeText={setBuildingQuery}
+                  placeholder="건물명 또는 동 이름으로 검색"
+                  placeholderTextColor={C.ink400}
+                  returnKeyType="search"
+                />
+                {visibleBuildingGroups.length === 0 && (
+                  <Text style={styles.emptyText}>검색 결과가 없습니다. 다른 이름으로 검색해보세요.</Text>
+                )}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.chipRow}>
-                    {buildingGroups.map((g) => (
+                    {visibleBuildingGroups.map((g) => (
                       <TouchableOpacity
                         key={`${g.dong}-${g.buildingName}`}
                         onPress={() => {
@@ -426,14 +446,34 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                   </View>
                 )}
 
+                <Text style={styles.listTitle}>최근 매매 거래</Text>
                 {selectedBuilding.trades.slice(0, 5).map((t, idx) => (
                   <View key={idx} style={styles.tradeRow}>
                     <Text style={styles.tradeAptName}>
-                      {t.area}㎡ · {t.floor}층
+                      매매 · {t.area}㎡ · {t.floor}층
                     </Text>
                     <Text style={styles.tradeAmount}>{t.dealAmountKorean} · {t.dealDate}</Text>
                   </View>
                 ))}
+
+                <Text style={styles.listTitle}>최근 전월세 거래</Text>
+                {rentLoading ? (
+                  <Text style={styles.emptyText}>전월세 거래를 불러오는 중...</Text>
+                ) : areaRentTrades.length === 0 ? (
+                  <Text style={styles.emptyText}>최근 3개월 전월세 거래 내역이 없습니다.</Text>
+                ) : (
+                  areaRentTrades.slice(0, 5).map((t, idx) => (
+                    <View key={idx} style={styles.tradeRow}>
+                      <Text style={styles.tradeAptName}>
+                        {t.isJeonse ? "전세" : "월세"} · {t.area}㎡ · {t.floor}층
+                      </Text>
+                      <Text style={styles.tradeAmount}>
+                        {t.depositKorean || "-"}
+                        {t.isJeonse ? "" : ` / 월 ${Number(t.monthlyRent).toLocaleString()}만원`} · {t.dealDate}
+                      </Text>
+                    </View>
+                  ))
+                )}
               </View>
             )}
           </View>
@@ -523,7 +563,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
 
             <TouchableOpacity
               style={styles.cta}
-              onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_UPLOAD)}
+              onPress={() => navigation.navigate('ExpertQuestion')}
             >
               <Text style={styles.ctaText}>전문가에게 계약서 검토 요청하기</Text>
             </TouchableOpacity>
@@ -568,6 +608,8 @@ const styles = StyleSheet.create({
   tradesResultBox: { marginTop: 12, gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
   tradesTitle: { color: C.ink900, fontSize: 13, fontWeight: '700' },
   compareAvgText: { color: C.brand500, fontSize: 12 },
+  searchInput: { marginBottom: 10 },
+  listTitle: { color: C.ink900, fontSize: 12.5, fontWeight: '700', marginTop: 4 },
   tradeRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: C.line },
   tradeAptName: { color: C.ink500, fontSize: 12 },
   tradeAmount: { color: C.brand500, fontSize: 12 },
