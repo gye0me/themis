@@ -15,6 +15,8 @@ const OUTPUT_FORMAT = `
 * title: 15자 이내
 * desc: 피해자 입장에서 왜 위험한지 1~2문장, 전문 용어는 괄호로 쉬운 말 병기
 * example: 해당 조항을 유리하게 수정할 때 쓰는 문구 예시. 수정 불필요면 null
+* negotiationPhrase: level이 danger/warning일 때만 작성. 피해자가 상대방(임대인/매도인/발주사 등)에게 실제로 말하듯 그대로 읽을 수 있는 1~2문장. 정중하되 근거 있게 요구하는 톤 (예: "OO법 O조에 따르면 ~은 문제가 될 수 있습니다. ~해주실 수 있을까요?"). level이 safe면 null
+* legalBasis: negotiationPhrase의 근거가 되는 법조항을 짧게 (예: "주택임대차보호법 제7조", "민법 제580조"). 특정하기 어려우면 "관련 법령 확인 필요". negotiationPhrase가 null이면 이것도 null
 * items: 최대 6개 (danger 우선 정렬)
 * contractDate: 계약서에 실제로 적힌 날짜 — 타임라인에서 "사건 발생 시각"으로 쓰인다.
   우선순위: (1) 계약 체결일/작성일 (2) 계약 시작일(임대차 시작일, 입주일 등) (3) 계약서 상단에 적힌 날짜.
@@ -203,6 +205,8 @@ function sanitizeItems(items) {
       title: cleanStringValue(item.title) || '조항 분석',
       desc: cleanStringValue(item.desc) || '',
       example: item.example ? cleanStringValue(item.example) : null,
+      negotiationPhrase: item.negotiationPhrase ? cleanStringValue(item.negotiationPhrase) : null,
+      legalBasis: item.legalBasis ? cleanStringValue(item.legalBasis) : null,
     }));
 }
 
