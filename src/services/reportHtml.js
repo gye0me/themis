@@ -3,6 +3,13 @@
 // 사건 타임라인(증거 기록 + 완료된 대응 퀘스트)을 HTML 보고서로 변환한다.
 // 순수 함수만 제공 (파일 저장/공유는 화면단(TimelineScreen)에서 expo-file-system으로 처리).
 
+import {
+  REPORT_LEGAL_NOTICE_TITLE,
+  REPORT_LEGAL_NOTICE_ITEMS,
+  REPORT_LEGAL_NOTICE_FOOTER,
+  REPORT_LEGAL_NOTICE_ACK,
+} from './reportLegalNotice';
+
 const TYPE_LABEL = { image: '📷 사진', audio: '🎵 음성', video: '🎬 영상', text: '📝 메모', contract: '📑 계약분석' };
 const CASE_TYPE_ICON = { 전세사기: '🏠', 금전사기: '💸', 괴롭힘: '👥', 신변위협: '🚨' };
 
@@ -90,6 +97,7 @@ function buildEvidenceCard(record) {
     <div class="card-meta">📅 사건 발생: ${escapeHtml(dateStr)}${uploadStr ? ` &nbsp;·&nbsp; 업로드: ${escapeHtml(uploadStr)}` : ''} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
     ${contractDateStr ? `<div class="card-meta">📑 계약서상 날짜: ${contractDateStr}</div>` : ''}
     <div class="card-type">${typeLabel}${record.title ? ` — ${escapeHtml(record.title)}` : ''}</div>
+    ${record.linkedEvidenceId ? `<div class="card-meta">🔗 "${escapeHtml(record.linkedEvidenceTitle || '다른 증거')}"에 덧붙인 기록</div>` : ''}
     ${mediaHtml ? `<div class="media">${mediaHtml}</div>` : ''}
     ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
     ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
@@ -139,9 +147,9 @@ export function buildReportHashPayload({ caseData = {}, records = [], questItems
  * @param {Object} caseData - { title, caseType, createdAt }
  * @param {Array} records - evidenceRecords 배열
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
- * @param {{ hash: string, finalizedAt: (Date|string|null) }|null} finalization - 확정 정보(서명은 signatureDataUrl로 별도 전달)
+ * @param {{ hash: string, finalizedAt: (Date|string|null) }|null} finalization - 확정 정보 (법적 효력 안내 확인 시각 + 해시)
  */
-export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], signatureDataUrl = null, finalization = null }) {
+export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], finalization = null }) {
   // 숨김 처리된 증거(hidden === true)는 보고서에서 제외한다 — 삭제는 무결성이 깨질 수 있어
   // 대신 hidden 플래그로 처리하는 항목이라, 타임라인 화면에는 흐릿하게 남아있어도 정식 보고서에는 안 나가야 한다.
   const visibleRecords = records.filter((r) => !r.hidden);
@@ -223,16 +231,14 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
   .summary { font-size: 12px; color: var(--brand-600); margin: 2px 0; }
   .empty-note { text-align: center; color: var(--ink-400); font-size: 13px; }
 
-  .signature-section { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
-  .signature-legal { font-size: 11px; color: var(--ink-500); line-height: 1.8; margin-bottom: 16px; }
-  .signature-box { border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 420px; }
-  .signature-label { font-size: 11px; color: var(--ink-400); margin-bottom: 8px; }
-  .signature-img { max-width: 100%; height: 80px; object-fit: contain; }
-  .signature-empty {
-    height: 56px; border: 1.5px dashed var(--line); border-radius: 10px;
-    display: flex; align-items: center; justify-content: center; color: var(--ink-400); font-size: 11.5px;
-  }
-  .signature-date { font-size: 10.5px; color: var(--ink-400); margin-top: 8px; }
+  .notice-section { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+  .notice-box { background: #FFF1E7; border-radius: 14px; padding: 16px 18px; }
+  .notice-title { font-size: 13px; font-weight: 700; color: #C2410C; margin-bottom: 8px; }
+  .notice-list { margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--ink-700); line-height: 1.8; }
+  .notice-footer { font-size: 11px; color: var(--ink-500); margin-top: 8px; }
+  .confirm-box { border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 520px; margin-top: 14px; }
+  .confirm-ack { font-size: 11.5px; color: var(--ink-700); line-height: 1.7; }
+  .confirm-pending { font-size: 10.5px; color: var(--ink-400); margin-top: 8px; }
   .finalize-badge {
     display: inline-block; margin-top: 10px; font-size: 11.5px; font-weight: 700; color: var(--safe-600);
     background: #E4F7EF; border-radius: 999px; padding: 4px 10px;
@@ -268,22 +274,23 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     ${e.html}
   </div>`).join('\n')}
 
-  <div class="signature-section">
-    <p class="signature-legal">
-      본 보고서는 Themis 앱에서 자동 생성된 증거 정리 자료이며, 수집된 증거의 무결성은 SHA-256 해시값 및 서버 타임스탬프로 보장됩니다.<br />
-      아래 서명자는 본 보고서의 내용이 사실임을 확인합니다.<br />
-      법적 효력은 담당 기관에 문의하세요.
-    </p>
-    <div class="signature-box">
-      <div class="signature-label">서명</div>
-      ${signatureDataUrl ? `<img src="${signatureDataUrl}" class="signature-img" alt="서명" />` : '<div class="signature-empty">서명 없음 — 확정 전</div>'}
+  <div class="notice-section">
+    <div class="notice-box">
+      <div class="notice-title">⚠️ ${escapeHtml(REPORT_LEGAL_NOTICE_TITLE)}</div>
+      <ul class="notice-list">
+        ${REPORT_LEGAL_NOTICE_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('\n        ')}
+      </ul>
+      <div class="notice-footer">${escapeHtml(REPORT_LEGAL_NOTICE_FOOTER)}</div>
+    </div>
+    <div class="confirm-box">
       ${finalization?.hash
         ? `
-      <div class="finalize-badge">✅ 보고서 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
+      <div class="confirm-ack">☑ ${escapeHtml(REPORT_LEGAL_NOTICE_ACK)}</div>
+      <div class="finalize-badge">✅ 안내 확인 후 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
       <div class="hash-label">확정 시점 내용 해시 (SHA-256)</div>
       <div class="hash-value">${escapeHtml(finalization.hash)}</div>
       <p class="hash-note">이 해시는 확정 시점의 증거 내용으로 계산됩니다. 이후 내용이 바뀌면 같은 방식으로 다시 계산한 값이 이 값과 달라져, 위변조 여부를 확인할 수 있습니다.</p>`
-        : `<div class="signature-date">아직 확정되지 않은 보고서입니다.</div>`}
+        : `<div class="confirm-pending">아직 확정되지 않은 보고서입니다. 앱에서 법적 효력 안내를 확인하면 확정됩니다.</div>`}
     </div>
   </div>
 </div>

@@ -1,6 +1,5 @@
-import Svg, { Path } from 'react-native-svg';
 import { useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform, Modal, PanResponder } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -10,6 +9,13 @@ import { buildQuestSteps } from '../services/responseGuideSteps';
 import { buildCaseReportHtml, buildReportHashPayload } from '../services/reportHtml';
 import { hashContent } from '../services/signatureService';
 import { finalizeCaseReport } from '../services/firebaseService';
+import {
+  REPORT_LEGAL_NOTICE_TITLE,
+  REPORT_LEGAL_NOTICE_ITEMS,
+  REPORT_LEGAL_NOTICE_FOOTER,
+  REPORT_LEGAL_NOTICE_ACK,
+  REPORT_LEGAL_NOTICE_VERSION,
+} from '../services/reportLegalNotice';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
 
@@ -32,13 +38,10 @@ export default function ReportPreviewScreen({ navigation, route }) {
   const [savingPdf, setSavingPdf] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [webviewLoading, setWebviewLoading] = useState(true);
-  const [signatureModal, setSignatureModal] = useState(false);
-  const [signed, setSigned] = useState(false);
-  const [paths, setPaths] = useState([]);
-  const [currentPath, setCurrentPath] = useState([]);
+  const [noticeModal, setNoticeModal] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   // 이 사건이 이미 예전에 확정된 적 있으면(caseData.reportFinalizedAt) 그 기록을 그대로 보여준다.
-  const [signatureDataUrl, setSignatureDataUrl] = useState(caseData?.reportSignatureDataUrl ?? null);
   const [finalizationHash, setFinalizationHash] = useState(caseData?.reportFinalizationHash ?? null);
   const [finalizedAt, setFinalizedAt] = useState(() => toJsDate(caseData?.reportFinalizedAt) ?? null);
 
@@ -53,17 +56,16 @@ export default function ReportPreviewScreen({ navigation, route }) {
     createdAt: caseData?.createdAt ?? records[records.length - 1]?.capturedAt,
   }), [caseData, records]);
 
-  const buildHtml = useCallback((sigUrl, hash, finalizedAtValue) => buildCaseReportHtml({
+  const buildHtml = useCallback((hash, finalizedAtValue) => buildCaseReportHtml({
     caseData: effectiveCaseData,
     records,
     questItems,
-    signatureDataUrl: sigUrl ?? null,
     finalization: hash ? { hash, finalizedAt: finalizedAtValue } : null,
   }), [effectiveCaseData, records, questItems]);
 
   const html = useMemo(
-    () => buildHtml(signatureDataUrl, finalizationHash, finalizedAt),
-    [buildHtml, signatureDataUrl, finalizationHash, finalizedAt]
+    () => buildHtml(finalizationHash, finalizedAt),
+    [buildHtml, finalizationHash, finalizedAt]
   );
 
   async function saveOnAndroidToPickedFolder(fileName) {
@@ -184,53 +186,25 @@ export default function ReportPreviewScreen({ navigation, route }) {
     }
   }
 
-  // 서명 → 확정: 서명은 "내가 확인했다"는 증거, 해시는 "확정 이후 안 바뀌었다"는 증거로 함께 남긴다.
+  // 법적 효력 안내 확인 → 확정: 확인 기록은 "이 보고서의 한계를 알고 확정했다"는 근거,
+  // 해시는 "확정 이후 안 바뀌었다"는 근거로 함께 남긴다.
   async function handleFinalize() {
-    if (!signed || finalizing) return;
+    if (!acknowledged || finalizing) return;
     setFinalizing(true);
     try {
-      let sigUrl = null;
-      if (Platform.OS === 'web' && paths.length > 0) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 300;
-        canvas.height = 150;
-        const ctx = canvas.getContext('2d');
-        ctx.strokeStyle = '#1E3A5F';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        paths.forEach((path) => {
-          if (path.length < 2) return;
-          ctx.beginPath();
-          ctx.moveTo(path[0].x, path[0].y);
-          path.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-          ctx.stroke();
-        });
-        sigUrl = canvas.toDataURL('image/png');
-      } else if (paths.length > 0) {
-        const svgPaths = paths.map((path) => {
-          if (path.length < 2) return '';
-          const d = path.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-          return `<path d="${d}" stroke="#1E3A5F" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-        }).join('');
-        const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">${svgPaths}</svg>`;
-        sigUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
-      }
-
       const hash = await hashContent(buildReportHashPayload({ caseData: effectiveCaseData, records, questItems }));
       const confirmedAt = new Date();
 
       // 사건에 연결된 보고서(caseData.id가 있는 경우)만 Firestore에 확정 기록을 남긴다 —
       // caseId 없이(일반 기록) 열람 중인 보고서는 이번에 내려받는 파일에만 반영된다.
       if (caseData?.id) {
-        await finalizeCaseReport(caseData.id, { hash, signatureDataUrl: sigUrl });
+        await finalizeCaseReport(caseData.id, { hash, legalNoticeVersion: REPORT_LEGAL_NOTICE_VERSION });
       }
 
-      setSignatureDataUrl(sigUrl);
       setFinalizationHash(hash);
       setFinalizedAt(confirmedAt);
-      setSignatureModal(false);
-      Alert.alert('확정 완료', '보고서가 서명·해시값과 함께 확정되었습니다.');
+      setNoticeModal(false);
+      Alert.alert('확정 완료', '법적 효력 안내 확인과 해시값이 함께 기록되었습니다.');
     } catch (err) {
       console.error('보고서 확정 오류:', err);
       Alert.alert('오류', '보고서를 확정하지 못했습니다. 다시 시도해주세요.');
@@ -269,15 +243,15 @@ export default function ReportPreviewScreen({ navigation, route }) {
         )}
       </View>
 
-      {/* 확정 상태 배너 — 서명 = "내가 확인했다"는 증거, 해시 = "확정 이후 안 바뀌었다"는 증거 */}
+      {/* 확정 상태 배너 — 법적 효력 안내 확인 + 해시 = "확정 이후 안 바뀌었다"는 근거 */}
       {finalizationHash ? (
         <View style={styles.finalizedBanner}>
           <Text style={styles.finalizedBannerTitle}>✅ 보고서 확정됨 · {finalizedAt ? finalizedAt.toLocaleString('ko-KR') : ''}</Text>
           <Text style={styles.finalizedBannerHash} numberOfLines={1}>해시 {finalizationHash}</Text>
         </View>
       ) : (
-        <TouchableOpacity style={styles.finalizeRow} onPress={() => setSignatureModal(true)}>
-          <Text style={styles.finalizeRowText}>✍️ 서명하고 보고서 확정하기</Text>
+        <TouchableOpacity style={styles.finalizeRow} onPress={() => { setAcknowledged(false); setNoticeModal(true); }}>
+          <Text style={styles.finalizeRowText}>⚖️ 법적 효력 안내 확인 후 보고서 확정하기</Text>
         </TouchableOpacity>
       )}
 
@@ -299,84 +273,43 @@ export default function ReportPreviewScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
       <Modal
-        visible={signatureModal}
+        visible={noticeModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setSignatureModal(false)}
+        onRequestClose={() => setNoticeModal(false)}
       >
-        <View style={sigStyles.backdrop}>
-          <View style={sigStyles.card}>
-            <Text style={sigStyles.title}>서명 후 보고서를 확정합니다</Text>
-            <Text style={sigStyles.desc}>
-              서명은 "내가 이 보고서를 확인했다"는 증거이고, 확정 시 함께 남는 해시값은{'\n'}
-              "이후 내용이 바뀌지 않았다"는 증거예요. 확정 후에도 HTML/PDF 다운로드는 자유롭게 하실 수 있습니다.{'\n\n'}
-              서명란에 서명 후 아래 버튼으로 확정해주세요.
-            </Text>
+        <View style={noticeStyles.backdrop}>
+          <View style={noticeStyles.card}>
+            <Text style={noticeStyles.title}>⚠️ {REPORT_LEGAL_NOTICE_TITLE}</Text>
+            <Text style={noticeStyles.desc}>보고서를 확정하기 전에 아래 내용을 꼭 확인해주세요.</Text>
 
-            <View style={sigStyles.padWrap}>
-              <Text style={sigStyles.padLabel}>아래에 서명하세요</Text>
-              <View
-                style={sigStyles.pad}
-                {...PanResponder.create({
-                  onStartShouldSetPanResponder: () => true,
-                  onMoveShouldSetPanResponder: () => true,
-                  onPanResponderGrant: (e) => {
-                    const { locationX, locationY } = e.nativeEvent;
-                    setCurrentPath([{ x: locationX, y: locationY }]);
-                  },
-                  onPanResponderMove: (e) => {
-                    const { locationX, locationY } = e.nativeEvent;
-                    setCurrentPath((prev) => [...prev, { x: locationX, y: locationY }]);
-                  },
-                  onPanResponderRelease: () => {
-                    setPaths((prev) => [...prev, currentPath]);
-                    setCurrentPath([]);
-                    setSigned(true);
-                  },
-                }).panHandlers}
-              >
-                {Platform.OS === 'web' ? (
-                  <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-                    {paths.map((path, i) => (
-                      <polyline key={i} points={path.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#1E3A5F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    ))}
-                    {currentPath.length > 0 && (
-                      <polyline points={currentPath.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#1E3A5F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    )}
-                  </svg>
-                ) : (
-                  <Svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-                    {paths.map((path, i) => {
-                      if (path.length < 2) return null;
-                      const d = path.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-                      return <Path key={i} d={d} stroke="#1E3A5F" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
-                    })}
-                    {currentPath.length > 1 && (
-                      <Path
-                        d={currentPath.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')}
-                        stroke="#1E3A5F" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round"
-                      />
-                    )}
-                  </Svg>
-                )}
+            <ScrollView style={noticeStyles.noticeBox} contentContainerStyle={{ gap: 8 }}>
+              {REPORT_LEGAL_NOTICE_ITEMS.map((item, i) => (
+                <View key={i} style={noticeStyles.noticeItem}>
+                  <Text style={noticeStyles.noticeBullet}>•</Text>
+                  <Text style={noticeStyles.noticeText}>{item}</Text>
+                </View>
+              ))}
+              <Text style={noticeStyles.noticeFooter}>{REPORT_LEGAL_NOTICE_FOOTER}</Text>
+            </ScrollView>
+
+            <TouchableOpacity style={noticeStyles.ackRow} onPress={() => setAcknowledged((v) => !v)} activeOpacity={0.8}>
+              <View style={[noticeStyles.checkbox, acknowledged && noticeStyles.checkboxChecked]}>
+                {acknowledged && <Text style={noticeStyles.checkboxMark}>✓</Text>}
               </View>
-              {signed && (
-                <TouchableOpacity onPress={() => { setPaths([]); setSigned(false); }}>
-                  <Text style={sigStyles.clear}>다시 서명하기</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+              <Text style={noticeStyles.ackText}>{REPORT_LEGAL_NOTICE_ACK}</Text>
+            </TouchableOpacity>
 
-            <View style={sigStyles.btnRow}>
-              <TouchableOpacity style={sigStyles.cancelBtn} onPress={() => setSignatureModal(false)}>
-                <Text style={sigStyles.cancelBtnText}>취소</Text>
+            <View style={noticeStyles.btnRow}>
+              <TouchableOpacity style={noticeStyles.cancelBtn} onPress={() => setNoticeModal(false)}>
+                <Text style={noticeStyles.cancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[sigStyles.confirmBtn, (!signed || finalizing) && { opacity: 0.4 }]}
-                disabled={!signed || finalizing}
+                style={[noticeStyles.confirmBtn, (!acknowledged || finalizing) && { opacity: 0.4 }]}
+                disabled={!acknowledged || finalizing}
                 onPress={handleFinalize}
               >
-                {finalizing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={sigStyles.confirmBtnText}>보고서 확정</Text>}
+                {finalizing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={noticeStyles.confirmBtnText}>확인하고 확정</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -418,16 +351,27 @@ const styles = StyleSheet.create({
   },
   downloadBtnSecondaryText: { color: '#CBD5E1', fontSize: 12, fontWeight: '600' },
 });
-const sigStyles = StyleSheet.create({
+const noticeStyles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(10,22,40,0.5)', justifyContent: 'flex-end' },
-  card: { backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
+  card: { backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12, maxHeight: '90%' },
   title: { color: C.ink900, fontSize: 16, fontWeight: '700' },
   desc: { color: C.ink500, fontSize: 12, lineHeight: 18 },
-  padWrap: { gap: 6 },
-  padLabel: { color: C.ink400, fontSize: 11 },
-  pad: { height: 150, backgroundColor: C.sky050, borderRadius: 12, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
-  clear: { color: C.brand600, fontSize: 11, textAlign: 'right', marginTop: 4 },
-  btnRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  noticeBox: {
+    backgroundColor: C.warn100, borderRadius: 12, padding: 14, maxHeight: 300,
+  },
+  noticeItem: { flexDirection: 'row', gap: 6 },
+  noticeBullet: { color: C.warn600, fontSize: 12.5, lineHeight: 19, fontWeight: '700' },
+  noticeText: { flex: 1, color: C.ink700, fontSize: 12.5, lineHeight: 19 },
+  noticeFooter: { color: C.ink500, fontSize: 11.5, lineHeight: 17, marginTop: 4 },
+  ackRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: C.ink400, marginTop: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked: { backgroundColor: C.brand600, borderColor: C.brand600 },
+  checkboxMark: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  ackText: { flex: 1, color: C.ink900, fontSize: 12.5, lineHeight: 19, fontWeight: '600' },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   cancelBtn: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: C.line, alignItems: 'center' },
   cancelBtnText: { color: C.ink500, fontSize: 13, fontWeight: '600' },
   confirmBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: C.brand600, alignItems: 'center' },

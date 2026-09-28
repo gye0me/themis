@@ -8,6 +8,8 @@ import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById, deleteCase, setEvidenceHidden } from '../services/firebaseService';
 import { BackHeader } from '../components/BackHeader';
+import { PreventionGuideModal } from '../components/PreventionGuideModal';
+import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { C } from '../theme/tokens';
 
 // color: 타입 식별용 포인트 컬러(타임라인 점, 필터 칩) / badgeBg·badgeColor: 카드 아이콘 뱃지(리디자인)
@@ -133,6 +135,7 @@ export function TimelineScreen({ navigation, route }) {
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [deleting, setDeleting] = useState(false);
+  const [preventionVisible, setPreventionVisible] = useState(false);
   function toggleExpand(id) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -171,6 +174,15 @@ export function TimelineScreen({ navigation, route }) {
     }
   }
 
+  // 예방 가이드를 닫으면 체크리스트 진행 개수를 다시 반영하기 위해 사건 문서만 새로 불러온다
+  function closePrevention() {
+    setPreventionVisible(false);
+    if (!caseId) return;
+    getCaseById(caseId)
+      .then((c) => c && setCaseData(c))
+      .catch((err) => console.warn('사건 정보 새로고침 실패:', err.message));
+  }
+
   function handleOpenReport() {
     navigation.navigate(RECORD_ROUTES.REPORT_PREVIEW, { caseData, records });
   }
@@ -205,9 +217,26 @@ export function TimelineScreen({ navigation, route }) {
     );
   }
 
+  // "올린 증거에 이어서 기록"한 메모는 원래 증거 카드 밑에 붙여서 보여준다 (메모 필터에서는 따로도 보임)
+  const recordIds = new Set(records.map((r) => r.id));
+  const linkedByParent = {};
+  records.forEach((r) => {
+    if (r.linkedEvidenceId && recordIds.has(r.linkedEvidenceId)) {
+      (linkedByParent[r.linkedEvidenceId] ??= []).push(r);
+    }
+  });
+  Object.values(linkedByParent).forEach((list) =>
+    list.sort((a, b) => (getEventTime(a)?.seconds ?? 0) - (getEventTime(b)?.seconds ?? 0))
+  );
+  const isNestedMemo = (r) => !!r.linkedEvidenceId && recordIds.has(r.linkedEvidenceId);
+
   const filteredRecords = activeFilter === 'all'
-    ? records
-    : records.filter((r) => r.evidenceType === activeFilter);
+    ? records.filter((r) => !isNestedMemo(r))
+    : activeFilter === 'text'
+      ? records.filter((r) => r.evidenceType === 'text')
+      : records.filter((r) => r.evidenceType === activeFilter && !isNestedMemo(r));
+
+  const preventionDoneCount = Object.values(caseData?.preventionChecklist ?? {}).filter(Boolean).length;
 
   const summary = buildSummary(records);
   const totalCount = records.length;
@@ -222,7 +251,7 @@ export function TimelineScreen({ navigation, route }) {
           <>
             <TouchableOpacity
               style={styles.newCaseBtn}
-              onPress={() => navigation.navigate(RECORD_ROUTES.START, { openForm: true })}
+              onPress={() => navigation.popTo(RECORD_ROUTES.START, { openForm: true })}
             >
               <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
             </TouchableOpacity>
@@ -277,6 +306,21 @@ export function TimelineScreen({ navigation, route }) {
       ) : (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
+          {/* 예방 가이드 — 사건 유형별 사례·체크리스트 (사건에 연결된 타임라인에서만) */}
+          {caseId && (
+            <TouchableOpacity style={styles.preventionCard} onPress={() => setPreventionVisible(true)} activeOpacity={0.85}>
+              <Text style={styles.preventionIcon}>🛡️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.preventionTitle}>예방 가이드 · 체크리스트</Text>
+                <Text style={styles.preventionDesc}>
+                  {(CASE_TYPE_META[caseData?.caseType] ?? CASE_TYPE_META['기타']).label} 사례별로 미리 챙길 것
+                  {preventionDoneCount > 0 ? ` · ${preventionDoneCount}개 완료` : ''}
+                </Text>
+              </View>
+              <Text style={styles.preventionArrow}>›</Text>
+            </TouchableOpacity>
+          )}
+
           {/* 수집된 증거 요약 */}
           <View style={styles.summaryRow}>
             {Object.entries(summary).map(([type, count]) => {
@@ -328,7 +372,7 @@ export function TimelineScreen({ navigation, route }) {
               {activeFilter === 'all' && (
                 <TouchableOpacity
                   style={styles.uploadBtn}
-                  onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null })}
+                  onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null }, { pop: true })}
                 >
                   <Text style={styles.uploadBtnText}>증거 업로드하러 가기 →</Text>
                 </TouchableOpacity>
@@ -410,6 +454,19 @@ export function TimelineScreen({ navigation, route }) {
                       {item.originalFileName ? (
                         <Text style={styles.fileName}>{item.originalFileName}</Text>
                       ) : null}
+                      {item.linkedEvidenceId && activeFilter === 'text' ? (
+                        <Text style={styles.linkedFrom}>🔗 {item.linkedEvidenceTitle || '다른 증거'}에 덧붙인 기록</Text>
+                      ) : null}
+
+                      {/* 이 증거에 이어서 남긴 기록들 */}
+                      {(linkedByParent[item.id] ?? []).map((memo) => (
+                        <View key={memo.id} style={[styles.linkedMemo, memo.hidden && { opacity: 0.4 }]}>
+                          <Text style={styles.linkedMemoMeta}>↳ 📝 {formatDate(getEventTime(memo))}</Text>
+                          <Text style={styles.linkedMemoText} numberOfLines={isExpanded ? undefined : 2}>
+                            {memo.note}
+                          </Text>
+                        </View>
+                      ))}
 
                       {/* 계약서 분석 상세: 사진 + AI 분석 결과 */}
                       {isContract && isExpanded && (
@@ -473,6 +530,15 @@ export function TimelineScreen({ navigation, route }) {
                       {item.evidenceType === 'video' && isExpanded && item.downloadURL && (
                         <View style={styles.contractDetail}>
                           <InlineVideoPlayer uri={item.downloadURL} thumbnailURL={item.thumbnailURL} />
+                          {item.note ? (
+                            <TouchableOpacity
+                              style={styles.hashCard}
+                              onPress={() => Alert.alert('영상 음성 텍스트', item.note)}
+                            >
+                              <Text style={styles.hashLabel}>🎙️ 영상 음성 텍스트 (탭하면 전체 보기)</Text>
+                              <Text style={styles.memoDetailText} numberOfLines={3}>{item.note}</Text>
+                            </TouchableOpacity>
+                          ) : null}
                         </View>
                       )}
 
@@ -481,6 +547,22 @@ export function TimelineScreen({ navigation, route }) {
                         <View style={styles.contractDetail}>
                           <InlineAudioPlayer uri={item.downloadURL} />
                         </View>
+                      )}
+
+                      {/* 사진·영상·음성·계약분석 밑에 기록 덧붙이기 */}
+                      {isExpanded && ['image', 'video', 'audio', 'contract'].includes(item.evidenceType) && (
+                        <TouchableOpacity
+                          style={styles.addMemoBtn}
+                          onPress={() =>
+                            navigation.navigate(APP_ROUTES.UPLOAD_SCREEN, {
+                              caseId: caseId ?? 'general',
+                              caseType: caseData?.caseType ?? null,
+                              linkedEvidenceId: item.id,
+                            })
+                          }
+                        >
+                          <Text style={styles.addMemoBtnText}>+ 이 증거에 기록 추가</Text>
+                        </TouchableOpacity>
                       )}
 
                       {/* 메모 상세: 위 미리보기는 2줄로 고정, 여기에 전체 내용 표시 */}
@@ -509,7 +591,7 @@ export function TimelineScreen({ navigation, route }) {
       {caseId && (
         <TouchableOpacity
           style={styles.floatingUploadBtn}
-          onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null })}
+          onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null }, { pop: true })}
         >
           <Text style={styles.floatingUploadBtnText}>+ 증거</Text>
         </TouchableOpacity>
@@ -531,6 +613,12 @@ export function TimelineScreen({ navigation, route }) {
       >
         <Text style={styles.floatingBtnText}>?</Text>
       </TouchableOpacity>
+      <PreventionGuideModal
+        visible={preventionVisible}
+        caseId={caseId}
+        caseType={caseData?.caseType}
+        onClose={closePrevention}
+      />
     </SafeAreaView>
   );
 }
@@ -541,6 +629,14 @@ const styles = StyleSheet.create({
   shareBtnText: { color: C.ink500, fontSize: 18 },
   deleteBtn: { padding: 4 },
   deleteBtnText: { fontSize: 16 },
+  preventionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.safe100, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14,
+  },
+  preventionIcon: { fontSize: 22 },
+  preventionTitle: { fontSize: 13.5, fontWeight: '700', color: C.ink900 },
+  preventionDesc: { fontSize: 11.5, color: C.ink500, marginTop: 2 },
+  preventionArrow: { fontSize: 20, color: C.ink400 },
   newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: C.brand400 },
   newCaseBtnText: { color: C.brand600, fontSize: 11, fontWeight: '600' },
   content: { flex: 1, padding: 20 },
@@ -601,6 +697,18 @@ const styles = StyleSheet.create({
   cardTitle: { color: C.ink900, fontSize: 13, fontWeight: '700', flex: 1 },
   cardSub: { color: C.ink500, fontSize: 11.5 },
   fileName: { color: C.ink400, fontSize: 9, fontStyle: 'italic' },
+  linkedFrom: { color: C.ink500, fontSize: 11, marginTop: 2 },
+  linkedMemo: {
+    marginTop: 8, paddingLeft: 10, paddingVertical: 6,
+    borderLeftWidth: 2, borderLeftColor: C.brand400, gap: 2,
+  },
+  linkedMemoMeta: { color: C.ink400, fontSize: 10.5 },
+  linkedMemoText: { color: C.ink700, fontSize: 12.5, lineHeight: 18 },
+  addMemoBtn: {
+    alignSelf: 'flex-start', marginTop: 10, borderWidth: 1, borderColor: C.brand400,
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  addMemoBtnText: { color: C.brand600, fontSize: 12, fontWeight: '700' },
   expandHint: { color: C.brand500, fontSize: 10.5, marginLeft: 'auto' },
   contractDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line, gap: 8 },
   contractImage: { width: '100%', height: 180, borderRadius: 10, backgroundColor: C.sky050 },

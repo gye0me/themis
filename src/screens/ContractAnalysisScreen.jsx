@@ -530,7 +530,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
 
             <TouchableOpacity
               style={styles.cta}
-              onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_UPLOAD)}
+              onPress={() => navigation.navigate(APP_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: route?.params?.caseType ?? null })}
             >
               <Text style={styles.ctaText}>전문가에게 계약서 검토 요청하기</Text>
             </TouchableOpacity>

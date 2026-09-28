@@ -17,6 +17,11 @@ import {
   registerDeadmanBackgroundTask,
   unregisterDeadmanBackgroundTask,
   ensureDeadmanBackgroundTaskRegistered,
+  DEADMAN_DEFAULT_TIMEOUT_MIN,
+  DEADMAN_TIMEOUT_PRESETS_MIN,
+  DEADMAN_TIMEOUT_MIN_RANGE,
+  normalizeDeadmanTimeoutMin,
+  formatDeadmanTimeout,
 } from '../services/deadmanBackgroundTask';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C, EVIDENCE_TILES } from '../theme/tokens';
@@ -37,16 +42,18 @@ const THEMIS_LOGO = require('../assets/themis-logo-brand.png');
 // 데드맨 스위치: 포그라운드에서는 1초 단위로 정확히 카운트다운한다.
 // 앱이 백그라운드에 있는 동안은 deadmanBackgroundTask.js에 등록된 백그라운드 작업(EAS 개발
 // 빌드에서만 동작, Expo Go에서는 무시됨)이 최소 15분 간격으로 깨어나 초과 여부를 확인하고,
-// 초과 시 알림을 띄운다 — OS가 타이밍을 보장하지 않아 "정확히 30분"은 아니고,
+// 초과 시 알림을 띄운다 — OS가 타이밍을 보장하지 않아 설정 시간에 "정확히" 맞춰지지는 않고,
 // 앱이 완전히 종료된 동안엔 그마저도 안 돌 수 있다는 한계는 여전히 남아있다.
-const DEADMAN_TIMEOUT_MS = 30 * 60 * 1000;
+// 무응답 기준 시간은 사용자가 15분/30분/1시간 중에 고르거나 직접 입력한다 (기본 30분).
 
 function formatCountdown(ms) {
   const clamped = Math.max(0, ms);
   const totalSec = Math.floor(clamped / 1000);
-  const m = Math.floor(totalSec / 60);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const mmss = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return h > 0 ? `${h}:${mmss}` : mmss;
 }
 
 function formatJoinDate(ts) {
@@ -129,7 +136,7 @@ function CaseCard({ entry, navigation, isExpanded, onToggleExpand }) {
               style={styles.timelineBtn}
               onPress={(e) => {
                 e.stopPropagation?.();
-                navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: c.id } });
+                navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.EVIDENCE_TIMELINE, params: { caseId: c.id }, pop: true });
               }}
             >
               <Text style={styles.timelineBtnText}>타임라인{'\n'}보기 →</Text>
@@ -203,6 +210,20 @@ function SafetyShieldIcon({ color }) {
   );
 }
 
+// 데드맨 스위치 무응답 기준 시간 프리셋 칩 (15분 / 30분 / 1시간)
+function TimeoutChip({ minutes, active, onSelect }) {
+  return (
+    <TouchableOpacity
+      style={[styles.timeoutChip, active && styles.timeoutChipActive]}
+      onPress={() => onSelect(minutes)}
+    >
+      <Text style={[styles.timeoutChipText, active && styles.timeoutChipTextActive]}>
+        {formatDeadmanTimeout(minutes)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 export function HomeScreen({ navigation }) {
   const { user, profile, refreshProfile } = useContext(AuthContext);
 
@@ -218,6 +239,14 @@ export function HomeScreen({ navigation }) {
   const [contactPhone, setContactPhone] = useState('');
   const [savingContact, setSavingContact] = useState(false);
   const [lastCheckIn, setLastCheckIn] = useState(null);
+  const [timeoutMin, setTimeoutMin] = useState(DEADMAN_DEFAULT_TIMEOUT_MIN);
+  const [customTimeoutInput, setCustomTimeoutInput] = useState('');
+  const [editingCustomTimeout, setEditingCustomTimeout] = useState(false);
+  // 앱 복귀/알림 탭 리스너(마운트 시 1회 등록)에서도 최신 설정값을 쓰도록 ref로도 들고 있는다
+  const timeoutMinRef = useRef(DEADMAN_DEFAULT_TIMEOUT_MIN);
+  useEffect(() => {
+    timeoutMinRef.current = timeoutMin;
+  }, [timeoutMin]);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const triggeringRef = useRef(false);
 
@@ -258,10 +287,11 @@ export function HomeScreen({ navigation }) {
           contactName: contactName.trim(),
           contactPhone: contactPhone.trim(),
           lastCheckIn: checkInAt,
+          timeoutMin,
         },
       });
       await refreshProfile?.();
-      await syncDeadmanLocalState({ enabled: next, lastCheckIn: checkInAt, contactName, contactPhone });
+      await syncDeadmanLocalState({ enabled: next, lastCheckIn: checkInAt, contactName, contactPhone, timeoutMin });
       if (next) {
         await Notifications.requestPermissionsAsync().catch(() => {});
         const ok = await registerDeadmanBackgroundTask();
@@ -295,11 +325,12 @@ export function HomeScreen({ navigation }) {
           contactName: contactName.trim(),
           contactPhone: contactPhone.trim(),
           lastCheckIn: checkInAt,
+          timeoutMin,
         },
       });
       setLastCheckIn(checkInAt);
       await refreshProfile?.();
-      await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone });
+      await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone, timeoutMin });
       if (deadmanEnabled) {
         await Notifications.requestPermissionsAsync().catch(() => {});
         await registerDeadmanBackgroundTask();
@@ -313,22 +344,58 @@ export function HomeScreen({ navigation }) {
     }
   };
 
-  // "저 괜찮아요" 체크인 — 카운트다운을 30분으로 다시 채운다.
-  const checkIn = async () => {
+  // 무응답 기준 시간 변경 — 바꾸는 순간부터 새 시간으로 카운트다운을 다시 시작한다.
+  const changeTimeout = async (minutes) => {
+    const next = normalizeDeadmanTimeoutMin(minutes);
     const checkInAt = Date.now();
-    setLastCheckIn(checkInAt);
-    await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone });
+    setTimeoutMin(next);
+    setEditingCustomTimeout(false);
+    setCustomTimeoutInput('');
+    if (deadmanEnabled) setLastCheckIn(checkInAt);
+    const savedCheckIn = deadmanEnabled ? checkInAt : lastCheckIn;
+    await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: savedCheckIn, contactName, contactPhone, timeoutMin: next });
     if (!user) return;
     try {
       await updateUserProfile(user.uid, {
-        deadmanSwitch: { enabled: deadmanEnabled, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn: checkInAt },
+        deadmanSwitch: {
+          enabled: deadmanEnabled,
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim(),
+          lastCheckIn: savedCheckIn,
+          timeoutMin: next,
+        },
+      });
+    } catch (err) {
+      console.error('데드맨 시간 설정 저장 오류:', err);
+      Alert.alert('오류', '시간 설정을 저장하지 못했습니다.');
+    }
+  };
+
+  const submitCustomTimeout = () => {
+    const n = Math.round(Number(customTimeoutInput));
+    if (!Number.isFinite(n) || n < DEADMAN_TIMEOUT_MIN_RANGE.min || n > DEADMAN_TIMEOUT_MIN_RANGE.max) {
+      Alert.alert('알림', `${DEADMAN_TIMEOUT_MIN_RANGE.min}분 ~ ${DEADMAN_TIMEOUT_MIN_RANGE.max}분(24시간) 사이로 입력해주세요.`);
+      return;
+    }
+    changeTimeout(n);
+  };
+
+  // "저 괜찮아요" 체크인 — 카운트다운을 설정한 시간으로 다시 채운다.
+  const checkIn = async () => {
+    const checkInAt = Date.now();
+    setLastCheckIn(checkInAt);
+    await syncDeadmanLocalState({ enabled: deadmanEnabled, lastCheckIn: checkInAt, contactName, contactPhone, timeoutMin });
+    if (!user) return;
+    try {
+      await updateUserProfile(user.uid, {
+        deadmanSwitch: { enabled: deadmanEnabled, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn: checkInAt, timeoutMin },
       });
     } catch (err) {
       console.error('체크인 저장 오류:', err);
     }
   };
 
-  // 30분 무응답 시간 초과 — GPS 위치를 담아 보호자에게 보낼 문자를 미리 채워서 연다.
+  // 설정 시간 무응답 초과 — GPS 위치를 담아 보호자에게 보낼 문자를 미리 채워서 연다.
   // (OS 정책상 앱이 사용자 동의 없이 문자를 "완전 자동"으로 보낼 수는 없어, 마지막 전송 버튼만 사용자가 누르면 된다.)
   const triggerDeadmanAlert = async () => {
     if (triggeringRef.current) return;
@@ -337,10 +404,10 @@ export function HomeScreen({ navigation }) {
       // 재발동 방지를 위해 즉시 끄고 저장 (사용자가 다시 켜면 재무장)
       setDeadmanEnabled(false);
       await unregisterDeadmanBackgroundTask();
-      await syncDeadmanLocalState({ enabled: false, lastCheckIn, contactName, contactPhone });
+      await syncDeadmanLocalState({ enabled: false, lastCheckIn, contactName, contactPhone, timeoutMin });
       if (user) {
         await updateUserProfile(user.uid, {
-          deadmanSwitch: { enabled: false, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn },
+          deadmanSwitch: { enabled: false, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn, timeoutMin },
         }).catch((err) => console.error('데드맨 스위치 비활성화 저장 오류:', err));
       }
 
@@ -355,13 +422,14 @@ export function HomeScreen({ navigation }) {
         console.warn('위치 조회 실패:', err.message);
       }
 
-      const message = `[Themis 위급 알림] ${displayName}님이 30분간 앱에 응답이 없습니다.\n마지막 위치: ${locationLine}\n확인 부탁드립니다.`;
+      const timeoutLabel = formatDeadmanTimeout(timeoutMinRef.current);
+      const message = `[Themis 위급 알림] ${displayName}님이 ${timeoutLabel}간 앱에 응답이 없습니다.\n마지막 위치: ${locationLine}\n확인 부탁드립니다.`;
 
       const available = await SMS.isAvailableAsync();
       if (!available || !contactPhone) {
         Alert.alert(
           '무응답 감지됨',
-          `30분간 체크인이 없었어요.\n\n${message}\n\n(이 기기에서 문자 전송을 사용할 수 없어 자동으로 열지 못했습니다.)`
+          `${timeoutLabel}간 체크인이 없었어요.\n\n${message}\n\n(이 기기에서 문자 전송을 사용할 수 없어 자동으로 열지 못했습니다.)`
         );
         return;
       }
@@ -421,6 +489,8 @@ export function HomeScreen({ navigation }) {
       setContactPhone(saved?.contactPhone ?? '');
       const savedCheckIn = saved?.lastCheckIn?.toMillis ? saved.lastCheckIn.toMillis() : (saved?.lastCheckIn ?? null);
       setLastCheckIn(savedCheckIn);
+      const savedTimeoutMin = normalizeDeadmanTimeoutMin(saved?.timeoutMin ?? DEADMAN_DEFAULT_TIMEOUT_MIN);
+      setTimeoutMin(savedTimeoutMin);
       setNowTick(Date.now());
 
       // 켜짐 상태로 불러왔다면, 앱을 완전히 껐다 켠 경우에도 백그라운드 감지가
@@ -433,6 +503,7 @@ export function HomeScreen({ navigation }) {
           lastCheckIn: savedCheckIn,
           contactName: contactNameSaved,
           contactPhone: contactPhoneSaved,
+          timeoutMin: savedTimeoutMin,
         }).catch((err) => console.error('데드맨 로컬 상태 동기화 오류:', err));
         ensureDeadmanBackgroundTaskRegistered();
       }
@@ -476,11 +547,11 @@ export function HomeScreen({ navigation }) {
 
   useEffect(() => {
     if (!deadmanEnabled || !lastCheckIn) return;
-    if (nowTick - lastCheckIn >= DEADMAN_TIMEOUT_MS) {
+    if (nowTick - lastCheckIn >= timeoutMin * 60 * 1000) {
       triggerDeadmanAlert();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nowTick, deadmanEnabled, lastCheckIn]);
+  }, [nowTick, deadmanEnabled, lastCheckIn, timeoutMin]);
 
   const handleLogout = () => {
     Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
@@ -499,6 +570,8 @@ export function HomeScreen({ navigation }) {
       },
     ]);
   };
+
+  const isCustomTimeout = editingCustomTimeout || !DEADMAN_TIMEOUT_PRESETS_MIN.includes(timeoutMin);
 
   const totalEvidence = Object.values(evidenceByCase).reduce((sum, v) => sum + (v?.total ?? 0), 0);
 
@@ -553,7 +626,7 @@ export function HomeScreen({ navigation }) {
             </Text>
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true } })}
+              onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true }, pop: true })}
             >
               <LinearGradient colors={[C.brand600, C.brand400]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0.4 }} style={styles.cta}>
                 <Text style={styles.ctaText}>+ 새 사건 기록 시작하기</Text>
@@ -595,7 +668,7 @@ export function HomeScreen({ navigation }) {
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.safetyDesc}>30분간 "체크인"이 없으면 보호자에게 위치와 함께 문자 전송을 준비해요.</Text>
+                  <Text style={styles.safetyDesc}>{formatDeadmanTimeout(timeoutMin)}간 "체크인"이 없으면 보호자에게 위치와 함께 문자 전송을 준비해요.</Text>
                 </View>
                 <Switch
                   value={deadmanEnabled}
@@ -639,7 +712,7 @@ export function HomeScreen({ navigation }) {
                       <View style={styles.countdownBlock}>
                         <Text style={styles.countdownLabel}>남은 시간</Text>
                         <Text style={styles.countdownValue}>
-                          {formatCountdown(DEADMAN_TIMEOUT_MS - (nowTick - (lastCheckIn ?? nowTick)))}
+                          {formatCountdown(timeoutMin * 60 * 1000 - (nowTick - (lastCheckIn ?? nowTick)))}
                         </Text>
                       </View>
                       <TouchableOpacity style={styles.checkinBtn} onPress={checkIn}>
@@ -647,6 +720,48 @@ export function HomeScreen({ navigation }) {
                       </TouchableOpacity>
                     </View>
                   )}
+                  <View style={styles.timeoutBlock}>
+                    <Text style={styles.timeoutLabel}>무응답 기준 시간</Text>
+                    <View style={styles.timeoutChips}>
+                      {DEADMAN_TIMEOUT_PRESETS_MIN.map((m) => (
+                        <TimeoutChip
+                          key={m}
+                          minutes={m}
+                          active={!editingCustomTimeout && timeoutMin === m}
+                          onSelect={changeTimeout}
+                        />
+                      ))}
+                      <TouchableOpacity
+                        style={[styles.timeoutChip, isCustomTimeout && styles.timeoutChipActive]}
+                        onPress={() => setEditingCustomTimeout(true)}
+                      >
+                        <Text style={[styles.timeoutChipText, isCustomTimeout && styles.timeoutChipTextActive]}>
+                          {!editingCustomTimeout && isCustomTimeout ? `직접 · ${formatDeadmanTimeout(timeoutMin)}` : '직접 설정'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {editingCustomTimeout && (
+                      <View style={styles.customTimeoutRow}>
+                        <TextInput
+                          style={[styles.textInput, styles.customTimeoutInput]}
+                          placeholder="분 단위 (예: 45)"
+                          placeholderTextColor={C.ink400}
+                          value={customTimeoutInput}
+                          onChangeText={(v) => setCustomTimeoutInput(v.replace(/[^0-9]/g, ''))}
+                          keyboardType="number-pad"
+                          maxLength={4}
+                          onSubmitEditing={submitCustomTimeout}
+                        />
+                        <Text style={styles.customTimeoutUnit}>분</Text>
+                        <TouchableOpacity onPress={() => setEditingCustomTimeout(false)}>
+                          <Text style={styles.cancelText}>취소</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={submitCustomTimeout}>
+                          <Text style={styles.linkBtn}>적용</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                   <View style={styles.safetyContact}>
                     <Text style={styles.safetyContactText}>
                       {contactName ? (
@@ -732,7 +847,7 @@ export function HomeScreen({ navigation }) {
               <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
               <TouchableOpacity
                 style={styles.dashedRow}
-                onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true } })}
+                onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true }, pop: true })}
               >
                 <Text style={styles.dashedRowText}>+ 첫 사건 기록 시작하기</Text>
               </TouchableOpacity>
@@ -775,7 +890,7 @@ export function HomeScreen({ navigation }) {
 
               <TouchableOpacity
                 style={styles.dashedRow}
-                onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true } })}
+                onPress={() => navigation.navigate(APP_ROUTES.RECORDS_STACK, { screen: RECORD_ROUTES.START, params: { openForm: true }, pop: true })}
               >
                 <Text style={styles.dashedRowText}>+ 새 사건 기록 시작하기</Text>
               </TouchableOpacity>
@@ -864,6 +979,19 @@ const styles = StyleSheet.create({
   safetyContactText: { fontSize: 12, color: C.ink500, flex: 1, paddingRight: 8 },
   safetyContactBold: { color: C.ink700, fontWeight: '700' },
   editBox: { gap: 8 },
+  timeoutBlock: { gap: 8 },
+  timeoutLabel: { fontSize: 11.5, fontWeight: '700', color: C.ink500 },
+  timeoutChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  timeoutChip: {
+    borderWidth: 1, borderColor: C.line, borderRadius: 999, backgroundColor: C.surface,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  timeoutChipActive: { backgroundColor: C.brand600, borderColor: C.brand600 },
+  timeoutChipText: { fontSize: 12, fontWeight: '600', color: C.ink500 },
+  timeoutChipTextActive: { color: '#FFFFFF', fontWeight: '700' },
+  customTimeoutRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  customTimeoutInput: { flex: 1, paddingVertical: 9 },
+  customTimeoutUnit: { fontSize: 12.5, color: C.ink500 },
   textInput: {
     backgroundColor: C.sky050, borderRadius: 12, borderWidth: 1, borderColor: C.line,
     paddingHorizontal: 14, paddingVertical: 11, fontSize: 13, color: C.ink900,

@@ -1,4 +1,5 @@
-import { useContext, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
@@ -11,11 +12,14 @@ import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecor
 import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
+import { transcribeVideoAudio } from '../services/videoTranscriptService';
 import { extractTextFromImage } from '../services/ocrService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
 import { BackHeader } from '../components/BackHeader';
 import { EventTimeInputModal } from '../components/EventTimeInputModal';
+import { CasePickerModal } from '../components/CasePickerModal';
+import { PreventionGuideModal } from '../components/PreventionGuideModal';
 import { extractPhotoCaptureDate, extractContainerCreationTime } from '../utils/mediaEventTime';
 import { C } from '../theme/tokens';
 
@@ -95,12 +99,21 @@ export function EvidenceUploadScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
   const caseId = route?.params?.caseId ?? null;
   const caseType = route?.params?.caseType ?? null;
+  // 빠른 기록(기록 탭의 사진/음성/영상 타일)으로 들어오면 사건 없이 시작하고,
+  // 기록을 마친 뒤 어느 사건 타임라인에 저장할지 고른다.
+  const isQuickMode = !caseId;
+  // 들어오자마자 바로 시작할 기록 유형 ('image' | 'audio' | 'video')
+  const autoStartType = route?.params?.autoStart ?? null;
   const [uploadingType, setUploadingType] = useState(null);
+  const [pendingQuickSave, setPendingQuickSave] = useState(null); // 빠른 기록: 사건 선택을 기다리는 업로드
+  const [lastSaved, setLastSaved] = useState(null); // { caseId, caseTitle, label } — 저장 완료 배너 + 타임라인 이동용
+  const [preventionVisible, setPreventionVisible] = useState(false);
 
   // 앱 안에서 바로 녹음하기 위한 상태
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder, 200);
-  const [recordModalVisible, setRecordModalVisible] = useState(false);
+  // 빠른 기록의 "음성" 타일로 들어왔으면 녹음 창을 열어둔 채로 시작한다
+  const [recordModalVisible, setRecordModalVisible] = useState(() => route?.params?.autoStart === 'audio');
   const [hasRecorded, setHasRecorded] = useState(false);
   const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
   const recordingStartRef = useRef(null); // 앱 안에서 직접 녹음할 때 시작 시각(정확한 사건 발생 시각)
@@ -110,7 +123,8 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
   // 파일 선택/녹음 두 경로가 공통으로 쓰는 업로드 처리 (위치 기록 → 클로바 변환 → Firestore 저장 → 결과 안내)
   // eventTime/eventTimeSource: 사건 발생 시각을 이미 구해둔 경우(EXIF, 앱 내 녹음 시작 시각 등) 전달
-  const uploadEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null) => {
+  // target: 저장할 사건 (빠른 기록에서 고른 사건, 기본은 이 화면의 사건)
+  const uploadEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null, target = { caseId, caseTitle: null }) => {
     const cfg = UPLOAD_TYPES[evidenceType];
     setUploadingType(evidenceType);
     try {
@@ -128,6 +142,13 @@ export function EvidenceUploadScreen({ navigation, route }) {
           note = await transcribeAudioClova(file.uri, file.mimeType);
         } catch (e) {
           console.warn('클로바 변환 실패:', e.message);
+          sttError = e.message;
+        }
+      } else if (evidenceType === 'video') {
+        try {
+          note = await transcribeVideoAudio(file);
+        } catch (e) {
+          console.warn('영상 음성 변환 실패:', e.message);
           sttError = e.message;
         }
       } else if (evidenceType === 'image') {
@@ -153,7 +174,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
       await createEvidenceRecord({
         userId: user?.uid ?? null,
-        caseId: caseId ?? 'general',
+        caseId: target.caseId ?? 'general',
         title: cfg.title,
         evidenceType,
         note,
@@ -171,9 +192,18 @@ export function EvidenceUploadScreen({ navigation, route }) {
         msg = `음성 파일은 저장됐지만 텍스트 변환에 실패했습니다.\n(${sttError})\n\n네트워크 상태를 확인 후 타임라인에서 다시 시도해주세요.`;
       } else if (evidenceType === 'audio') {
         msg = '음성이 기록되었습니다. (인식된 텍스트가 없습니다)';
+      } else if (evidenceType === 'video' && note) {
+        msg = `영상이 기록되었습니다.
+
+영상 속 음성 텍스트:
+"${note.slice(0, 80)}${note.length > 80 ? '...' : ''}"`;
+      } else if (evidenceType === 'video' && sttError) {
+        msg = `영상은 저장됐지만 음성 텍스트 변환에 실패했습니다.
+(${sttError})`;
       } else {
         msg = `${cfg.label}과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`;
       }
+      setLastSaved({ caseId: target.caseId, caseTitle: target.caseTitle, label: cfg.label });
       Alert.alert('업로드 완료!', msg);
     } catch (error) {
       console.error('업로드 실패:', error);
@@ -181,6 +211,31 @@ export function EvidenceUploadScreen({ navigation, route }) {
     } finally {
       setUploadingType(null);
     }
+  };
+
+  // 사건이 정해져 있으면 바로 저장하고, 빠른 기록이면 저장할 사건을 먼저 고르게 한다.
+  const saveEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null) => {
+    if (isQuickMode) {
+      setPendingQuickSave({ evidenceType, file, eventTime, eventTimeSource });
+      return;
+    }
+    await uploadEvidence(evidenceType, file, eventTime, eventTimeSource);
+  };
+
+  const handleQuickCaseSelected = async (picked) => {
+    const entry = pendingQuickSave;
+    setPendingQuickSave(null);
+    if (!entry) return;
+    await uploadEvidence(entry.evidenceType, entry.file, entry.eventTime, entry.eventTimeSource, {
+      caseId: picked.id,
+      caseTitle: picked.title || '이름 없는 사건',
+    });
+  };
+
+  // 저장한 사건의 타임라인으로 이동 — 그 사건 타임라인이 이미 뒤에 쌓여 있으면 새로 쌓지 않고 그 화면으로 돌아간다
+  // (AppNavigator의 getId가 사건별로 화면을 구분하고, pop이 그 위에 쌓인 화면을 정리한다).
+  const goToTimeline = (targetCaseId) => {
+    navigation.navigate(RECORD_ROUTES.EVIDENCE_TIMELINE, { caseId: targetCaseId }, { pop: true });
   };
 
   // 사진/영상은 갤러리에서, 음성은 파일 탐색기에서 선택
@@ -223,14 +278,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
             console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
           }
           // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음
-          await uploadEvidence('image', file, autoEventTime, autoEventTimeSource);
+          await saveEvidence('image', file, autoEventTime, autoEventTimeSource);
           return;
         }
 
         // 영상: 파일 자체의 촬영 시각(mp4 컨테이너 메타데이터)을 읽어보고, 없으면 직접 입력받는다
         const { date: videoDate, source: videoSource } = await resolveAutoEventTime('video', file);
         if (videoDate) {
-          await uploadEvidence('video', file, videoDate, videoSource);
+          await saveEvidence('video', file, videoDate, videoSource);
         } else {
           setPendingManualEntry({ evidenceType: 'video', file });
         }
@@ -246,14 +301,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
         // 음성 파일(파일 탐색기에서 선택): 컨테이너에 녹음 시각이 있으면 자동 사용, 없으면 직접 입력
         const { date, source } = await resolveAutoEventTime('audio', file);
         if (date) {
-          await uploadEvidence('audio', file, date, source);
+          await saveEvidence('audio', file, date, source);
         } else {
           setPendingManualEntry({ evidenceType: 'audio', file });
         }
         return;
       }
 
-      await uploadEvidence(evidenceType, file);
+      await saveEvidence(evidenceType, file);
     } catch (error) {
       console.error('파일 선택 실패:', error);
       Alert.alert('오류', '파일을 선택하지 못했습니다.');
@@ -265,18 +320,52 @@ export function EvidenceUploadScreen({ navigation, route }) {
     const entry = pendingManualEntry;
     setPendingManualEntry(null);
     if (!entry) return;
-    await uploadEvidence(entry.evidenceType, entry.file, date, 'manual');
+    await saveEvidence(entry.evidenceType, entry.file, date, 'manual');
   };
 
   // "음성" 카드 탭: 새로 녹음할지 / 기존 음성 메모 파일을 가져올지 선택
+  // (선택지 Alert는 웹에서 뜨지 않아서, 녹음 창 안에 "파일에서 선택"을 함께 둔다)
   const handleAudioPress = () => {
     if (uploadingType !== null) return;
-    Alert.alert('음성 기록', '어떻게 기록할까요?', [
-      { text: '지금 녹음하기', onPress: () => setRecordModalVisible(true) },
-      { text: '파일에서 선택', onPress: () => handlePickFile('audio') },
-      { text: '취소', style: 'cancel' },
-    ]);
+    setRecordModalVisible(true);
   };
+
+  const pickAudioFileFromModal = () => {
+    setRecordModalVisible(false);
+    setHasRecorded(false);
+    handlePickFile('audio');
+  };
+
+  // 빠른 기록 타일로 들어왔으면 해당 기록(사진/영상 선택)을 바로 시작한다 (한 번만, 음성은 녹음 창 초기값으로 처리)
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoStartType !== 'image' && autoStartType !== 'video') return;
+    if (autoStartedRef.current) return;
+    // 화면이 한 번 그려진 뒤에 파일 선택 창을 연다 (StrictMode의 effect 재실행에도 한 번만 열리도록 콜백 안에서 표시)
+    const timer = setTimeout(() => {
+      autoStartedRef.current = true;
+      handlePickFile(autoStartType);
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartType]);
+
+  // 사건별로 증거 업로드에 처음 들어왔을 때 예방 가이드(사례별 예방 방법 + 체크리스트)를 한 번 띄운다
+  useEffect(() => {
+    if (!caseId || autoStartType) return;
+    const key = `prevention-guide-seen:${caseId}`;
+    let active = true;
+    AsyncStorage.getItem(key)
+      .then((seen) => {
+        if (!active || seen) return;
+        setPreventionVisible(true);
+        return AsyncStorage.setItem(key, '1');
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [caseId, autoStartType]);
 
   const startRecording = async () => {
     try {
@@ -325,7 +414,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
     }
     const eventTime = recordingStartRef.current ?? null;
     recordingStartRef.current = null;
-    await uploadEvidence(
+    await saveEvidence(
       'audio',
       {
         uri,
@@ -342,11 +431,35 @@ export function EvidenceUploadScreen({ navigation, route }) {
       <PhotoWatermarkStamper ref={stamperRef} />
       <BackHeader
         title="증거 업로드"
-        subtitle={caseType ? `${caseType} · 사건 기록 추가하기` : '사건 기록 추가하기'}
+        subtitle={
+          isQuickMode
+            ? '빠른 기록 · 기록한 뒤 저장할 사건을 골라요'
+            : caseType ? `${caseType} · 사건 기록 추가하기` : '사건 기록 추가하기'
+        }
         onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate(APP_ROUTES.HOME_STACK))}
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {lastSaved && (
+          <View style={styles.savedBanner}>
+            <Text style={styles.savedBannerText}>
+              ✅ {lastSaved.label}이(가) {lastSaved.caseTitle ? `"${lastSaved.caseTitle}" ` : ''}타임라인에 저장됐어요
+            </Text>
+            {lastSaved.caseId && (
+              <TouchableOpacity style={styles.savedBannerBtn} onPress={() => goToTimeline(lastSaved.caseId)}>
+                <Text style={styles.savedBannerBtnText}>타임라인 보기 →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {caseId && (
+          <TouchableOpacity style={styles.preventionLink} onPress={() => setPreventionVisible(true)}>
+            <Text style={styles.preventionLinkText}>🛡️ 이 사건 예방 가이드 · 체크리스트 보기</Text>
+            <Text style={styles.preventionLinkArrow}>›</Text>
+          </TouchableOpacity>
+        )}
+
         <Text style={styles.sectionTitle}>기록 유형 선택</Text>
 
         <View style={styles.shortcutRow}>
@@ -364,7 +477,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
             onPress={() =>
               caseId
                 ? navigation.navigate(EXPERT_ROUTES.GUIDE, { caseId, caseType })
-                : navigation.push(RECORD_ROUTES.START, { openForm: true })
+                : navigation.popTo(RECORD_ROUTES.START, { openForm: true })
             }
           >
             <TypeIcons.quest />
@@ -464,9 +577,14 @@ export function EvidenceUploadScreen({ navigation, route }) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.recordStartBtn} onPress={startRecording}>
-                <Text style={styles.recordStartBtnText}>●  녹음 시작</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity style={styles.recordStartBtn} onPress={startRecording}>
+                  <Text style={styles.recordStartBtnText}>●  녹음 시작</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={pickAudioFileFromModal} style={{ marginTop: 14 }}>
+                  <Text style={styles.recordFileText}>또는 음성 파일에서 선택</Text>
+                </TouchableOpacity>
+              </>
             )}
 
             <TouchableOpacity
@@ -487,6 +605,25 @@ export function EvidenceUploadScreen({ navigation, route }) {
         onConfirm={handleManualEventTimeConfirm}
         onCancel={() => setPendingManualEntry(null)}
       />
+
+      <CasePickerModal
+        visible={!!pendingQuickSave}
+        userId={user?.uid}
+        description={
+          pendingQuickSave
+            ? `방금 기록한 ${UPLOAD_TYPES[pendingQuickSave.evidenceType]?.label ?? '증거'}을(를) 저장할 사건을 골라주세요.`
+            : undefined
+        }
+        onSelect={handleQuickCaseSelected}
+        onCancel={() => setPendingQuickSave(null)}
+      />
+
+      <PreventionGuideModal
+        visible={preventionVisible}
+        caseId={caseId}
+        caseType={caseType}
+        onClose={() => setPreventionVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -494,6 +631,22 @@ export function EvidenceUploadScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
   content: { flex: 1, padding: 20 },
+  savedBanner: {
+    backgroundColor: C.safe100, borderRadius: 14, padding: 14, marginBottom: 14, gap: 10,
+  },
+  savedBannerText: { fontSize: 13, fontWeight: '600', color: C.ink900, lineHeight: 19 },
+  savedBannerBtn: {
+    alignSelf: 'flex-start', backgroundColor: C.safe600, borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 8,
+  },
+  savedBannerBtnText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '700' },
+  preventionLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: C.sky050, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
+  },
+  preventionLinkText: { fontSize: 13, fontWeight: '700', color: C.brand600 },
+  preventionLinkArrow: { fontSize: 18, color: C.ink400 },
+  recordFileText: { fontSize: 12.5, color: C.brand600, fontWeight: '600', textAlign: 'center' },
   sectionTitle: {
     fontSize: 12.5, fontWeight: '700', color: C.ink500,
     marginBottom: 12,
