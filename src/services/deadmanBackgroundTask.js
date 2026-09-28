@@ -2,7 +2,7 @@
 //
 // 데드맨 스위치(위급 상황 자동 알림)의 "진짜 백그라운드" 감지 부분.
 // 앱이 배경/최근앱 목록에 있는 동안에도(완전 종료는 예외) OS가 주기적으로
-// 이 작업을 깨워서 30분 무응답 여부를 확인하고, 초과 시 알림을 띄운다.
+// 이 작업을 깨워서 설정한 시간(기본 30분) 동안 무응답인지 확인하고, 초과 시 알림을 띄운다.
 //
 // ⚠️ 한계 (정직하게 남겨둠):
 // - expo-background-task는 "최소 15분 간격"을 OS에 요청할 뿐, 정확한 타이밍을 보장하지 않는다.
@@ -31,13 +31,32 @@ async function ensureAndroidChannel() {
 }
 
 export const DEADMAN_TASK_NAME = 'themis-deadman-check';
-export const DEADMAN_TIMEOUT_MS = 30 * 60 * 1000;
+// 사용자가 무응답 기준 시간을 고를 수 있다 (15분/30분/1시간 또는 직접 입력). 기본 30분.
+export const DEADMAN_DEFAULT_TIMEOUT_MIN = 30;
+export const DEADMAN_TIMEOUT_PRESETS_MIN = [15, 30, 60];
+export const DEADMAN_TIMEOUT_MIN_RANGE = { min: 5, max: 24 * 60 };
+
+export function normalizeDeadmanTimeoutMin(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return DEADMAN_DEFAULT_TIMEOUT_MIN;
+  return Math.min(DEADMAN_TIMEOUT_MIN_RANGE.max, Math.max(DEADMAN_TIMEOUT_MIN_RANGE.min, n));
+}
+
+// 15 → "15분", 60 → "1시간", 90 → "1시간 30분"
+export function formatDeadmanTimeout(minutes) {
+  const m = normalizeDeadmanTimeoutMin(minutes);
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  if (h === 0) return `${rest}분`;
+  return rest ? `${h}시간 ${rest}분` : `${h}시간`;
+}
 
 const KEYS = {
   enabled: 'deadman:enabled',
   lastCheckIn: 'deadman:lastCheckIn',
   contactName: 'deadman:contactName',
   contactPhone: 'deadman:contactPhone',
+  timeoutMin: 'deadman:timeoutMin',
   triggered: 'deadman:triggered', // 이미 알림을 보냈는지 — 중복 알림 방지
 };
 
@@ -46,8 +65,9 @@ const KEYS = {
  * 백그라운드 태스크가 참조할 로컬 저장소를 동기화한다.
  * (백그라운드 태스크는 React state에 접근할 수 없어 AsyncStorage로 값을 넘겨받아야 한다.)
  */
-export async function syncDeadmanLocalState({ enabled, lastCheckIn, contactName, contactPhone }) {
+export async function syncDeadmanLocalState({ enabled, lastCheckIn, contactName, contactPhone, timeoutMin }) {
   await AsyncStorage.multiSet([
+    [KEYS.timeoutMin, String(normalizeDeadmanTimeoutMin(timeoutMin))],
     [KEYS.enabled, enabled ? '1' : '0'],
     [KEYS.lastCheckIn, String(lastCheckIn ?? '')],
     [KEYS.contactName, contactName ?? ''],
@@ -71,23 +91,24 @@ export async function clearDeadmanTriggeredFlag() {
 // 앱이 백그라운드에 있는 동안 OS가 이 함수를 주기적으로(최소 15분 간격, 비정확) 실행한다.
 TaskManager.defineTask(DEADMAN_TASK_NAME, async () => {
   try {
-    const entries = await AsyncStorage.multiGet([KEYS.enabled, KEYS.lastCheckIn, KEYS.triggered, KEYS.contactName]);
+    const entries = await AsyncStorage.multiGet([KEYS.enabled, KEYS.lastCheckIn, KEYS.triggered, KEYS.contactName, KEYS.timeoutMin]);
     const map = Object.fromEntries(entries);
     const enabled = map[KEYS.enabled] === '1';
     const lastCheckIn = Number(map[KEYS.lastCheckIn]) || null;
     const alreadyTriggered = map[KEYS.triggered] === '1';
     const contactName = map[KEYS.contactName] || '보호자';
+    const timeoutMin = normalizeDeadmanTimeoutMin(map[KEYS.timeoutMin]);
 
     if (!enabled || !lastCheckIn || alreadyTriggered) {
       return BackgroundTask.BackgroundTaskResult.Success;
     }
 
-    if (Date.now() - lastCheckIn >= DEADMAN_TIMEOUT_MS) {
+    if (Date.now() - lastCheckIn >= timeoutMin * 60 * 1000) {
       await AsyncStorage.setItem(KEYS.triggered, '1');
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '⚠️ Themis 무응답 감지됨',
-          body: `30분간 체크인이 없었어요. 탭해서 ${contactName}에게 위치와 함께 알림을 보내세요.`,
+          body: `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없었어요. 탭해서 ${contactName}에게 위치와 함께 알림을 보내세요.`,
           sound: true,
           priority: Notifications.AndroidNotificationPriority?.MAX,
           data: { type: 'deadman-alert' },

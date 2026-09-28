@@ -548,6 +548,17 @@ export async function saveCaseQuestSteps(caseId, items) {
 }
 
 /**
+ * 예방 가이드 체크리스트 완료 상태 저장.
+ * checklist: { [체크리스트 항목 id]: true } (preventionGuides.js의 항목 id), scenarioId: 마지막으로 본 사례 탭
+ */
+export async function saveCasePreventionChecklist(caseId, { checklist, scenarioId }) {
+  return updateDocument('cases', caseId, {
+    preventionChecklist: checklist,
+    preventionScenario: scenarioId ?? null,
+  });
+}
+
+/**
  * Themis AI 질문/답변 기록 저장 (사건별로 누적).
  * history: [{ question, answer, createdAt }]
  */
@@ -556,15 +567,17 @@ export async function saveCaseAiHistory(caseId, history) {
 }
 
 /**
- * 보고서 확정 기록 저장 — 서명 + 확정 시각(서버 타임스탬프) + 확정 시점 증거 내용의 SHA-256 해시.
- * 서명은 "본인이 확인했다"는 증거, 해시는 "확정 이후 증거 내용이 안 바뀌었다"는 증거로 함께 쓰인다.
+ * 보고서 확정 기록 저장 — 법적 효력 안내 확인(문구 버전) + 확정 시각(서버 타임스탬프) + 확정 시점 증거 내용의 SHA-256 해시.
+ * 안내 확인은 "보고서의 한계를 알고 확정했다"는 기록, 해시는 "확정 이후 증거 내용이 안 바뀌었다"는 근거로 쓰인다.
+ * (예전의 손글씨 서명은 법적 효력이 있는 문서로 오해될 수 있어 안내 확인으로 대체했다.)
  * (해시는 signatureService.hashContent로 호출부에서 미리 계산해서 넘긴다.)
  */
-export async function finalizeCaseReport(caseId, { hash, signatureDataUrl }) {
+export async function finalizeCaseReport(caseId, { hash, legalNoticeVersion }) {
   return updateDocument('cases', caseId, {
     reportFinalizedAt: serverTimestamp(),
     reportFinalizationHash: hash,
-    reportSignatureDataUrl: signatureDataUrl ?? null,
+    reportLegalNoticeVersion: legalNoticeVersion ?? null,
+    reportSignatureDataUrl: null,
   });
 }
 

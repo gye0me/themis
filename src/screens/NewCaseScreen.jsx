@@ -1,5 +1,5 @@
 import { useCallback, useContext, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
@@ -11,6 +11,8 @@ import { getMatchingRoomForCaseType, joinRoom } from '../services/chatService';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BackHeader } from '../components/BackHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { CasePickerModal } from '../components/CasePickerModal';
+import { getRequiredEvidence } from '../services/preventionGuides';
 import { C } from '../theme/tokens';
 
 const VISIBILITY_OPTIONS = [
@@ -69,7 +71,7 @@ function formatCaseDate(createdAt) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function NewCaseScreen({ navigation }) {
+export function NewCaseScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(true);
@@ -81,6 +83,9 @@ export function NewCaseScreen({ navigation }) {
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [memo, setMemo] = useState('');
+  // 빠른 기록 타일을 눌렀는데 사건이 아직 없을 때: 사건을 만든 뒤 바로 이어서 시작할 기록 유형
+  const [pendingQuickType, setPendingQuickType] = useState(null);
+  const [contractPickerVisible, setContractPickerVisible] = useState(false);
 
   const addTag = (raw) => {
     const t = raw.trim();
@@ -116,7 +121,46 @@ export function NewCaseScreen({ navigation }) {
     }, [loadCases])
   );
 
+  // 홈·타임라인의 "+ 새 사건" 버튼은 openForm 파라미터로 들어온다 → 바로 사건 생성 폼을 연다
+  const openFormParam = route?.params?.openForm;
+  useFocusEffect(
+    useCallback(() => {
+      if (!openFormParam) return;
+      setShowForm(true);
+      navigation.setParams({ openForm: undefined });
+    }, [openFormParam, navigation])
+  );
+
   const openForm = () => setShowForm(true);
+
+  // 빠른 기록 타일:
+  // - 사진/음성/영상: 사건을 고르지 않고 바로 기록부터 시작하고, 기록이 끝나면 저장할 사건 타임라인을 고른다.
+  // - 계약서: 분석 결과가 곧바로 사건 타임라인에 저장되므로 사건을 먼저 고른다.
+  // - 사건이 하나도 없으면 사건부터 만들고, 만든 직후 그 사건으로 이어서 기록을 시작한다.
+  const handleQuickTile = (type) => {
+    if (!loadingCases && cases.length === 0) {
+      setPendingQuickType(type);
+      openForm();
+      return;
+    }
+    if (type === 'contract') {
+      setContractPickerVisible(true);
+      return;
+    }
+    navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { autoStart: type });
+  };
+
+  const startQuickRecordForCase = (type, targetCase) => {
+    if (type === 'contract') {
+      navigation.navigate(RECORD_ROUTES.CONTRACT_ANALYSIS, { caseId: targetCase.id, caseType: targetCase.caseType });
+    } else {
+      navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, {
+        caseId: targetCase.id,
+        caseType: targetCase.caseType,
+        autoStart: type,
+      });
+    }
+  };
 
   const handleStart = async () => {
     if (!title.trim()) {
@@ -149,12 +193,17 @@ export function NewCaseScreen({ navigation }) {
       setVisibility('나만보기');
       setMemo('');
 
+      const quickType = pendingQuickType;
+      setPendingQuickType(null);
       const goToEvidenceUpload = () =>
-        navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: selectedType });
+        quickType
+          ? startQuickRecordForCase(quickType, { id: caseId, caseType: selectedType })
+          : navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: selectedType });
 
       // 같은 피해 유형을 다루는 피해자 연대방이 있으면 알림으로 안내하고,
       // 선택하면 바로 그 방으로 연결한다.
-      const matchedRoom = getMatchingRoomForCaseType(selectedType);
+      // (버튼이 있는 Alert는 웹에서 뜨지 않아 웹에서는 바로 증거 업로드로 넘어간다)
+      const matchedRoom = Platform.OS === 'web' ? null : getMatchingRoomForCaseType(selectedType);
       if (matchedRoom) {
         Alert.alert(
           '같은 피해 유형의 방이 있어요',
@@ -194,7 +243,7 @@ export function NewCaseScreen({ navigation }) {
   if (showForm) {
     return (
       <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
-        <BackHeader title="새 사건 시작" onBack={() => setShowForm(false)} />
+        <BackHeader title="새 사건 시작" onBack={() => { setShowForm(false); setPendingQuickType(null); }} />
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.fieldLabel}>사건 유형</Text>
@@ -216,6 +265,24 @@ export function NewCaseScreen({ navigation }) {
               );
             })}
           </View>
+
+          {selectedType && (
+            <View style={styles.evidenceGuide}>
+              <Text style={styles.evidenceGuideTitle}>
+                📌 {CASE_TYPE_META[selectedType]?.label ?? selectedType} 사건에 필요한 증거
+              </Text>
+              <Text style={styles.evidenceGuideDesc}>미리 알고 있으면 놓치지 않고 모을 수 있어요.</Text>
+              {getRequiredEvidence(selectedType).map((item) => (
+                <View key={item.title} style={styles.evidenceGuideRow}>
+                  <Text style={styles.evidenceGuideIcon}>{item.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.evidenceGuideItem}>{item.title}</Text>
+                    <Text style={styles.evidenceGuideItemDesc}>{item.desc}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.labelRow}>
             <Text style={styles.fieldLabel}>기록 이름</Text>
@@ -317,13 +384,13 @@ export function NewCaseScreen({ navigation }) {
         <Text style={styles.sectionLabel}>빠른 기록</Text>
         <View style={styles.quickGrid}>
           {QUICK_TILES.map((tile) => (
-            <TouchableOpacity key={tile.key} style={styles.quickTile} onPress={openForm} activeOpacity={0.8}>
+            <TouchableOpacity key={tile.key} style={styles.quickTile} onPress={() => handleQuickTile(tile.key)} activeOpacity={0.8}>
               <View style={[styles.quickIcon, { backgroundColor: tile.bg }]}>{tile.icon(tile.color)}</View>
               <Text style={styles.quickLabel}>{tile.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.quickHint}>눌러서 바로 새 사건 등록으로 이동해요</Text>
+        <Text style={styles.quickHint}>바로 기록하고, 저장할 사건 타임라인은 기록한 뒤에 골라요</Text>
 
         <Text style={[styles.sectionLabel, { marginTop: 22 }]}>내 사건</Text>
         {loadingCases ? (
@@ -366,6 +433,23 @@ export function NewCaseScreen({ navigation }) {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <CasePickerModal
+        visible={contractPickerVisible}
+        userId={user?.uid}
+        title="어느 사건의 계약서인가요?"
+        description="분석 결과가 선택한 사건 타임라인에 저장돼요."
+        onSelect={(c) => {
+          setContractPickerVisible(false);
+          startQuickRecordForCase('contract', c);
+        }}
+        onCreateNew={() => {
+          setContractPickerVisible(false);
+          setPendingQuickType('contract');
+          openForm();
+        }}
+        onCancel={() => setContractPickerVisible(false)}
+      />
 
       <BottomNavBar active="records" navigation={navigation} />
     </SafeAreaView>
@@ -427,6 +511,16 @@ const styles = StyleSheet.create({
   typeLabel: { color: C.ink900, fontSize: 13, fontWeight: '700' },
   typeLabelActive: { color: C.brand700 },
   typeDesc: { color: C.ink400, fontSize: 10 },
+
+  evidenceGuide: {
+    backgroundColor: C.sky050, borderRadius: 16, padding: 14, marginTop: 14, gap: 10,
+  },
+  evidenceGuideTitle: { fontSize: 13, fontWeight: '700', color: C.brand700 },
+  evidenceGuideDesc: { fontSize: 11.5, color: C.ink500, marginTop: -6 },
+  evidenceGuideRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  evidenceGuideIcon: { fontSize: 18, width: 24, textAlign: 'center' },
+  evidenceGuideItem: { fontSize: 12.5, fontWeight: '700', color: C.ink900 },
+  evidenceGuideItemDesc: { fontSize: 11, color: C.ink500, marginTop: 1 },
 
   textInput: {
     borderWidth: 1, borderColor: C.line, borderRadius: 12,

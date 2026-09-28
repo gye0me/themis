@@ -30,6 +30,12 @@ import {
   PREVENTION_ROUTES,
 } from './routes';
 
+// 같은 사건(caseId)의 증거 업로드/타임라인 화면은 스택에 하나만 두기 위한 id.
+// React Navigation 7의 navigate는 이미 스택에 있는 화면으로 돌아가지 않고 새로 쌓기 때문에,
+// 이게 없으면 "업로드 → 타임라인 → 업로드 → 타임라인…"처럼 같은 화면이 계속 중복으로 쌓였다.
+// (caseId가 없는 빠른 기록 화면은 undefined → 기존처럼 동작)
+const getCaseScreenId = ({ params }) => params?.caseId ?? undefined;
+
 const RootStack = createNativeStackNavigator();
 const HomeStack = createNativeStackNavigator();
 const RecordsStack = createNativeStackNavigator();
@@ -98,11 +104,13 @@ function RecordsNavigator() {
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_UPLOAD}
         component={EvidenceUploadScreen}
+        getId={getCaseScreenId}
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_TIMELINE}
         component={TimelineScreen}
+        getId={getCaseScreenId}
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen
@@ -176,8 +184,8 @@ function AppStack() {
     <RootStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="App">
       <RootStack.Screen name="App" component={MainTabsNavigator} />
       <RootStack.Screen name="UploadScreen" component={UploadScreen} />
-      <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} />
-      <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} />
+      <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} getId={getCaseScreenId} />
+      <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} getId={getCaseScreenId} />
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
       <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
