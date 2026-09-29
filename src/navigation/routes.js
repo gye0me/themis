@@ -36,6 +36,7 @@ export const EXPERT_ROUTES = {
 
 export const PREVENTION_ROUTES = {
   CONSULT: 'PreventionConsult',
+  CHECKLIST: 'PreContractChecklist',
 };
 
 export const CHAT_ROUTES = {

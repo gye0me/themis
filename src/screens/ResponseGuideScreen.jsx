@@ -46,9 +46,16 @@ export default function ResponseGuideScreen({ navigation, route }) {
 
   useEffect(() => {
     if (!isQuestMode) return;
+    let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const caseDoc = await getCaseById(caseId);
+        // 이 fetch가 끝나기 전에 사용자가 다른 사건으로 넘어가서 caseId가 바뀌었다면
+        // (예: A 사건 조회가 느린 사이 B 사건으로 이동했다가 A의 응답이 뒤늦게 도착하는 경우),
+        // 지금 화면이 보여주고 있는 사건과 무관한 결과이므로 반영하지 않고 버린다.
+        // 이게 없으면 "선택한 유형과 다른 체크리스트가 뜬다"는 문제가 생긴다.
+        if (cancelled) return;
         const { items: questItems } = buildQuestSteps(
           caseDoc?.caseType ?? routeCaseType,
           caseDoc?.questSteps ?? []
@@ -56,11 +63,14 @@ export default function ResponseGuideScreen({ navigation, route }) {
         setItems(questItems);
         setAiHistory(Array.isArray(caseDoc?.aiHistory) ? caseDoc.aiHistory : []);
       } catch (err) {
-        console.error('사건 퀘스트 조회 오류:', err);
+        if (!cancelled) console.error('사건 퀘스트 조회 오류:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [caseId]);
 
   const progress = getChecklistProgress(items);

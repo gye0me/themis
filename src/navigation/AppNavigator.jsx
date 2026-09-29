@@ -20,6 +20,7 @@ import ResponseGuideScreen from '../screens/ResponseGuideScreen';
 import ReportPreviewScreen from '../screens/ReportPreviewScreen';
 import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
 import PreventionConsultScreen from '../screens/PreventionConsultScreen';
+import PreContractChecklistScreen from '../screens/PreContractChecklistScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -190,6 +191,7 @@ function AppStack() {
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
       <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );
