@@ -1,0 +1,299 @@
+// src/services/reportHtml.js
+//
+// 사건 타임라인(증거 기록 + 완료된 대응 퀘스트)을 HTML 보고서로 변환한다.
+// 순수 함수만 제공 (파일 저장/공유는 화면단(TimelineScreen)에서 expo-file-system으로 처리).
+
+import {
+  REPORT_LEGAL_NOTICE_TITLE,
+  REPORT_LEGAL_NOTICE_ITEMS,
+  REPORT_LEGAL_NOTICE_FOOTER,
+  REPORT_LEGAL_NOTICE_ACK,
+} from './reportLegalNotice';
+
+const TYPE_LABEL = { image: '📷 사진', audio: '🎵 음성', video: '🎬 영상', text: '📝 메모', contract: '📑 계약분석' };
+const CASE_TYPE_ICON = { 전세사기: '🏠', 금전사기: '💸', 괴롭힘: '👥', 신변위협: '🚨' };
+
+function escapeHtml(str = '') {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function toDate(value) {
+  if (!value) return null;
+  if (value?.toDate) return value.toDate();
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatDateTime(value) {
+  const d = toDate(value);
+  if (!d) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatDateOnly(value) {
+  const d = toDate(value);
+  if (!d) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+}
+
+// 워터마크 SVG를 data URI로 생성한다. 호출할 때마다 회전 각도·글자 위치·타일 크기가
+// 랜덤하게 바뀌어서, 같은 자리를 오려내는 방식으로 지우기 어렵게 한다(위변조 방지 목적).
+function buildWatermarkDataUri({ opacityMin = 0.05, opacityMax = 0.09 } = {}) {
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const wmRotate = Math.round(rand(-50, -10));
+  const wmX = Math.round(rand(-40, 20));
+  const wmY = Math.round(rand(110, 190));
+  const wmTile = Math.round(rand(220, 300));
+  const wmOpacity = rand(opacityMin, opacityMax).toFixed(2);
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${wmTile}' height='${wmTile}'>` +
+    `<text x='${wmX}' y='${wmY}' font-size='24' fill='rgba(30,58,95,${wmOpacity})' ` +
+    `transform='rotate(${wmRotate} ${wmTile / 2} ${wmTile / 2})' font-family='sans-serif' font-weight='700'>THEMIS 원본</text>` +
+    "</svg>";
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+// 사건 발생 시각(eventTime)이 없는 구버전 문서는 업로드 시각(capturedAt)으로 대체
+function resolveEventDate(record) {
+  return toDate(record.eventTime ?? record.capturedAt);
+}
+
+function buildEvidenceCard(record) {
+  const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
+  const eventDate = resolveEventDate(record);
+  const uploadDate = toDate(record.capturedAt);
+  const dateStr = formatDateTime(eventDate);
+  // 사건 발생 시각과 업로드 시각이 다를 때만(자동 추출/AI 판독/직접 입력이 실제로 적용된 경우)
+  // 업로드 시각을 별도로 함께 표기해 근거를 남긴다.
+  const uploadDiffers = eventDate && uploadDate && Math.abs(eventDate - uploadDate) > 60 * 1000;
+  const uploadStr = uploadDiffers ? formatDateTime(uploadDate) : '';
+  const contractDateStr = record.contractDate ? escapeHtml(String(record.contractDate)) : '';
+  const gpsStr = record.location
+    ? `📍 위도 ${record.location.latitude?.toFixed(5)}, 경도 ${record.location.longitude?.toFixed(5)}`
+    : '';
+
+  let mediaHtml = '';
+  if (record.evidenceType === 'image' && record.downloadURL) {
+    // 사진 자체는 업로드 시점에 이미 워터마크가 픽셀로 합성되어 저장된다 (photoWatermark.js 참고).
+    // 여기서 또 겹쳐 찍으면 이중 워터마크가 되므로, 보고서에서는 페이지 전체 워터마크만 유지한다.
+    mediaHtml = `<a href="${escapeHtml(record.downloadURL)}" target="_blank"><img class="thumb" src="${escapeHtml(record.downloadURL)}" alt="증거 사진" /></a>`;
+  } else if (record.evidenceType === 'audio' && record.downloadURL) {
+    mediaHtml = `<audio controls src="${escapeHtml(record.downloadURL)}"></audio>`;
+  } else if (record.evidenceType === 'video' && record.downloadURL) {
+    mediaHtml = `<video controls class="thumb" src="${escapeHtml(record.downloadURL)}"></video>`;
+  }
+
+  const transcript = record.transcript ?? record.transcribedText ?? null;
+  const aiSummary = record.aiSummary ?? record.analysisSummary ?? null;
+
+  return `
+  <div class="card evidence-card">
+    <div class="card-meta">📅 사건 발생: ${escapeHtml(dateStr)}${uploadStr ? ` &nbsp;·&nbsp; 업로드: ${escapeHtml(uploadStr)}` : ''} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
+    ${contractDateStr ? `<div class="card-meta">📑 계약서상 날짜: ${contractDateStr}</div>` : ''}
+    <div class="card-type">${typeLabel}${record.title ? ` — ${escapeHtml(record.title)}` : ''}</div>
+    ${record.linkedEvidenceId ? `<div class="card-meta">🔗 "${escapeHtml(record.linkedEvidenceTitle || '다른 증거')}"에 덧붙인 기록</div>` : ''}
+    ${mediaHtml ? `<div class="media">${mediaHtml}</div>` : ''}
+    ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
+    ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
+    ${!aiSummary && record.note ? `<div class="summary">📝 메모: ${escapeHtml(record.note)}</div>` : ''}
+  </div>`;
+}
+
+function buildQuestCard(step) {
+  return `
+  <div class="card quest-card">
+    <div class="card-meta">📅 ${escapeHtml(formatDateTime(step.completedAt) || '완료일 미기록')}</div>
+    <div class="card-type">✅ ${escapeHtml(step.title)} 완료</div>
+  </div>`;
+}
+
+/**
+ * 보고서 확정("서명 + 확정" 기능) 시 해시로 남길 "내용"만 뽑아낸다 — 렌더링용 HTML 전체를
+ * 그대로 해시하면 매번 랜덤하게 바뀌는 워터마크 때문에 내용이 같아도 값이 달라져 버린다.
+ * ReportPreviewScreen에서 이 payload를 signatureService.hashContent()에 그대로 넘겨서
+ * "확정 시점 해시"를 만들고, 이후 같은 caseData/records로 다시 계산해 비교하면 위변조 여부를 알 수 있다.
+ */
+export function buildReportHashPayload({ caseData = {}, records = [], questItems = [] }) {
+  const visibleRecords = records.filter((r) => !r.hidden);
+  const completedQuests = (questItems ?? []).filter((q) => q.completed);
+  return {
+    title: caseData.title ?? null,
+    caseType: caseData.caseType ?? null,
+    createdAt: toDate(caseData.createdAt)?.toISOString() ?? null,
+    records: visibleRecords
+      .map((r) => ({
+        id: r.id ?? null,
+        type: r.evidenceType ?? null,
+        title: r.title ?? null,
+        note: r.note ?? null,
+        transcript: r.transcript ?? r.transcribedText ?? null,
+        eventTime: resolveEventDate(r)?.toISOString() ?? null,
+        downloadURL: r.downloadURL ?? null,
+      }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
+    completedQuests: completedQuests
+      .map((q) => ({ title: q.title, completedAt: toDate(q.completedAt)?.toISOString() ?? null }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+  };
+}
+
+/**
+ * @param {Object} caseData - { title, caseType, createdAt }
+ * @param {Array} records - evidenceRecords 배열
+ * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
+ * @param {{ hash: string, finalizedAt: (Date|string|null) }|null} finalization - 확정 정보 (법적 효력 안내 확인 시각 + 해시)
+ */
+export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], finalization = null }) {
+  // 숨김 처리된 증거(hidden === true)는 보고서에서 제외한다 — 삭제는 무결성이 깨질 수 있어
+  // 대신 hidden 플래그로 처리하는 항목이라, 타임라인 화면에는 흐릿하게 남아있어도 정식 보고서에는 안 나가야 한다.
+  const visibleRecords = records.filter((r) => !r.hidden);
+
+  const counts = visibleRecords.reduce((acc, r) => {
+    const key = r.evidenceType ?? 'default';
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const completedQuests = (questItems ?? []).filter((q) => q.completed);
+
+  // 타임라인 항목을 "사건 발생 시각" 기준 오름차순으로 병합 (업로드 순서가 아니라 실제 사건 순서)
+  const timelineEntries = [
+    ...visibleRecords.map((r) => ({ type: 'evidence', date: resolveEventDate(r), html: buildEvidenceCard(r) })),
+    ...completedQuests.map((q) => ({ type: 'quest', date: toDate(q.completedAt), html: buildQuestCard(q) })),
+  ]
+    .filter((e) => e.date)
+    .sort((a, b) => a.date - b.date);
+
+  const caseTypeIcon = CASE_TYPE_ICON[caseData.caseType] ?? '📁';
+  const now = new Date();
+
+  // 반복 타일 워터마크 — SVG를 data URI 배경으로 깔아서 내용 길이와 무관하게 전체 페이지에 반복된다.
+  const watermarkDataUri = buildWatermarkDataUri();
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>${escapeHtml(caseData.title || '사건 보고서')} - Themis 증거 보고서</title>
+<style>
+  :root {
+    --ink-950: #0A1628; --brand-700: #1E3A72; --brand-600: #2A50B8; --brand-500: #3D6FE0;
+    --sky-100: #E9F1FD; --sky-050: #F4F9FE; --surface: #FFFFFF;
+    --ink-900: #101828; --ink-700: #33405C; --ink-500: #5B6B8C; --ink-400: #8894AC; --line: #E7ECF5;
+    --danger-600: #DC2626; --safe-600: #16A672;
+  }
+  body {
+    font-family: "IBM Plex Sans KR", -apple-system, 'Malgun Gothic', sans-serif;
+    background: var(--sky-050); color: var(--ink-900); margin: 0; padding: 20px; position: relative;
+  }
+  .watermark {
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("${watermarkDataUri}");
+    background-repeat: repeat;
+    pointer-events: none;
+  }
+  .container { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+
+  .report-summary {
+    background: linear-gradient(160deg, var(--ink-950), var(--brand-700));
+    color: #fff; border-radius: 18px; padding: 22px; margin-bottom: 20px;
+  }
+  .report-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #9DB3E8; }
+  .report-name { display: block; font-size: 20px; font-weight: 700; margin: 6px 0 10px; }
+  .report-meta { font-size: 12.5px; color: #B9CBF2; margin: 2px 0; }
+  .report-counts { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.18); font-size: 12.5px; color: #E9F1FD; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-400); margin: 22px 0 12px;
+  }
+
+  .tl-item { display: flex; gap: 10px; }
+  .tl-left { display: flex; flex-direction: column; align-items: center; padding-top: 4px; flex-shrink: 0; width: 12px; }
+  .tl-dot { width: 12px; height: 12px; border-radius: 999px; border: 2.5px solid #fff; box-shadow: 0 0 0 1.5px var(--line); flex-shrink: 0; }
+  .tl-line { width: 2px; flex: 1; background: var(--line); margin-top: 4px; min-height: 20px; }
+  .card {
+    flex: 1; background: rgba(255,255,255,0.94); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .quest-card { background: rgba(228,247,239,0.94); border-color: var(--safe-600); }
+  .card-meta { font-size: 11px; color: var(--ink-400); }
+  .card-type { font-size: 14px; font-weight: 700; color: var(--ink-900); }
+  .thumb { max-width: 100%; border-radius: 10px; margin: 4px 0; }
+  audio, video { width: 100%; margin: 4px 0; border-radius: 10px; }
+  .transcript { font-size: 12px; color: var(--ink-700); margin: 2px 0; }
+  .summary { font-size: 12px; color: var(--brand-600); margin: 2px 0; }
+  .empty-note { text-align: center; color: var(--ink-400); font-size: 13px; }
+
+  .notice-section { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+  .notice-box { background: #FFF1E7; border-radius: 14px; padding: 16px 18px; }
+  .notice-title { font-size: 13px; font-weight: 700; color: #C2410C; margin-bottom: 8px; }
+  .notice-list { margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--ink-700); line-height: 1.8; }
+  .notice-footer { font-size: 11px; color: var(--ink-500); margin-top: 8px; }
+  .confirm-box { border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: 520px; margin-top: 14px; }
+  .confirm-ack { font-size: 11.5px; color: var(--ink-700); line-height: 1.7; }
+  .confirm-pending { font-size: 10.5px; color: var(--ink-400); margin-top: 8px; }
+  .finalize-badge {
+    display: inline-block; margin-top: 10px; font-size: 11.5px; font-weight: 700; color: var(--safe-600);
+    background: #E4F7EF; border-radius: 999px; padding: 4px 10px;
+  }
+  .hash-label { font-size: 10px; color: var(--ink-400); margin-top: 10px; }
+  .hash-value {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; color: var(--ink-700);
+    word-break: break-all; margin-top: 3px;
+  }
+  .hash-note { font-size: 10px; color: var(--ink-400); line-height: 1.6; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="watermark"></div>
+<div class="container">
+
+  <div class="report-summary">
+    <span class="report-eyebrow">${caseTypeIcon} 사건 보고서</span>
+    <span class="report-name">${escapeHtml(caseData.title || '이름 없는 사건')}</span>
+    <div class="report-meta">사건 유형: ${escapeHtml(caseData.caseType || '미지정')}</div>
+    <div class="report-meta">기록 시작일: ${escapeHtml(formatDateOnly(caseData.createdAt) || '-')} · 보고서 생성일: ${formatDateOnly(now)}</div>
+    <div class="report-counts">
+      증거 총 ${visibleRecords.length}건 (사진 ${counts.image ?? 0} · 음성 ${counts.audio ?? 0} · 영상 ${counts.video ?? 0} · 메모 ${counts.text ?? 0})
+    </div>
+  </div>
+
+  <div class="section-label">증거 타임라인</div>
+  ${timelineEntries.length === 0
+    ? '<p class="empty-note">등록된 증거 또는 완료된 대응 조치가 없습니다.</p>'
+    : timelineEntries.map((e, i) => `
+  <div class="tl-item">
+    <div class="tl-left"><div class="tl-dot" style="background:${e.type === 'quest' ? 'var(--safe-600)' : 'var(--brand-500)'};"></div>${i < timelineEntries.length - 1 ? '<div class="tl-line"></div>' : ''}</div>
+    ${e.html}
+  </div>`).join('\n')}
+
+  <div class="notice-section">
+    <div class="notice-box">
+      <div class="notice-title">⚠️ ${escapeHtml(REPORT_LEGAL_NOTICE_TITLE)}</div>
+      <ul class="notice-list">
+        ${REPORT_LEGAL_NOTICE_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('\n        ')}
+      </ul>
+      <div class="notice-footer">${escapeHtml(REPORT_LEGAL_NOTICE_FOOTER)}</div>
+    </div>
+    <div class="confirm-box">
+      ${finalization?.hash
+        ? `
+      <div class="confirm-ack">☑ ${escapeHtml(REPORT_LEGAL_NOTICE_ACK)}</div>
+      <div class="finalize-badge">✅ 안내 확인 후 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
+      <div class="hash-label">확정 시점 내용 해시 (SHA-256)</div>
+      <div class="hash-value">${escapeHtml(finalization.hash)}</div>
+      <p class="hash-note">이 해시는 확정 시점의 증거 내용으로 계산됩니다. 이후 내용이 바뀌면 같은 방식으로 다시 계산한 값이 이 값과 달라져, 위변조 여부를 확인할 수 있습니다.</p>`
+        : `<div class="confirm-pending">아직 확정되지 않은 보고서입니다. 앱에서 법적 효력 안내를 확인하면 확정됩니다.</div>`}
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+}

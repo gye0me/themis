@@ -5,12 +5,12 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { signUp } from '../services/firebaseService';
+import { signUp } from '../../services/firebaseService';
+import styles from './SignupScreen.styles';
 
 export function SignupScreen({ onSwitchToLogin }) {
   const [displayName, setDisplayName] = useState('');
@@ -19,6 +19,10 @@ export function SignupScreen({ onSwitchToLogin }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountType, setAccountType] = useState('user');
+  const [expertJob, setExpertJob] = useState('');
+  const [expertOrg, setExpertOrg] = useState('');
+  const [expertLicense, setExpertLicense] = useState('');
 
   const validateForm = () => {
     if (!displayName.trim()) {
@@ -50,13 +54,10 @@ export function SignupScreen({ onSwitchToLogin }) {
     setLoading(true);
 
     try {
-      console.log('Starting signup with email:', email);
       await signUp(email, password, displayName);
-      console.log('Signup successful');
     } catch (err) {
       console.error('회원가입 오류:', err);
 
-      // Firebase 오류 메시지 한국어로 변환
       if (err.code === 'auth/email-already-in-use') {
         setError('이미 사용 중인 이메일입니다.');
       } else if (err.code === 'auth/weak-password') {
@@ -81,6 +82,61 @@ export function SignupScreen({ onSwitchToLogin }) {
           <Text style={styles.badge}>THEMIS</Text>
           <Text style={styles.title}>회원가입</Text>
           <Text style={styles.subtitle}>새 계정을 만들고 안전한 기록 관리를 시작하세요.</Text>
+
+    {/* 계정 유형 선택 */}
+    <View style={styles.formGroup}>
+      <Text style={styles.label}>계정 유형</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Pressable
+          style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: accountType === 'user' ? '#1E3A5F' : '#F1F5F9' }]}
+          onPress={() => setAccountType('user')}
+        >
+          <Text style={{ color: accountType === 'user' ? '#FFFFFF' : '#0F172A', fontSize: 13 }}>일반 사용자</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: accountType === 'expert' ? '#1E3A5F' : '#F1F5F9' }]}
+          onPress={() => setAccountType('expert')}
+        >
+          <Text style={{ color: accountType === 'expert' ? '#FFFFFF' : '#0F172A', fontSize: 13 }}>전문가</Text>
+        </Pressable>
+      </View>
+    </View>
+
+    {accountType === 'expert' && (
+      <>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>직종</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {['변호사', '공인중개사', '기자', '회계사', '기타'].map((job) => (
+              <Pressable
+                key={job}
+                onPress={() => setExpertJob(job)}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: expertJob === job ? '#1E3A5F' : '#F1F5F9', borderWidth: 1, borderColor: expertJob === job ? '#1E3A5F' : '#E2E8F0' }}
+              >
+                <Text style={{ color: expertJob === job ? '#FFFFFF' : '#64748B', fontSize: 12 }}>{job}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>소속 기관</Text>
+          <TextInput value={expertOrg} onChangeText={setExpertOrg} placeholder="예) 법무법인 OO" placeholderTextColor="#6f7c98" style={styles.input} editable={!loading} />
+        </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>자격증/면허 번호</Text>
+          <TextInput value={expertLicense} onChangeText={setExpertLicense} placeholder="자격증 또는 면허 번호 입력" placeholderTextColor="#6f7c98" style={styles.input} editable={!loading} />
+        </View>
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>자격증 사진 첨부</Text>
+          <Pressable style={[styles.input, { alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' }]}>
+            <Text style={{ color: '#94A3B8', fontSize: 13 }}>+ 자격증 사진 업로드</Text>
+          </Pressable>
+        </View>
+        <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+          <Text style={{ color: '#92400E', fontSize: 11 }}>제출 후 관리자 검토 후 승인되며, 승인 시 전문가 배지가 부여됩니다.</Text>
+        </View>
+      </>
+    )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -159,93 +215,3 @@ export function SignupScreen({ onSwitchToLogin }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  container: {
-    flexGrow: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  card: {
-    backgroundColor: '#11192a',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#22304a',
-    gap: 16,
-  },
-  badge: {
-    color: '#8fd3ff',
-    letterSpacing: 2,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  title: {
-    color: '#ffffff',
-    fontSize: 30,
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: '#b8c2d6',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  error: {
-    color: '#ffb5b5',
-    backgroundColor: '#381d24',
-    borderRadius: 16,
-    padding: 14,
-  },
-  formGroup: {
-    gap: 8,
-  },
-  label: {
-    color: '#d7def0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#0d1627',
-    borderColor: '#29405f',
-    borderWidth: 1,
-    borderRadius: 16,
-    color: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-  },
-  hint: {
-    color: '#7f8ca8',
-    fontSize: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#4d7cff',
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonPressed: {
-    opacity: 0.9,
-  },
-  buttonDisabled: {
-    opacity: 0.75,
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  linkButton: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  linkText: {
-    color: '#8fd3ff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
