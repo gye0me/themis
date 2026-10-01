@@ -9,8 +9,18 @@
 // (실제 업로드는 호출부인 화면단에서 처리 — 이 서비스는 "서버에 요청해서 결과 URL을 받아오는" 역할만 한다).
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 
 const BASE_URL = 'https://versatility.cloud';
+
+// Expo SDK 56+는 전역 fetch를 자체 WinterCG 구현으로 교체했는데, 이 fetch의 멀티파트
+// 인코더는 문자열 / Blob 인스턴스 / bytes()를 가진 객체만 이해하고, React Native의 예전
+// 파일 표현 방식인 { uri, name, type } 객체는 이해하지 못해 "Unsupported FormDataPart
+// implementation" 오류를 낸다(네트워크에 나가기도 전에 클라이언트에서 막힘).
+// expo-file-system의 새 File 클래스는 Blob 인터페이스를 구현하므로 이걸로 감싸서 보낸다.
+function toFormDataFilePart(uri) {
+  return new File(uri);
+}
 
 function toAbsoluteUrl(pathOrUrl) {
   if (!pathOrUrl) return null;
@@ -43,8 +53,7 @@ export async function applyServerWatermark({ uri, name, mimeType, text }) {
   const watermarkText = (text ?? '').slice(0, 120);
 
   const formData = new FormData();
-  // React Native의 fetch/FormData는 { uri, name, type } 형태의 "파일 오브젝트"를 그대로 받는다.
-  formData.append('file', { uri, name: name ?? 'evidence', type: mimeType ?? 'application/octet-stream' });
+  formData.append('file', toFormDataFilePart(uri), name ?? 'evidence');
   formData.append('text', watermarkText);
 
   const response = await fetch(`${BASE_URL}/api/watermark/`, {
@@ -102,7 +111,7 @@ export async function startVideoFrameExtraction({ uri, name, mimeType, fpsOption
   if (!uri) throw new Error('프레임을 추출할 영상 파일이 없습니다.');
 
   const formData = new FormData();
-  formData.append('file', { uri, name: name ?? 'video.mp4', type: mimeType ?? 'video/mp4' });
+  formData.append('file', toFormDataFilePart(uri), name ?? 'video.mp4');
   formData.append('fps_option', String(fpsOption));
   formData.append('keep_original', String(keepOriginal));
 

@@ -7,7 +7,6 @@ import {
   B_callGeminiAPI,
   buildPreprocessPrompt,
   callGeminiChecklistAPI,
-  analyzeContractText,
 } from "../services/geminiService";
 import {
   preprocessContractImage,
@@ -16,7 +15,6 @@ import {
 import { createEvidenceRecord } from "../services/firebaseService";
 import { buildChecklist } from "../services/requiredClauseChecklist";
 import { parseContractDateString } from "../utils/parseContractDate";
-import { DUMMY_CONTRACTS } from "../fixtures/dummyContracts";
 import {
   REGION_CODES,
   HOUSING_TYPE_LABELS,
@@ -259,34 +257,6 @@ export default function ContractAnalysisScreen({ navigation, route }) {
 
   const missingClauses = (results?.checklistItems ?? []).filter((i) => !i.completed);
 
-  // 촬영 없이 더미 계약서 텍스트로 같은 분석 파이프라인을 테스트/데모하는 함수.
-  // 개발 빌드(__DEV__)에서만 화면에 노출한다 — 실제 사용자에게 보일 필요 없는 테스트 기능.
-  const handleAnalyzeDummy = async (dummy) => {
-    setLoading(true);
-    setResults(null);
-    setImage(null);
-    setSelectedType(dummy.contractType);
-    try {
-      const nextResult = await analyzeContractText(dummy.text, dummy.contractType);
-      setResults({ ...nextResult, checklistItems: [] });
-      try {
-        await saveAnalysisToTimeline({
-          userId: user?.uid ?? null,
-          caseId,
-          contractType: dummy.contractType,
-          image: null,
-          result: nextResult,
-        });
-      } catch (saveErr) {
-        console.warn('더미 분석 타임라인 저장 실패:', saveErr.message);
-      }
-    } catch (err) {
-      Alert.alert('오류', err.message ?? '더미 분석 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
       <BackHeader
@@ -320,25 +290,6 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* 개발/데모용: 촬영 없이 더미 계약서로 같은 분석 파이프라인 테스트 (프로덕션 빌드에는 안 보임) */}
-        {__DEV__ && (
-          <View style={styles.dummySection}>
-            <Text style={styles.dummyLabel}>🧪 더미 계약서로 테스트 (개발용)</Text>
-            <View style={styles.chipRow}>
-              {DUMMY_CONTRACTS.map((dummy) => (
-                <TouchableOpacity
-                  key={dummy.id}
-                  onPress={() => handleAnalyzeDummy(dummy)}
-                  style={[styles.chip, styles.dummyChip]}
-                  disabled={loading}
-                >
-                  <Text style={styles.chipText}>{levelIcon[dummy.severity]} {dummy.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
 
         {/* 전월세 계약 시 국토교통부 실거래가 기반 전세가율(깡통전세 위험) 체크 */}
         {selectedType === "전월세" && (
@@ -648,12 +599,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '600', color: C.ink700 },
   chipTextActive: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
-  dummySection: {
-    backgroundColor: C.warn100, borderRadius: 14, padding: 12, marginBottom: 16, gap: 8,
-    borderWidth: 1, borderColor: C.warn600,
-  },
-  dummyLabel: { fontSize: 11.5, fontWeight: '700', color: C.warn600 },
-  dummyChip: { backgroundColor: '#fff' },
 
   realEstateBox: {
     backgroundColor: C.sky050, borderRadius: 16, padding: 14, marginBottom: 16, gap: 4,

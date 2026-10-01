@@ -298,6 +298,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
         // 서버 호출이 실패하면(오프라인 등) 기존 로컬 캡처 방식으로 자동 대체한다.
         if (evidenceType === 'image') {
           setUploadingType('image');
+          console.log('[워터마크] versatility.cloud 서버에 요청 시작...');
           try {
             const { localUri } = await watermarkAndDownload({
               uri: file.uri,
@@ -306,13 +307,15 @@ export function EvidenceUploadScreen({ navigation, route }) {
               text: buildWatermarkText(caseType),
             });
             file = buildStampedImageFile(file, localUri);
+            console.log('[워터마크] 서버 워터마크 성공 — 서버에서 합성된 파일로 업로드합니다.');
           } catch (serverError) {
-            console.warn('서버 워터마크 실패, 로컬 합성으로 대체합니다:', serverError.message);
+            console.warn('[워터마크] 서버 실패, 로컬 합성으로 대체합니다. 원인:', serverError.message);
             try {
               const stampedUri = await stamperRef.current.stamp(asset.uri);
               file = buildStampedImageFile(file, stampedUri);
+              console.log('[워터마크] 로컬 합성 성공(폴백 경로) — 이 파일로 업로드합니다.');
             } catch (localError) {
-              console.warn('로컬 워터마크 합성도 실패, 원본으로 업로드합니다:', localError.message);
+              console.warn('[워터마크] 로컬 합성도 실패, 워터마크 없이 원본으로 업로드합니다:', localError.message);
             }
           }
           // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음
