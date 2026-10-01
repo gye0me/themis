@@ -58,7 +58,8 @@ export default function ResponseGuideScreen({ navigation, route }) {
         if (cancelled) return;
         const { items: questItems } = buildQuestSteps(
           caseDoc?.caseType ?? routeCaseType,
-          caseDoc?.questSteps ?? []
+          caseDoc?.questSteps ?? [],
+          caseDoc?.tags ?? []
         );
         setItems(questItems);
         setAiHistory(Array.isArray(caseDoc?.aiHistory) ? caseDoc.aiHistory : []);
