@@ -77,18 +77,20 @@ export function ExpertScreen({ navigation }) {
     }, [loadPosts, loadHotEntries]),
   );
 
-  // "지금 주목받는 사건"은 채팅방 입장 버튼이 아니라, 전문가(기자·변호사 등)와 다른
-  // 사용자들이 관심 갖고 공론화해볼 만한 사건을 알리는 게시글 성격이다. 그래서 눌렀을 때도
-  // 채팅방으로 이동시키지 않고, 어떤 사건인지 요약해서 보여준다.
+  // "지금 주목받는 사건"은 채팅방 입장 버튼이 아니라, 기자·변호사 등 전문가와 다른
+  // 사용자들에게 사건을 알리는 게시글 성격이다. 그래서 눌렀을 때도 채팅방으로 이동시키지
+  // 않고, 어떤 사건인지 요약해서 보여준다. real(비데모) 항목은 curated description/
+  // watchingExperts가 없을 수 있어 일반적인 문구로 대체한다 — 동일 가해자 여부 등
+  // 실데이터에 없는 내용은 지어내지 않는다.
   const showHotEntryDetail = (entry) => {
     const meta = CASE_TYPE_META[entry.caseType] ?? CASE_TYPE_META['기타'];
-    const trigger =
-      entry.triggeredBy === 'manual'
-        ? '피해자들이 직접 공론화를 요청했어요.'
-        : '같은 유형의 피해자가 많이 모였어요.';
+    const description = entry.description || `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다.`;
+    const expertsLine = entry.watchingExperts?.length
+      ? `\n\n${entry.watchingExperts.join(', ')}가 이 사건을 주목하고 있어요.`
+      : '';
     Alert.alert(
       entry.roomName || `${meta.label} 피해자 연대`,
-      `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다. ${trigger} 전문가분들의 관심과 공론화가 필요한 사건이에요.\n\n상세 페이지는 준비 중이에요.`
+      `${description}${expertsLine}\n\n상세 페이지는 준비 중이에요.`
     );
   };
 
@@ -238,10 +240,17 @@ export function ExpertScreen({ navigation }) {
                   </View>
                 </View>
                 <Text style={styles.hotCardDesc}>
-                  {entry.triggeredBy === 'manual'
-                    ? '피해자들이 직접 공론화를 요청한 사건이에요. 전문가의 관심이 필요해요.'
-                    : '같은 유형 피해자가 많이 모인 사건이에요. 전문가의 관심이 필요해요.'}
+                  {entry.description || `${meta.label} 피해자들이 모인 사건이에요.`}
                 </Text>
+                {entry.watchingExperts?.length > 0 && (
+                  <View style={styles.tagRow}>
+                    {entry.watchingExperts.map((expert) => (
+                      <View key={expert} style={styles.tag}>
+                        <Text style={styles.tagText}>{expert} 주목 중</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })

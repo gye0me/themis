@@ -29,6 +29,10 @@ export const DEMO_HOT_BOARD_ENTRIES = [
     roomName: '강남구 전세사기 피해자 모임',
     caseType: '전세사기',
     memberCount: 47,
+    // 같은 가해자에게 당했다는 구체성이 공감을 만든다 — "비슷한 유형 피해자가 모였다"보다
+    // "같은 집주인에게 당한 사람이 이만큼 있다"가 훨씬 와닿는다.
+    description: '같은 집주인에게 보증금을 돌려받지 못한 사람들이 모였어요. 비슷한 시기에 같은 수법으로 계약한 피해자가 계속 늘고 있어요.',
+    watchingExperts: ['변호사', '기자', '부동산중개사'],
     triggeredBy: 'auto',
     isDemo: true,
   },
@@ -37,6 +41,8 @@ export const DEMO_HOT_BOARD_ENTRIES = [
     roomName: '중고거래 사기 공동대응방',
     caseType: '금전사기',
     memberCount: 29,
+    description: '같은 판매자 계정에 입금했다가 물건을 못 받은 사람들이 모였어요. 피해 금액과 수법이 거의 똑같아 공동 대응을 준비하고 있어요.',
+    watchingExperts: ['변호사', '기자'],
     triggeredBy: 'manual',
     isDemo: true,
   },
