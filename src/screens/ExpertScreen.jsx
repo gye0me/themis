@@ -14,7 +14,6 @@ import {
 import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
-import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
@@ -78,15 +77,19 @@ export function ExpertScreen({ navigation }) {
     }, [loadPosts, loadHotEntries]),
   );
 
-  const openHotRoom = (entry) => {
-    if (entry.isDemo) {
-      Alert.alert('예시 사건', '아직 실제로 모인 사건이 없어서 예시로 보여드리고 있어요. 실제 피해자가 모이면 여기서 바로 채팅방으로 연결돼요.');
-      return;
-    }
-    navigation.navigate(APP_ROUTES.CHATS_STACK, {
-      screen: CHAT_ROUTES.ROOM,
-      params: { roomId: entry.roomId, roomName: entry.roomName },
-    });
+  // "지금 주목받는 사건"은 채팅방 입장 버튼이 아니라, 전문가(기자·변호사 등)와 다른
+  // 사용자들이 관심 갖고 공론화해볼 만한 사건을 알리는 게시글 성격이다. 그래서 눌렀을 때도
+  // 채팅방으로 이동시키지 않고, 어떤 사건인지 요약해서 보여준다.
+  const showHotEntryDetail = (entry) => {
+    const meta = CASE_TYPE_META[entry.caseType] ?? CASE_TYPE_META['기타'];
+    const trigger =
+      entry.triggeredBy === 'manual'
+        ? '피해자들이 직접 공론화를 요청했어요.'
+        : '같은 유형의 피해자가 많이 모였어요.';
+    Alert.alert(
+      entry.roomName || `${meta.label} 피해자 연대`,
+      `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다. ${trigger} 전문가분들의 관심과 공론화가 필요한 사건이에요.\n\n상세 페이지는 준비 중이에요.`
+    );
   };
 
   const loadComments = (postId) => {
@@ -223,7 +226,7 @@ export function ExpertScreen({ navigation }) {
               <TouchableOpacity
                 key={entry.id}
                 style={[styles.hotCard, { marginBottom: 10 }]}
-                onPress={() => openHotRoom(entry)}
+                onPress={() => showHotEntryDetail(entry)}
               >
                 <View style={styles.hotCardHeader}>
                   <View style={styles.hotBadge}>
@@ -231,13 +234,13 @@ export function ExpertScreen({ navigation }) {
                   </View>
                   <Text style={styles.hotCardTitle}>{meta.icon} {entry.roomName || `${meta.label} 피해자 연대방`}</Text>
                   <View style={styles.victimBadgeRed}>
-                    <Text style={styles.victimBadgeRedText}>참여 {entry.memberCount ?? 0}명</Text>
+                    <Text style={styles.victimBadgeRedText}>피해자 {entry.memberCount ?? 0}명</Text>
                   </View>
                 </View>
                 <Text style={styles.hotCardDesc}>
                   {entry.triggeredBy === 'manual'
-                    ? '피해자들이 직접 공론화를 요청한 사건이에요. 눌러서 채팅방으로 이동해요.'
-                    : '같은 유형 피해자가 많이 모인 사건이에요. 눌러서 채팅방으로 이동해요.'}
+                    ? '피해자들이 직접 공론화를 요청한 사건이에요. 전문가의 관심이 필요해요.'
+                    : '같은 유형 피해자가 많이 모인 사건이에요. 전문가의 관심이 필요해요.'}
                 </Text>
               </TouchableOpacity>
             );
