@@ -11,7 +11,7 @@ import {
   acceptExpertComment,
   unacceptExpertComment,
 } from '../services/expertBoardService';
-import { getHotBoardEntries } from '../services/hotBoardService';
+import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
@@ -61,8 +61,13 @@ export function ExpertScreen({ navigation }) {
   const loadHotEntries = useCallback(() => {
     setLoadingHot(true);
     getHotBoardEntries()
-      .then((list) => setHotEntries(list.slice(0, 3))) // 참여 인원 많은 순으로 이미 정렬돼 있음 — 상위 3개만
-      .catch((err) => console.error('핫게시판 조회 오류:', err))
+      // 참여 인원 많은 순으로 이미 정렬돼 있음 — 상위 3개만. 실제로 모인 사건이 아직
+      // 없으면(초기 상태) 예시 데이터를 대신 보여준다 — 실제 사건이 생기면 자동으로 대체됨.
+      .then((list) => setHotEntries(list.length > 0 ? list.slice(0, 3) : DEMO_HOT_BOARD_ENTRIES))
+      .catch((err) => {
+        console.error('핫게시판 조회 오류:', err);
+        setHotEntries(DEMO_HOT_BOARD_ENTRIES);
+      })
       .finally(() => setLoadingHot(false));
   }, []);
 
@@ -74,6 +79,10 @@ export function ExpertScreen({ navigation }) {
   );
 
   const openHotRoom = (entry) => {
+    if (entry.isDemo) {
+      Alert.alert('예시 사건', '아직 실제로 모인 사건이 없어서 예시로 보여드리고 있어요. 실제 피해자가 모이면 여기서 바로 채팅방으로 연결돼요.');
+      return;
+    }
     navigation.navigate(APP_ROUTES.CHATS_STACK, {
       screen: CHAT_ROUTES.ROOM,
       params: { roomId: entry.roomId, roomName: entry.roomName },

@@ -18,6 +18,30 @@ export const HOT_BOARD_THRESHOLD = 10;
 // 수동 "공론화 SOS"는 최소 이 인원 이상 모였을 때만 최초 발동할 수 있다 (장난성 등록 방지).
 export const MIN_SOS_MEMBERS = 3;
 
+// 실제로 핫게시판에 등록된 사건이 아직 하나도 없을 때(초기 상태, 전시·데모 등) 대신 보여줄
+// 예시 데이터. roomId가 실제 채팅방을 가리키지 않으므로 isDemo로 표시해두고, 화면단에서
+// 눌렀을 때 실제 채팅방으로 이동하는 대신 "예시"라는 걸 안내해야 한다.
+// 실제 사건이 하나라도 등록되면 getHotBoardEntries()가 그쪽을 돌려주므로 이 데이터는
+// 자동으로 안 쓰이게 된다 — 화면단에서 "조회 결과가 비어있을 때만" 조합해서 쓴다.
+export const DEMO_HOT_BOARD_ENTRIES = [
+  {
+    id: 'demo-jeonse',
+    roomName: '강남구 전세사기 피해자 모임',
+    caseType: '전세사기',
+    memberCount: 12,
+    triggeredBy: 'auto',
+    isDemo: true,
+  },
+  {
+    id: 'demo-money',
+    roomName: '중고거래 사기 공동대응방',
+    caseType: '금전사기',
+    memberCount: 7,
+    triggeredBy: 'manual',
+    isDemo: true,
+  },
+];
+
 // 같은 방에서 SOS를 재발동하려면 이만큼 간격을 둬야 한다 (연타 스팸 방지).
 export const SOS_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24시간
 

@@ -68,24 +68,32 @@ export function ChatRoomScreen({ navigation, route }) {
 
   const handleLeaveRoom = () => {
     if (!roomId || !user) return;
+
+    const doLeave = async () => {
+      try {
+        await leaveRoom(roomId, user.uid);
+        navigation.goBack();
+      } catch (err) {
+        console.error('채팅방 나가기 오류:', err);
+        Alert.alert('오류', '채팅방을 나가지 못했습니다.');
+      }
+    };
+
+    // RN Web은 버튼이 여러 개인 Alert.alert가 제대로 뜨지 않아(이 프로젝트에서 이미
+    // NewCaseScreen 등에서 겪은 문제), 웹에서는 window.confirm으로 대체한다.
+    if (Platform.OS === 'web') {
+      if (window.confirm('이 채팅방에서 나가시겠어요? 다시 들어오려면 재참여해야 해요.')) {
+        doLeave();
+      }
+      return;
+    }
+
     Alert.alert(
       '채팅방 나가기',
       '이 채팅방에서 나가시겠어요? 다시 들어오려면 재참여해야 해요.',
       [
         { text: '취소', style: 'cancel' },
-        {
-          text: '나가기',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await leaveRoom(roomId, user.uid);
-              navigation.goBack();
-            } catch (err) {
-              console.error('채팅방 나가기 오류:', err);
-              Alert.alert('오류', '채팅방을 나가지 못했습니다.');
-            }
-          },
-        },
+        { text: '나가기', style: 'destructive', onPress: doLeave },
       ]
     );
   };
