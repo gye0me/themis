@@ -34,7 +34,11 @@ export const DEADMAN_TASK_NAME = 'themis-deadman-check';
 // 사용자가 무응답 기준 시간을 고를 수 있다 (15분/30분/1시간 또는 직접 입력). 기본 30분.
 export const DEADMAN_DEFAULT_TIMEOUT_MIN = 30;
 export const DEADMAN_TIMEOUT_PRESETS_MIN = [15, 30, 60];
-export const DEADMAN_TIMEOUT_MIN_RANGE = { min: 5, max: 24 * 60 };
+// 1분까지 허용한다. 다만 진짜 "백그라운드" 감지는 OS가 최소 15분 간격으로만 깨워주므로,
+// 1~14분으로 설정해도 앱이 포그라운드(화면 켜짐)에 있을 때만 그 시간에 정확히 맞고,
+// 백그라운드에서는 다음 15분 주기 체크 때야 알림이 뜰 수 있다 — 데모/테스트용으로 짧게
+// 쓰는 건 괜찮지만, 실사용 안내에선 이 한계를 알려주는 게 좋다.
+export const DEADMAN_TIMEOUT_MIN_RANGE = { min: 1, max: 24 * 60 };
 
 export function normalizeDeadmanTimeoutMin(value) {
   const n = Math.round(Number(value));

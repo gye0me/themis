@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
-import { getChatRoomMeta, subscribeToMessages, subscribeToMembers, sendMessage } from '../services/chatService';
+import { getChatRoomMeta, subscribeToMessages, subscribeToMembers, sendMessage, leaveRoom } from '../services/chatService';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
 
@@ -66,6 +66,30 @@ export function ChatRoomScreen({ navigation, route }) {
     };
   }, [roomId]);
 
+  const handleLeaveRoom = () => {
+    if (!roomId || !user) return;
+    Alert.alert(
+      '채팅방 나가기',
+      '이 채팅방에서 나가시겠어요? 다시 들어오려면 재참여해야 해요.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '나가기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await leaveRoom(roomId, user.uid);
+              navigation.goBack();
+            } catch (err) {
+              console.error('채팅방 나가기 오류:', err);
+              Alert.alert('오류', '채팅방을 나가지 못했습니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const sendCurrentDraft = async () => {
     const text = draft.trim();
     if (!text || !roomId) return;
@@ -98,6 +122,11 @@ export function ChatRoomScreen({ navigation, route }) {
         title={roomName}
         subtitle={`참여 ${memberCount}명`}
         onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity onPress={handleLeaveRoom} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.leaveBtnText}>나가기</Text>
+          </TouchableOpacity>
+        }
       />
 
       {loading ? (
@@ -186,6 +215,7 @@ export function ChatRoomScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
+  leaveBtnText: { color: C.danger600, fontSize: 12.5, fontWeight: '600' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: C.ink400, fontSize: 13 },
