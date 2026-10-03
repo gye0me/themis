@@ -618,7 +618,7 @@ export function HomeScreen({ navigation }) {
   // 진행 중/완료로 나눠 완료된 사건은 기본적으로 접어서 보여준다.
   const casesWithMeta = cases.map((c) => {
     const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁' };
-    const { items, progress } = buildQuestSteps(c.caseType, c.questSteps ?? []);
+    const { items, progress } = buildQuestSteps(c.caseType, c.questSteps ?? [], c.tags ?? []);
     const evidence = evidenceByCase[c.id] ?? { total: 0, byType: {} };
     return { case: c, meta, items, progress, evidence, isDone: progress.percent === 100 };
   });

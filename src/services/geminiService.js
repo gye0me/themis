@@ -54,18 +54,23 @@ const PROMPTS = {
 5. 수선비 전액 임차인 부담: "일체의 수선은 임차인 부담" — 민법 623조 위반 (임대인 수선의무)
 6. 임의 월세 인상: 임대인이 일방적으로 월세를 인상할 수 있는 조항 (주택임대차보호법 7조 5% 상한 위반)
 7. 원상복구 과대: 정상 사용·마모에 의한 흔적까지 원상복구 의무 부과
+8. 계약갱신요구권 사전 포기: "임차인은 갱신요구권을 행사하지 않는다/행사한 것으로 본다" — 주택임대차보호법 제6조의3(갱신요구권) 및 제10조(강행규정) 위반으로 무효
+9. 최단 존속기간(2년) 미만 강제: 임차인에게 불리하게 "계약기간을 6개월/1년으로 한다"는 특약 — 임차인이 원하는 경우가 아니라면 주택임대차보호법 제4조·제10조에 따라 무효 (임차인은 2년을 주장 가능)
+10. 보증금 감액청구권 배제: 세금·공과금 감소나 경제사정 변동 시 임차인의 보증금 감액 청구권을 특약으로 배제 — 주택임대차보호법 제7조 제1항·제10조 위반
+11. 원상복구비 정액 일괄 청구: 실제 손해 규모 확인 없이 "퇴실 시 OOO만원 일괄 청구/공제"처럼 고정 금액을 미리 못박는 조항 — 민법 제398조 제2항(손해배상액 예정의 감액) 및 과도할 경우 제103조(반사회질서 법률행위) 위반 소지
 
 ▶ WARNING(주의) 패턴
-8. 갱신거절권 일방 부여: 임대인만 갱신거절 가능, 임차인 갱신청구권(2년) 배제
-9. 전대·양도 절대 금지: 긴급 상황에서도 전대 불가 — 과도한 제한
-10. 관리비 항목 불명확: 관리비 금액·항목이 특약에 미기재
-11. 특약 구두 약속 배제: "구두 약속은 효력이 없다" — 사전 협의 내용 무효화
-12. 임차인 하자 신고의무 과중: 즉시 신고하지 않으면 임차인 책임으로 전가
+12. 갱신거절권 일방 부여: 임대인만 갱신거절 가능, 임차인 갱신청구권(2년) 배제
+13. 전대·양도 절대 금지: 긴급 상황에서도 전대 불가 — 과도한 제한
+14. 관리비 항목 불명확: 관리비 금액·항목이 특약에 미기재
+15. 특약 구두 약속 배제: "구두 약속은 효력이 없다" — 사전 협의 내용 무효화
+16. 임차인 하자 신고의무 과중: 즉시 신고하지 않으면 임차인 책임으로 전가
 
-▶ SAFE(양호) 패턴 (존재 시 명시)
-13. 확정일자·전입신고 안내 명시
-14. 보증보험 가입 안내
-15. 퇴거 후 N일 이내 보증금 반환 명확 기재
+▶ SAFE(양호) 패턴 (존재 시 명시, 임차인에게 유리한 특약이라 법 위반이 아니라 오히려 권장됨)
+17. 확정일자·전입신고 안내 명시
+18. 보증보험 가입 안내
+19. 퇴거 후 N일 이내 보증금 반환 명확 기재
+20. 잔금일 익일까지 등기부등본(권리관계) 그대로 유지 특약, 임차인 입주 시까지 근저당 등 권리 설정 금지 특약 — 임차인에게 유리하므로 유효
 
 ${OUTPUT_FORMAT}
 `.trim(),
@@ -336,6 +341,54 @@ export function compareAnalysisResults(beforeResult, afterResult) {
  * @param {string} contractType - 계약 유형: '전월세' | '매매' | '프리랜서'
  * @returns {Promise<{ summary: string, items: Array }>}
  */
+/**
+ * 사진 없이, 이미 텍스트로 있는 계약서 원문을 그대로 분석한다.
+ * - 테스트/데모용 더미 계약서(예: src/fixtures/dummyContracts.js)를 실제 촬영 없이 돌려볼 때 사용.
+ * - 이미지 분석과 완전히 동일한 위반 패턴 판단 로직(PROMPTS)을 그대로 재사용한다.
+ * @param {string} contractText - 계약서 원문 텍스트
+ * @param {string} contractType - '전월세' | '매매' | '프리랜서'
+ * @returns {Promise<{ summary, items, extractedText, documentSummary, contractDate }>}
+ */
+export const analyzeContractText = async (contractText, contractType = '전월세') => {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
+  }
+  if (!contractText?.trim()) {
+    throw new Error('분석할 계약서 텍스트가 없습니다.');
+  }
+
+  const prompt = `${PROMPT_TEMPLATE(contractType)}
+
+[입력 안내]
+아래는 사진이 아니라 이미 텍스트로 추출된 계약서 원문입니다. 이미지 판독 관련 안내(흐림/조명 등)는 하지 말고,
+텍스트 내용만으로 바로 분석하세요. extractedText 필드에는 아래 원문을 그대로(또는 조항 구분만 정리해서) 담으세요.
+
+[계약서 원문]
+${contractText.trim()}`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 3072, thinkingConfig: { thinkingBudget: 0 } },
+  };
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`Gemini API 오류 ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  if (!rawText) return buildResult({ items: [] });
+  return parseGeminiResponse(rawText);
+};
+
 export const B_callGeminiAPI = async (
   base64Img,
   mimeType = 'image/jpeg',

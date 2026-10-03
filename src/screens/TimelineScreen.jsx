@@ -306,6 +306,14 @@ export function TimelineScreen({ navigation, route }) {
       ) : (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
+          {/* 타임라인의 성격 안내 — 법적 효력에 대한 기대를 관리한다 */}
+          <View style={styles.noticeBanner}>
+            <Text style={styles.noticeBannerText}>
+              이 타임라인은 피해 상황에 대비해 남기는 나의 개인 기록이에요. 법적 효력이나 증거로서의 가치를 보장하지 않으며,
+              제출은 가능하지만 증거 채택 여부는 수사기관과 법원이 판단해요.
+            </Text>
+          </View>
+
           {/* 예방 가이드 — 사건 유형별 사례·체크리스트 (사건에 연결된 타임라인에서만) */}
           {caseId && (
             <TouchableOpacity style={styles.preventionCard} onPress={() => setPreventionVisible(true)} activeOpacity={0.85}>
@@ -653,6 +661,11 @@ const styles = StyleSheet.create({
   summaryTag: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 4 },
   summaryTagText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
   emptyTagText: { color: C.ink400, fontSize: 11 },
+  noticeBanner: {
+    backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12,
+  },
+  noticeBannerText: { color: C.ink500, fontSize: 11.5, lineHeight: 17 },
   filterRow: { marginBottom: 16 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

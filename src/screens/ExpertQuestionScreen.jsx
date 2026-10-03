@@ -1,11 +1,8 @@
-import { useCallback, useContext, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Modal, ActivityIndicator, FlatList } from 'react-native';
+import { useContext, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
-import { getCasesByUser } from '../services/firebaseService';
 import { createExpertPost } from '../services/expertBoardService';
-import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
 
@@ -15,41 +12,8 @@ export default function ExpertQuestionScreen({ navigation }) {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedCase, setSelectedCase] = useState(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  const [pickerVisible, setPickerVisible] = useState(false);
-  const [cases, setCases] = useState([]);
-  const [loadingCases, setLoadingCases] = useState(false);
-
-  const loadCases = useCallback(() => {
-    if (!user) return;
-    setLoadingCases(true);
-    getCasesByUser(user.uid)
-      .then((list) => {
-        const sorted = [...list].sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-        setCases(sorted);
-      })
-      .catch((err) => console.error('사건 목록 조회 오류:', err))
-      .finally(() => setLoadingCases(false));
-  }, [user]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadCases();
-    }, [loadCases]),
-  );
-
-  const openPicker = () => {
-    setPickerVisible(true);
-    if (cases.length === 0) loadCases();
-  };
-
-  const pickCase = (c) => {
-    setSelectedCase({ id: c.id, title: c.title || '이름 없는 사건' });
-    setPickerVisible(false);
-  };
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -71,7 +35,6 @@ export default function ExpertQuestionScreen({ navigation }) {
         authorName,
         title,
         content,
-        attachedCase: selectedCase,
         isAnonymous,
       });
       Alert.alert('등록 완료', '질문이 등록되었습니다!');
@@ -134,70 +97,12 @@ export default function ExpertQuestionScreen({ navigation }) {
 
         <View style={styles.divider} />
 
-        {/* 타임라인 첨부 */}
-        <View style={styles.attachSection}>
-          <Text style={styles.attachLabel}>📎 타임라인 첨부 (선택)</Text>
-          <TouchableOpacity style={styles.attachBtn} onPress={openPicker}>
-            <Text style={selectedCase ? styles.attachBtnTextFilled : styles.attachBtnText}>
-              {selectedCase ? selectedCase.title : '+ 내 사건 타임라인 선택'}
-            </Text>
-          </TouchableOpacity>
-          {selectedCase ? (
-            <TouchableOpacity style={styles.removeAttachBtn} onPress={() => setSelectedCase(null)}>
-              <Text style={styles.removeAttachText}>첨부 제거</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
         <Text style={styles.disclaimer}>
           본 질문은 전문가 채널에 공개됩니다. 개인정보가 포함되지 않도록 주의해주세요.
         </Text>
 
         <View style={{ height: 80 }} />
       </ScrollView>
-
-      {/* 타임라인 선택 모달 */}
-      <Modal visible={pickerVisible} animationType="slide" transparent onRequestClose={() => setPickerVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>내 사건 타임라인 선택</Text>
-              <TouchableOpacity onPress={() => setPickerVisible(false)}>
-                <Text style={styles.modalClose}>닫기</Text>
-              </TouchableOpacity>
-            </View>
-
-            {loadingCases ? (
-              <View style={styles.modalLoading}>
-                <ActivityIndicator color="#1E3A5F" />
-              </View>
-            ) : cases.length === 0 ? (
-              <View style={styles.modalEmpty}>
-                <Text style={styles.modalEmptyText}>아직 기록된 사건 타임라인이 없어요.</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={cases}
-                keyExtractor={(item) => item.id}
-                style={{ maxHeight: 360 }}
-                renderItem={({ item }) => {
-                  const meta = CASE_TYPE_META[item.caseType] ?? { icon: '📁', label: item.caseType ?? '기타' };
-                  return (
-                    <TouchableOpacity style={styles.caseRow} onPress={() => pickCase(item)}>
-                      <Text style={styles.caseRowIcon}>{meta.icon}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.caseRowTitle}>{item.title || '이름 없는 사건'}</Text>
-                        <Text style={styles.caseRowMeta}>{meta.label}</Text>
-                      </View>
-                      <Text style={styles.caseRowArrow}>›</Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -209,13 +114,6 @@ const styles = StyleSheet.create({
   titleInput: { fontSize: 16, color: C.ink900, paddingVertical: 16, fontWeight: '600' },
   divider: { height: 1, backgroundColor: C.line },
   contentInput: { fontSize: 14, color: C.ink900, paddingVertical: 16, minHeight: 200 },
-  attachSection: { paddingVertical: 16, gap: 10 },
-  attachLabel: { color: C.ink700, fontSize: 13, fontWeight: '700' },
-  attachBtn: { borderWidth: 1.5, borderColor: C.line, borderRadius: 14, padding: 14, borderStyle: 'dashed', alignItems: 'center' },
-  attachBtnText: { color: C.brand600, fontSize: 13, fontWeight: '600' },
-  attachBtnTextFilled: { color: C.brand600, fontSize: 13, fontWeight: '700' },
-  removeAttachBtn: { alignSelf: 'flex-start' },
-  removeAttachText: { color: C.danger600, fontSize: 11.5 },
   disclaimer: { color: C.ink400, fontSize: 11, lineHeight: 16, paddingVertical: 12 },
 
   anonRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12 },
@@ -232,18 +130,4 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   checkboxCheck: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(10,22,40,0.45)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 15, fontWeight: '700', color: C.ink900 },
-  modalClose: { fontSize: 13, color: C.ink500 },
-  modalLoading: { paddingVertical: 32, alignItems: 'center' },
-  modalEmpty: { paddingVertical: 32, alignItems: 'center' },
-  modalEmptyText: { color: C.ink400, fontSize: 12.5 },
-  caseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.line },
-  caseRowIcon: { fontSize: 20 },
-  caseRowTitle: { fontSize: 13, fontWeight: '700', color: C.ink900 },
-  caseRowMeta: { fontSize: 11, color: C.ink400, marginTop: 2 },
-  caseRowArrow: { color: C.ink400, fontSize: 18 },
 });
