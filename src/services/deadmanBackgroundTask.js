@@ -34,7 +34,7 @@ export const DEADMAN_TASK_NAME = 'themis-deadman-check';
 // 사용자가 무응답 기준 시간을 고를 수 있다 (15분/30분/1시간 또는 직접 입력). 기본 30분.
 export const DEADMAN_DEFAULT_TIMEOUT_MIN = 30;
 export const DEADMAN_TIMEOUT_PRESETS_MIN = [15, 30, 60];
-export const DEADMAN_TIMEOUT_MIN_RANGE = { min: 5, max: 24 * 60 };
+export const DEADMAN_TIMEOUT_MIN_RANGE = { min: 1, max: 24 * 60 };
 
 export function normalizeDeadmanTimeoutMin(value) {
   const n = Math.round(Number(value));

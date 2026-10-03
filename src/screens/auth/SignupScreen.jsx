@@ -41,6 +41,20 @@ export function SignupScreen({ onSwitchToLogin }) {
       setError('비밀번호가 일치하지 않습니다.');
       return false;
     }
+    if (accountType === 'expert') {
+      if (!expertJob) {
+        setError('전문가 직종을 선택해주세요.');
+        return false;
+      }
+      if (!expertOrg.trim()) {
+        setError('소속 기관을 입력해주세요.');
+        return false;
+      }
+      if (!expertLicense.trim()) {
+        setError('자격증/면허 번호를 입력해주세요.');
+        return false;
+      }
+    }
     return true;
   };
 
@@ -54,7 +68,13 @@ export function SignupScreen({ onSwitchToLogin }) {
     setLoading(true);
 
     try {
-      await signUp(email, password, displayName);
+      await signUp(email, password, displayName, {
+        accountType,
+        expertProfile:
+          accountType === 'expert'
+            ? { job: expertJob, organization: expertOrg.trim(), licenseNumber: expertLicense.trim() }
+            : null,
+      });
     } catch (err) {
       console.error('회원가입 오류:', err);
 
@@ -129,11 +149,14 @@ export function SignupScreen({ onSwitchToLogin }) {
         <View style={styles.formGroup}>
           <Text style={styles.label}>자격증 사진 첨부</Text>
           <Pressable style={[styles.input, { alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' }]}>
-            <Text style={{ color: '#94A3B8', fontSize: 13 }}>+ 자격증 사진 업로드</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 13 }}>+ 자격증 사진 업로드 (준비 중)</Text>
           </Pressable>
         </View>
         <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, marginBottom: 8 }}>
-          <Text style={{ color: '#92400E', fontSize: 11 }}>제출 후 관리자 검토 후 승인되며, 승인 시 전문가 배지가 부여됩니다.</Text>
+          <Text style={{ color: '#92400E', fontSize: 11 }}>
+            전문가 계정으로 가입하면 전문가 채널 답변에 "전문가 답변" 배지가 표시돼요.
+            (현재는 입력한 정보를 기준으로 하는 자기 신고 방식이며, 자격 검증은 추후 도입 예정이에요.)
+          </Text>
         </View>
       </>
     )}

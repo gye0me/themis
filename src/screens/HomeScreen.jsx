@@ -14,6 +14,7 @@ import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps'
 import {
   syncDeadmanLocalState,
   readDeadmanTriggeredFlag,
+  clearDeadmanTriggeredFlag,
   registerDeadmanBackgroundTask,
   unregisterDeadmanBackgroundTask,
   ensureDeadmanBackgroundTaskRegistered,
@@ -242,16 +243,17 @@ export function HomeScreen({ navigation }) {
   const [timeoutMin, setTimeoutMin] = useState(DEADMAN_DEFAULT_TIMEOUT_MIN);
   const [customTimeoutInput, setCustomTimeoutInput] = useState('');
   const [editingCustomTimeout, setEditingCustomTimeout] = useState(false);
-  // 앱 복귀/알림 탭 리스너(마운트 시 1회 등록)에서도 최신 설정값을 쓰도록 ref로도 들고 있는다
-  const timeoutMinRef = useRef(DEADMAN_DEFAULT_TIMEOUT_MIN);
-  useEffect(() => {
-    timeoutMinRef.current = timeoutMin;
-  }, [timeoutMin]);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const triggeringRef = useRef(false);
+  // 무응답 감지 결과 안내 (Alert는 웹에서 뜨지 않아 카드 안에 직접 보여준다)
+  // { title, body, smsMessage, canResend }
+  const [deadmanNotice, setDeadmanNotice] = useState(null);
 
   const [savingExpertBadge, setSavingExpertBadge] = useState(false);
-  const isExpertVerified = !!profile?.isExpert;
+  // 전문가 전용 가입으로 만든 계정만 배지를 쓸 수 있다 (일반 계정은 배지 카드 자체가 안 보임)
+  const isExpertAccount = profile?.accountType === 'expert';
+  const isExpertVerified = isExpertAccount && !!profile?.isExpert;
+  const expertProfileLine = [profile?.expertProfile?.job, profile?.expertProfile?.organization].filter(Boolean).join(' · ');
 
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '사용자';
   const joinDate = formatJoinDate(profile?.createdAt ?? profile?.joined_at);
@@ -395,12 +397,64 @@ export function HomeScreen({ navigation }) {
     }
   };
 
+  // 위치는 최대 10초만 기다리고, 못 구하면 마지막으로 알려진 위치를 쓴다
+  const getAlertLocationLine = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return '위치 권한 없음';
+      const loc = await Promise.race([
+        Location.getCurrentPositionAsync({}),
+        new Promise((resolve) => setTimeout(() => resolve(null), 10000)),
+      ]) ?? (await Location.getLastKnownPositionAsync().catch(() => null));
+      return loc ? `https://maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}` : '위치 정보 없음';
+    } catch (err) {
+      console.warn('위치 조회 실패:', err.message);
+      return '위치 정보 없음';
+    }
+  };
+
+  // 보호자에게 보낼 문자 창을 연다. sendSMSAsync 결과: iOS는 sent/cancelled, 안드로이드는 항상 unknown.
+  const openDeadmanSms = async (smsMessage) => {
+    const available = await SMS.isAvailableAsync().catch(() => false);
+    if (!available || !contactPhone) {
+      setDeadmanNotice({
+        title: '무응답이 감지됐어요',
+        body: !contactPhone
+          ? '보호자 연락처가 없어 문자를 열지 못했어요. 아래 내용을 보호자에게 직접 전해주세요.'
+          : '이 기기에서는 문자 앱을 열 수 없어요(웹 등). 아래 내용을 보호자에게 직접 전해주세요.',
+        smsMessage,
+        canResend: false,
+      });
+      return;
+    }
+    try {
+      const { result } = await SMS.sendSMSAsync([contactPhone], smsMessage);
+      if (result === 'sent') {
+        setDeadmanNotice({ title: '보호자에게 문자를 보냈어요', body: `${contactName || '보호자'}님에게 위치가 담긴 문자가 전송됐어요.`, smsMessage, canResend: false });
+      } else if (result === 'cancelled') {
+        setDeadmanNotice({ title: '문자 전송이 취소됐어요', body: '아직 보호자에게 알리지 않았어요. 필요하면 다시 보내주세요.', smsMessage, canResend: true });
+      } else {
+        setDeadmanNotice({
+          title: '문자 앱을 열었어요',
+          body: '문자 앱에서 전송 버튼까지 눌렀는지 확인해주세요. 보내지 않았다면 아래에서 다시 열 수 있어요.',
+          smsMessage,
+          canResend: true,
+        });
+      }
+    } catch (err) {
+      console.error('문자 앱 열기 실패:', err);
+      setDeadmanNotice({ title: '문자 앱을 열지 못했어요', body: '아래 내용을 보호자에게 직접 전해주세요.', smsMessage, canResend: true });
+    }
+  };
+
   // 설정 시간 무응답 초과 — GPS 위치를 담아 보호자에게 보낼 문자를 미리 채워서 연다.
   // (OS 정책상 앱이 사용자 동의 없이 문자를 "완전 자동"으로 보낼 수는 없어, 마지막 전송 버튼만 사용자가 누르면 된다.)
   const triggerDeadmanAlert = async () => {
     if (triggeringRef.current) return;
     triggeringRef.current = true;
     try {
+      // 백그라운드에서 남긴 "감지됨" 표시를 바로 지운다 — 안 지우면 문자 앱에서 돌아올 때마다(앱 복귀) 다시 발동했다.
+      await clearDeadmanTriggeredFlag().catch(() => {});
       // 재발동 방지를 위해 즉시 끄고 저장 (사용자가 다시 켜면 재무장)
       setDeadmanEnabled(false);
       await unregisterDeadmanBackgroundTask();
@@ -411,34 +465,21 @@ export function HomeScreen({ navigation }) {
         }).catch((err) => console.error('데드맨 스위치 비활성화 저장 오류:', err));
       }
 
-      let locationLine = '위치 정보 없음';
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({});
-          locationLine = `https://maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
-        }
-      } catch (err) {
-        console.warn('위치 조회 실패:', err.message);
-      }
-
-      const timeoutLabel = formatDeadmanTimeout(timeoutMinRef.current);
-      const message = `[Themis 위급 알림] ${displayName}님이 ${timeoutLabel}간 앱에 응답이 없습니다.\n마지막 위치: ${locationLine}\n확인 부탁드립니다.`;
-
-      const available = await SMS.isAvailableAsync();
-      if (!available || !contactPhone) {
-        Alert.alert(
-          '무응답 감지됨',
-          `${timeoutLabel}간 체크인이 없었어요.\n\n${message}\n\n(이 기기에서 문자 전송을 사용할 수 없어 자동으로 열지 못했습니다.)`
-        );
-        return;
-      }
-      await SMS.sendSMSAsync([contactPhone], message);
-      Alert.alert('알림 발송 준비 완료', '문자 앱에서 전송 버튼을 눌러 마무리해주세요. 데드맨 스위치는 안전을 위해 꺼졌습니다 — 필요하면 다시 켜주세요.');
+      const locationLine = await getAlertLocationLine();
+      const timeoutLabel = formatDeadmanTimeout(timeoutMin);
+      const smsMessage = `[Themis 위급 알림] ${displayName}님이 ${timeoutLabel}간 앱에 응답이 없습니다.\n마지막 위치: ${locationLine}\n확인 부탁드립니다.`;
+      await openDeadmanSms(smsMessage);
     } finally {
       triggeringRef.current = false;
     }
   };
+
+  // 앱 복귀/알림 탭 리스너는 마운트 때 한 번만 등록되므로, 항상 최신 상태(보호자 번호 등)를 쓰는
+  // 함수를 ref로 넘겨준다. (예전엔 첫 렌더 때의 빈 연락처로 실행돼 문자 창이 열리지 않았다.)
+  const triggerDeadmanAlertRef = useRef(null);
+  useEffect(() => {
+    triggerDeadmanAlertRef.current = triggerDeadmanAlert;
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -521,21 +562,19 @@ export function HomeScreen({ navigation }) {
       if (state !== 'active') return;
       setNowTick(Date.now());
       const alreadyTriggered = await readDeadmanTriggeredFlag().catch(() => false);
-      if (alreadyTriggered) triggerDeadmanAlert();
+      if (alreadyTriggered) triggerDeadmanAlertRef.current?.();
     });
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 알림을 탭해서 앱을 열었을 때도 같은 흐름으로 이어준다 (콜드 스타트 포함).
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       if (response.notification.request.content.data?.type === 'deadman-alert') {
-        triggerDeadmanAlert();
+        triggerDeadmanAlertRef.current?.();
       }
     });
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 1초마다 카운트다운 갱신 + 시간 초과 시 알림 발동 (앱이 포그라운드일 때만 동작)
@@ -679,6 +718,25 @@ export function HomeScreen({ navigation }) {
                 />
               </View>
 
+              {deadmanNotice && (
+                <View style={styles.noticeBox}>
+                  <Text style={styles.noticeTitle}>⚠️ {deadmanNotice.title}</Text>
+                  <Text style={styles.noticeBody}>{deadmanNotice.body}</Text>
+                  <Text style={styles.noticeSms} selectable>{deadmanNotice.smsMessage}</Text>
+                  <View style={{ flexDirection: 'row', gap: 14, marginTop: 2 }}>
+                    {deadmanNotice.canResend && (
+                      <TouchableOpacity onPress={() => openDeadmanSms(deadmanNotice.smsMessage)}>
+                        <Text style={styles.linkBtn}>문자 다시 열기</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={() => setDeadmanNotice(null)}>
+                      <Text style={styles.cancelText}>닫기</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.noticeHint}>안전을 위해 위급 상황 자동 알림은 꺼졌어요. 필요하면 다시 켜주세요.</Text>
+                </View>
+              )}
+
               {editingContact ? (
                 <View style={styles.editBox}>
                   <TextInput
@@ -784,7 +842,8 @@ export function HomeScreen({ navigation }) {
             </LinearGradient>
           </View>
 
-          {/* 전문가 인증 배지 */}
+          {/* 전문가 인증 배지 — 전문가 계정에서만 노출 */}
+          {isExpertAccount && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>전문가 인증 배지</Text>
             <View style={styles.plainCard}>
@@ -794,8 +853,9 @@ export function HomeScreen({ navigation }) {
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.safetyTitle}>전문가 답변 배지</Text>
+                  {expertProfileLine ? <Text style={styles.expertProfileLine}>{expertProfileLine}</Text> : null}
                   <Text style={styles.safetyDesc}>
-                    변호사·상담사 등 전문가라면 켜주세요. 전문가 채널에서 남긴 답변에 "전문가 답변" 배지가 표시돼요.
+                    켜두면 전문가 채널에서 남긴 답변에 "전문가 답변" 배지가 표시돼요.
                   </Text>
                 </View>
                 <Switch
@@ -810,6 +870,7 @@ export function HomeScreen({ navigation }) {
               <Text style={styles.footnote}>* 현재는 자기 신고 방식이라, 실제 자격 검증은 별도로 이루어지지 않아요.</Text>
             </View>
           </View>
+          )}
 
           {/* 사전 예방 상담 */}
           <View style={styles.section}>
@@ -955,6 +1016,7 @@ const styles = StyleSheet.create({
   statusPillOff: { backgroundColor: '#F0F1F6' },
   statusPillText: { fontSize: 10.5, fontWeight: '700', color: C.safe600 },
   statusPillTextOff: { color: C.ink400 },
+  expertProfileLine: { fontSize: 12, fontWeight: '600', color: C.brand600, marginTop: 2 },
   safetyDesc: { fontSize: 12, color: C.ink500, lineHeight: 18, marginTop: 3 },
 
   // 사전 예방 상담 카드
@@ -979,6 +1041,14 @@ const styles = StyleSheet.create({
   safetyContactText: { fontSize: 12, color: C.ink500, flex: 1, paddingRight: 8 },
   safetyContactBold: { color: C.ink700, fontWeight: '700' },
   editBox: { gap: 8 },
+  noticeBox: { backgroundColor: C.danger100, borderRadius: 14, padding: 14, gap: 6 },
+  noticeTitle: { fontSize: 13.5, fontWeight: '700', color: C.danger600 },
+  noticeBody: { fontSize: 12, color: C.ink700, lineHeight: 18 },
+  noticeSms: {
+    fontSize: 11.5, color: C.ink700, lineHeight: 17, backgroundColor: C.surface,
+    borderRadius: 10, padding: 10,
+  },
+  noticeHint: { fontSize: 10.5, color: C.ink500 },
   timeoutBlock: { gap: 8 },
   timeoutLabel: { fontSize: 11.5, fontWeight: '700', color: C.ink500 },
   timeoutChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

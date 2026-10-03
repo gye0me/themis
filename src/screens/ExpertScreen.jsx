@@ -30,7 +30,7 @@ function formatRelativeTime(ts) {
 export function ExpertScreen({ navigation }) {
   const { user, profile } = useContext(AuthContext);
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
-  const isExpertUser = !!profile?.isExpert;
+  const isExpertUser = profile?.accountType === 'expert' && !!profile?.isExpert;
 
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
