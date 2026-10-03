@@ -6,7 +6,9 @@
 //
 // 이 파일은 순수 API 호출만 담당한다 (UI 없음).
 
-const LAW_SEARCH_URL = 'http://www.law.go.kr/DRF/lawSearch.do';
+// http가 아니라 https를 쓴다 — Android 9+/iOS는 앱의 비암호화 HTTP 요청을 기본
+// 차단해서, http로 두면 웹에서는 되는데 폰 앱에서만 조용히 실패한다.
+const LAW_SEARCH_URL = 'https://www.law.go.kr/DRF/lawSearch.do';
 
 /**
  * 법령명(또는 키워드)으로 법령을 검색한다.
