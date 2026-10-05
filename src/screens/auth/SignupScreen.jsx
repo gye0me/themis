@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { signUp } from '../../services/firebaseService';
+import { C } from '../../theme/tokens';
+import { AuthLayout, AuthPrimaryButton } from './AuthLayout';
 import styles from './SignupScreen.styles';
+
+const ACCOUNT_TYPES = [
+  { key: 'user', icon: '🙋', label: '일반 사용자', desc: '내 사건을 기록하고 대응해요' },
+  { key: 'expert', icon: '🎓', label: '전문가', desc: '변호사·중개사 등 답변 제공' },
+];
+const EXPERT_JOBS = ['변호사', '공인중개사', '기자', '회계사', '기타'];
 
 export function SignupScreen({ onSwitchToLogin }) {
   const [displayName, setDisplayName] = useState('');
@@ -23,6 +22,7 @@ export function SignupScreen({ onSwitchToLogin }) {
   const [expertJob, setExpertJob] = useState('');
   const [expertOrg, setExpertOrg] = useState('');
   const [expertLicense, setExpertLicense] = useState('');
+  const [focused, setFocused] = useState(null);
 
   const validateForm = () => {
     if (!displayName.trim()) {
@@ -68,7 +68,7 @@ export function SignupScreen({ onSwitchToLogin }) {
     setLoading(true);
 
     try {
-      await signUp(email, password, displayName, {
+      await signUp(email.trim(), password, displayName.trim(), {
         accountType,
         expertProfile:
           accountType === 'expert'
@@ -92,149 +92,148 @@ export function SignupScreen({ onSwitchToLogin }) {
     }
   };
 
+  // 포커스된 입력칸 강조 + 공통 속성
+  const inputProps = (key, extraStyle) => ({
+    style: [styles.input, extraStyle, focused === key && styles.inputFocused],
+    onFocus: () => setFocused(key),
+    onBlur: () => setFocused(null),
+    placeholderTextColor: C.ink400,
+    editable: !loading,
+  });
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.screen}
+    <AuthLayout
+      title="계정 만들기"
+      subtitle="Themis와 함께 사건을 기록하고 지켜보세요."
+      footer={
+        <View style={styles.switchRow}>
+          <Text style={styles.switchText}>이미 계정이 있으신가요?</Text>
+          <Pressable onPress={onSwitchToLogin} hitSlop={8}>
+            <Text style={styles.linkText}>로그인</Text>
+          </Pressable>
+        </View>
+      }
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
-          <Text style={styles.badge}>THEMIS</Text>
-          <Text style={styles.title}>회원가입</Text>
-          <Text style={styles.subtitle}>새 계정을 만들고 안전한 기록 관리를 시작하세요.</Text>
-
-    {/* 계정 유형 선택 */}
-    <View style={styles.formGroup}>
-      <Text style={styles.label}>계정 유형</Text>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Pressable
-          style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: accountType === 'user' ? '#1E3A5F' : '#F1F5F9' }]}
-          onPress={() => setAccountType('user')}
-        >
-          <Text style={{ color: accountType === 'user' ? '#FFFFFF' : '#0F172A', fontSize: 13 }}>일반 사용자</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.input, { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: accountType === 'expert' ? '#1E3A5F' : '#F1F5F9' }]}
-          onPress={() => setAccountType('expert')}
-        >
-          <Text style={{ color: accountType === 'expert' ? '#FFFFFF' : '#0F172A', fontSize: 13 }}>전문가</Text>
-        </Pressable>
-      </View>
-    </View>
-
-    {accountType === 'expert' && (
-      <>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>직종</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {['변호사', '공인중개사', '기자', '회계사', '기타'].map((job) => (
+      {/* 계정 유형 선택 */}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>계정 유형</Text>
+        <View style={styles.segment}>
+          {ACCOUNT_TYPES.map((t) => {
+            const active = accountType === t.key;
+            return (
               <Pressable
-                key={job}
-                onPress={() => setExpertJob(job)}
-                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: expertJob === job ? '#1E3A5F' : '#F1F5F9', borderWidth: 1, borderColor: expertJob === job ? '#1E3A5F' : '#E2E8F0' }}
+                key={t.key}
+                style={[styles.segmentItem, active && styles.segmentItemActive]}
+                onPress={() => setAccountType(t.key)}
               >
-                <Text style={{ color: expertJob === job ? '#FFFFFF' : '#64748B', fontSize: 12 }}>{job}</Text>
+                <Text style={styles.segmentIcon}>{t.icon}</Text>
+                <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{t.label}</Text>
+                <Text style={styles.segmentDesc}>{t.desc}</Text>
               </Pressable>
-            ))}
-          </View>
+            );
+          })}
         </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>소속 기관</Text>
-          <TextInput value={expertOrg} onChangeText={setExpertOrg} placeholder="예) 법무법인 OO" placeholderTextColor="#6f7c98" style={styles.input} editable={!loading} />
-        </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>자격증/면허 번호</Text>
-          <TextInput value={expertLicense} onChangeText={setExpertLicense} placeholder="자격증 또는 면허 번호 입력" placeholderTextColor="#6f7c98" style={styles.input} editable={!loading} />
-        </View>
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>자격증 사진 첨부</Text>
-          <Pressable style={[styles.input, { alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' }]}>
-            <Text style={{ color: '#94A3B8', fontSize: 13 }}>+ 자격증 사진 업로드 (준비 중)</Text>
-          </Pressable>
-        </View>
-        <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, marginBottom: 8 }}>
-          <Text style={{ color: '#92400E', fontSize: 11 }}>
-            전문가 계정으로 가입하면 전문가 채널 답변에 "전문가 답변" 배지가 표시돼요.
-            (현재는 입력한 정보를 기준으로 하는 자기 신고 방식이며, 자격 검증은 추후 도입 예정이에요.)
-          </Text>
-        </View>
-      </>
-    )}
+      </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>이름</Text>
+        <TextInput value={displayName} onChangeText={setDisplayName} placeholder="홍길동" {...inputProps('name')} />
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>이메일</Text>
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="example@gmail.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          {...inputProps('email')}
+        />
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>비밀번호</Text>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••"
+          secureTextEntry
+          autoComplete="password"
+          {...inputProps('password')}
+        />
+        <Text style={styles.hint}>최소 6자 이상</Text>
+      </View>
+
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>비밀번호 확인</Text>
+        <TextInput
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="••••••••"
+          secureTextEntry
+          {...inputProps('confirm')}
+        />
+      </View>
+
+      {accountType === 'expert' && (
+        <View style={styles.expertBox}>
+          <Text style={styles.expertBoxTitle}>🎓 전문가 정보</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>이름</Text>
+            <Text style={styles.label}>직종</Text>
+            <View style={styles.chipRow}>
+              {EXPERT_JOBS.map((job) => {
+                const active = expertJob === job;
+                return (
+                  <Pressable key={job} onPress={() => setExpertJob(job)} style={[styles.chip, active && styles.chipActive]}>
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{job}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>소속 기관</Text>
             <TextInput
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="홍길동"
-              placeholderTextColor="#6f7c98"
-              style={styles.input}
-              editable={!loading}
+              value={expertOrg}
+              onChangeText={setExpertOrg}
+              placeholder="예) 법무법인 OO"
+              {...inputProps('org', styles.expertInput)}
             />
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>이메일</Text>
+            <Text style={styles.label}>자격증/면허 번호</Text>
             <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="example@gmail.com"
-              placeholderTextColor="#6f7c98"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              style={styles.input}
-              editable={!loading}
+              value={expertLicense}
+              onChangeText={setExpertLicense}
+              placeholder="자격증 또는 면허 번호 입력"
+              {...inputProps('license', styles.expertInput)}
             />
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>비밀번호</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor="#6f7c98"
-              secureTextEntry
-              autoComplete="password"
-              style={styles.input}
-              editable={!loading}
-            />
-            <Text style={styles.hint}>최소 6자 이상</Text>
+            <Text style={styles.label}>자격증 사진 첨부</Text>
+            <View style={styles.uploadBox}>
+              <Text style={styles.uploadText}>+ 자격증 사진 업로드 (준비 중)</Text>
+            </View>
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>비밀번호 확인</Text>
-            <TextInput
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="••••••••"
-              placeholderTextColor="#6f7c98"
-              secureTextEntry
-              style={styles.input}
-              editable={!loading}
-            />
+          <View style={styles.notice}>
+            <Text style={styles.noticeText}>
+              전문가 계정으로 가입하면 전문가 채널 답변에 "전문가 답변" 배지가 표시돼요.
+              (현재는 입력한 정보를 기준으로 하는 자기 신고 방식이며, 자격 검증은 추후 도입 예정이에요.)
+            </Text>
           </View>
-
-          <Pressable
-            onPress={handleSignup}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && !loading ? styles.buttonPressed : null,
-              loading ? styles.buttonDisabled : null,
-            ]}
-          >
-            {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryButtonText}>계정 만들기</Text>}
-          </Pressable>
-
-          <Pressable onPress={onSwitchToLogin} style={styles.linkButton}>
-            <Text style={styles.linkText}>이미 계정이 있으신가요? 로그인</Text>
-          </Pressable>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      )}
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <AuthPrimaryButton label="계정 만들기" loading={loading} onPress={handleSignup} />
+    </AuthLayout>
   );
 }
