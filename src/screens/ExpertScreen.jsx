@@ -11,7 +11,9 @@ import {
   acceptExpertComment,
   unacceptExpertComment,
 } from '../services/expertBoardService';
+import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
+import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
@@ -35,6 +37,8 @@ export function ExpertScreen({ navigation }) {
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [hotEntries, setHotEntries] = useState([]);
+  const [loadingHot, setLoadingHot] = useState(true);
 
   const [expandedId, setExpandedId] = useState(null);
   const [commentsByPost, setCommentsByPost] = useState({});
@@ -53,11 +57,42 @@ export function ExpertScreen({ navigation }) {
       .finally(() => setLoadingPosts(false));
   }, []);
 
+  const loadHotEntries = useCallback(() => {
+    setLoadingHot(true);
+    getHotBoardEntries()
+      // 참여 인원 많은 순으로 이미 정렬돼 있음 — 상위 3개만. 실제로 모인 사건이 아직
+      // 없으면(초기 상태) 예시 데이터를 대신 보여준다 — 실제 사건이 생기면 자동으로 대체됨.
+      .then((list) => setHotEntries(list.length > 0 ? list.slice(0, 3) : DEMO_HOT_BOARD_ENTRIES))
+      .catch((err) => {
+        console.error('핫게시판 조회 오류:', err);
+        setHotEntries(DEMO_HOT_BOARD_ENTRIES);
+      })
+      .finally(() => setLoadingHot(false));
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadPosts();
-    }, [loadPosts]),
+      loadHotEntries();
+    }, [loadPosts, loadHotEntries]),
   );
+
+  // "지금 주목받는 사건"은 채팅방 입장 버튼이 아니라, 기자·변호사 등 전문가와 다른
+  // 사용자들에게 사건을 알리는 게시글 성격이다. 그래서 눌렀을 때도 채팅방으로 이동시키지
+  // 않고, 어떤 사건인지 요약해서 보여준다. real(비데모) 항목은 curated description/
+  // watchingExperts가 없을 수 있어 일반적인 문구로 대체한다 — 동일 가해자 여부 등
+  // 실데이터에 없는 내용은 지어내지 않는다.
+  const showHotEntryDetail = (entry) => {
+    const meta = CASE_TYPE_META[entry.caseType] ?? CASE_TYPE_META['기타'];
+    const description = entry.description || `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다.`;
+    const expertsLine = entry.watchingExperts?.length
+      ? `\n\n${entry.watchingExperts.join(', ')}가 이 사건을 주목하고 있어요.`
+      : '';
+    Alert.alert(
+      entry.roomName || `${meta.label} 피해자 연대`,
+      `${description}${expertsLine}\n\n상세 페이지는 준비 중이에요.`
+    );
+  };
 
   const loadComments = (postId) => {
     setLoadingComments((prev) => ({ ...prev, [postId]: true }));
@@ -177,29 +212,49 @@ export function ExpertScreen({ navigation }) {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
-        {/* 지금 주목받는 사건 */}
+        {/* 지금 주목받는 사건 — 핫게시판(유사 피해자 10명 이상 자동 등록 또는 SOS 발동) 실데이터 */}
         <Text style={styles.sectionTitle}>지금 주목받는 사건</Text>
 
-        <TouchableOpacity
-          style={styles.hotCard}
-          onPress={() => Alert.alert('전세보증금 미반환 — 강남구 집중', '같은 집주인에게 피해를 입은 사람이 많습니다. 전문가 12명 · 제보 3건 · 집단 고소 준비 중\n\n상세 페이지는 아직 준비 중이에요.')}
-        >
-          <View style={styles.hotCardHeader}>
-            <View style={styles.hotBadge}>
-              <Text style={styles.hotBadgeText}>🔥 HOT</Text>
-            </View>
-            <Text style={styles.hotCardTitle}>전세보증금 미반환 — 강남구 집중</Text>
-            <View style={styles.victimBadgeRed}>
-              <Text style={styles.victimBadgeRedText}>피해자 47명</Text>
-            </View>
+        {loadingHot ? (
+          <ActivityIndicator color={C.brand600} style={{ marginBottom: 8 }} />
+        ) : hotEntries.length === 0 ? (
+          <View style={[styles.hotCard, { alignItems: 'center' }]}>
+            <Text style={styles.hotCardDesc}>아직 주목받는 사건이 없어요. 같은 유형 채팅방에 사람이 모이면 여기 나타나요.</Text>
           </View>
-          <Text style={styles.hotCardDesc}>같은 집주인에게 피해를 입은 사람이 많습니다. 전문가 12명 · 제보 3건 · 집단 고소 준비 중</Text>
-          <View style={styles.tagRow}>
-            <View style={styles.tag}><Text style={styles.tagText}>변호사</Text></View>
-            <View style={styles.tag}><Text style={styles.tagText}>기자</Text></View>
-            <View style={styles.tag}><Text style={styles.tagText}>부동산중개사</Text></View>
-          </View>
-        </TouchableOpacity>
+        ) : (
+          hotEntries.map((entry) => {
+            const meta = CASE_TYPE_META[entry.caseType] ?? CASE_TYPE_META['기타'];
+            return (
+              <TouchableOpacity
+                key={entry.id}
+                style={[styles.hotCard, { marginBottom: 10 }]}
+                onPress={() => showHotEntryDetail(entry)}
+              >
+                <View style={styles.hotCardHeader}>
+                  <View style={styles.hotBadge}>
+                    <Text style={styles.hotBadgeText}>🔥 HOT</Text>
+                  </View>
+                  <Text style={styles.hotCardTitle}>{meta.icon} {entry.roomName || `${meta.label} 피해자 연대방`}</Text>
+                  <View style={styles.victimBadgeRed}>
+                    <Text style={styles.victimBadgeRedText}>피해자 {entry.memberCount ?? 0}명</Text>
+                  </View>
+                </View>
+                <Text style={styles.hotCardDesc}>
+                  {entry.description || `${meta.label} 피해자들이 모인 사건이에요.`}
+                </Text>
+                {entry.watchingExperts?.length > 0 && (
+                  <View style={styles.tagRow}>
+                    {entry.watchingExperts.map((expert) => (
+                      <View key={expert} style={styles.tag}>
+                        <Text style={styles.tagText}>{expert} 주목 중</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })
+        )}
 
         {/* 일반 게시판 */}
         <Text style={[styles.sectionTitle, { marginTop: 22 }]}>일반 게시판</Text>

@@ -463,7 +463,11 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 12.5, fontWeight: '700', color: C.ink500, marginBottom: 12 },
 
   // 빠른 기록
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // gap(10)과 quickTile의 width(23%)를 같이 쓰면 화면 폭에 따라
+  // 23%*4 + gap*3 가 100%를 넘어서 4번째(계약서) 타일이 다음 줄로 밀리는 문제가 있었다.
+  // justifyContent: space-between은 아이템 사이에만 남는 공간을 나눠 쓰므로, 고정 gap 없이도
+  // 폭 계산 걱정 없이 4개가 한 줄에 맞는다.
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   quickTile: {
     width: '23%', alignItems: 'center', gap: 8, backgroundColor: C.sky050,
     borderRadius: 16, paddingVertical: 16,

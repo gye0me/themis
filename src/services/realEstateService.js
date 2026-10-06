@@ -14,13 +14,15 @@
 // 이 파일은 순수 API 호출만 담당한다 (UI 없음).
 
 // 주택유형별 API 엔드포인트와, 건물명이 담기는 XML 태그명.
+// (http가 아니라 https를 쓴다 — Android 9+/iOS는 앱이 비암호화 HTTP로 요청을 보내는 걸
+// 기본적으로 차단해서, http로 두면 웹에서는 되는데 폰 앱에서만 조용히 실패한다.)
 const TRADE_ENDPOINTS = {
   apt: {
-    url: 'http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev',
+    url: 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev',
     nameTag: 'aptNm',
   },
   villa: {
-    url: 'http://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade',
+    url: 'https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade',
     nameTag: 'mhouseNm',
   },
 };
@@ -29,11 +31,11 @@ const TRADE_ENDPOINTS = {
 // TRADE_ENDPOINTS와 같은 방식으로 다룰 수 있다.
 const RENT_ENDPOINTS = {
   apt: {
-    url: 'http://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent',
+    url: 'https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent',
     nameTag: 'aptNm',
   },
   villa: {
-    url: 'http://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent',
+    url: 'https://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent',
     nameTag: 'mhouseNm',
   },
 };
