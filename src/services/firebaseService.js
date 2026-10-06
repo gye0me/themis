@@ -672,3 +672,43 @@ export async function deleteFile(path) {
     throw error;
   }
 }
+
+// ==================== 계약 전 체크리스트 (사전 예방) ====================
+// 사건(case)과 무관하게, 사용자 1명당 "현재 확인 중인 매물" 체크리스트 하나를 유지한다.
+// (여러 매물을 동시에 비교하는 기능이 아니라, 지금 계약을 고민 중인 곳 하나에 집중하는 도구)
+
+const PRE_CONTRACT_CHECKLIST_COLLECTION = 'preContractChecklists';
+
+/**
+ * 저장된 체크리스트 상태를 불러온다. 저장된 적 없으면 null 반환.
+ * @param {string} userId
+ * @returns {Promise<Array<{id: string, completed: boolean, checkedAt: any}>|null>}
+ */
+export async function getPreContractChecklistState(userId) {
+  try {
+    const snapshot = await getDoc(doc(db, PRE_CONTRACT_CHECKLIST_COLLECTION, userId));
+    if (!snapshot.exists()) return null;
+    return snapshot.data()?.items ?? null;
+  } catch (error) {
+    console.error('계약 전 체크리스트 조회 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 체크리스트 완료 상태를 저장한다 (덮어쓰기).
+ * @param {string} userId
+ * @param {Array<{id: string, completed: boolean, checkedAt: any}>} items
+ */
+export async function savePreContractChecklistState(userId, items) {
+  try {
+    await setDoc(
+      doc(db, PRE_CONTRACT_CHECKLIST_COLLECTION, userId),
+      { items, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('계약 전 체크리스트 저장 오류:', error);
+    throw error;
+  }
+}

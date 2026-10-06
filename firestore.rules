@@ -62,10 +62,13 @@ service cloud.firestore {
     match /preContractChecklists/{uid} {
       allow read, write: if isOwner(uid);
     }
+<<<<<<< HEAD
     // 사전 예방 상담 질문 기록 — 문서 ID가 곧 userId, 유형별로 내부 필드로 구분
     match /preventionChatHistory/{uid} {
       allow read, write: if isOwner(uid);
     }
+=======
+>>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
     match /{document=**} {
       allow read, write: if false;
     }

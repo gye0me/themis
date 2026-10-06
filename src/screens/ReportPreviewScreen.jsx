@@ -46,7 +46,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
   const [finalizedAt, setFinalizedAt] = useState(() => toJsDate(caseData?.reportFinalizedAt) ?? null);
 
   const questItems = useMemo(
-    () => (caseData ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? []).items : []),
+    () => (caseData ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? [], caseData.tags ?? []).items : []),
     [caseData]
   );
 

@@ -24,6 +24,14 @@ import { PreventionGuideModal } from '../components/PreventionGuideModal';
 import { extractPhotoCaptureDate, extractContainerCreationTime } from '../utils/mediaEventTime';
 import { C } from '../theme/tokens';
 
+// 서버 워터마크(versatility.cloud)에 박아 넣을 문구. 사건 유형 + 현재 시각으로 구성해
+// "언제, 어떤 사건 관련 원본인지"가 워터마크 자체에 남도록 한다.
+function buildWatermarkText(caseType) {
+  const now = new Date();
+  const stamp = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return `THEMIS 원본 · ${caseType || '증거'} · ${stamp}`;
+}
+
 // 타입별로 "사건 발생 시각"을 자동으로 구해본다. 실패하면 null을 반환하고,
 // 호출부에서 필요 시(음성/영상) 사용자에게 직접 입력을 받는다.
 async function resolveAutoEventTime(evidenceType, file) {
@@ -163,7 +171,17 @@ export function EvidenceUploadScreen({ navigation, route }) {
   // 파일 선택/녹음 두 경로가 공통으로 쓰는 업로드 처리 (위치 기록 → 클로바 변환 → Firestore 저장 → 결과 안내)
   // eventTime/eventTimeSource: 사건 발생 시각을 이미 구해둔 경우(EXIF, 앱 내 녹음 시작 시각 등) 전달
   // target: 저장할 사건 (빠른 기록에서 고른 사건, 기본은 이 화면의 사건)
-  const uploadEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null, target = { caseId, caseTitle: null }) => {
+  // ocrSourceUri: OCR에 쓸 이미지 uri. 지정하지 않으면 file.uri(업로드될 파일)를 그대로 쓴다.
+  //   워터마크가 찍힌 file.uri로 OCR을 돌리면 대각선 워터마크 문구("THEMIS 원본 · ...")까지
+  //   글자로 인식돼 note에 섞여 들어가므로, 사진은 항상 워터마크 찍기 전 원본 uri를 넘겨야 한다.
+  const uploadEvidence = async (
+    evidenceType,
+    file,
+    eventTime = null,
+    eventTimeSource = null,
+    target = { caseId, caseTitle: null },
+    ocrSourceUri = null
+  ) => {
     const cfg = UPLOAD_TYPES[evidenceType];
     setUploadingType(evidenceType);
     try {
@@ -191,9 +209,10 @@ export function EvidenceUploadScreen({ navigation, route }) {
           sttError = e.message;
         }
       } else if (evidenceType === 'image') {
-        console.log('OCR 시작:', file.uri);
+        console.log('OCR 시작:', ocrSourceUri ?? file.uri);
         try {
-          note = await extractTextFromImage(file.uri);
+          // 워터마크가 찍히지 않은 원본으로 OCR — 워터마크 문구가 note에 섞이는 걸 방지
+          note = await extractTextFromImage(ocrSourceUri ?? file.uri);
           console.log('OCR 완료:', note);
         } catch (e) {
           console.warn('OCR 변환 실패:', e.message);
@@ -253,22 +272,27 @@ export function EvidenceUploadScreen({ navigation, route }) {
   };
 
   // 사건이 정해져 있으면 바로 저장하고, 빠른 기록이면 저장할 사건을 먼저 고르게 한다.
-  const saveEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null) => {
+  // ocrSourceUri: 사진일 때 OCR에 쓸 원본(워터마크 찍기 전) uri — saveEvidence.js 상단 설명 참고.
+  const saveEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null, ocrSourceUri = null) => {
     if (isQuickMode) {
-      setPendingQuickSave({ evidenceType, file, eventTime, eventTimeSource });
+      setPendingQuickSave({ evidenceType, file, eventTime, eventTimeSource, ocrSourceUri });
       return;
     }
-    await uploadEvidence(evidenceType, file, eventTime, eventTimeSource);
+    await uploadEvidence(evidenceType, file, eventTime, eventTimeSource, { caseId, caseTitle: null }, ocrSourceUri);
   };
 
   const handleQuickCaseSelected = async (picked) => {
     const entry = pendingQuickSave;
     setPendingQuickSave(null);
     if (!entry) return;
-    await uploadEvidence(entry.evidenceType, entry.file, entry.eventTime, entry.eventTimeSource, {
-      caseId: picked.id,
-      caseTitle: picked.title || '이름 없는 사건',
-    });
+    await uploadEvidence(
+      entry.evidenceType,
+      entry.file,
+      entry.eventTime,
+      entry.eventTimeSource,
+      { caseId: picked.id, caseTitle: picked.title || '이름 없는 사건' },
+      entry.ocrSourceUri
+    );
   };
 
   // 저장한 사건의 타임라인으로 이동 — 그 사건 타임라인이 이미 뒤에 쌓여 있으면 새로 쌓지 않고 그 화면으로 돌아간다
@@ -308,6 +332,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
         // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
+<<<<<<< HEAD
         // 기본은 로컬(기기 안) 합성. 사용자가 명시적으로 동의한 경우에만 서버(versatility.cloud)를
         // 1순위로 시도하고, 서버가 실패하면 로컬로 자동 대체한다.
         if (evidenceType === 'image') {
@@ -334,10 +359,35 @@ export function EvidenceUploadScreen({ navigation, route }) {
               file = buildStampedImageFile(file, stampedUri);
             } catch (stampError) {
               console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
+=======
+        // 1순위: versatility.cloud 서버 워터마크(문구+시각을 서버에서 합성, PDF도 지원).
+        // 서버 호출이 실패하면(오프라인 등) 기존 로컬 캡처 방식으로 자동 대체한다.
+        if (evidenceType === 'image') {
+          setUploadingType('image');
+          console.log('[워터마크] versatility.cloud 서버에 요청 시작...');
+          try {
+            const { localUri } = await watermarkAndDownload({
+              uri: file.uri,
+              name: file.name,
+              mimeType: file.mimeType,
+              text: buildWatermarkText(caseType),
+            });
+            file = buildStampedImageFile(file, localUri);
+            console.log('[워터마크] 서버 워터마크 성공 — 서버에서 합성된 파일로 업로드합니다.');
+          } catch (serverError) {
+            console.warn('[워터마크] 서버 실패, 로컬 합성으로 대체합니다. 원인:', serverError.message);
+            try {
+              const stampedUri = await stamperRef.current.stamp(asset.uri);
+              file = buildStampedImageFile(file, stampedUri);
+              console.log('[워터마크] 로컬 합성 성공(폴백 경로) — 이 파일로 업로드합니다.');
+            } catch (localError) {
+              console.warn('[워터마크] 로컬 합성도 실패, 워터마크 없이 원본으로 업로드합니다:', localError.message);
+>>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
             }
           }
           // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음
-          await saveEvidence('image', file, autoEventTime, autoEventTimeSource);
+          // asset.uri: 워터마크 찍기 전 원본 — OCR은 항상 이걸로 돌려서 워터마크 문구가 note에 섞이지 않게 한다
+          await saveEvidence('image', file, autoEventTime, autoEventTimeSource, asset.uri);
           return;
         }
 

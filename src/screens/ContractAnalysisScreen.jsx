@@ -599,6 +599,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '600', color: C.ink700 },
   chipTextActive: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
+
   realEstateBox: {
     backgroundColor: C.sky050, borderRadius: 16, padding: 14, marginBottom: 16, gap: 4,
   },

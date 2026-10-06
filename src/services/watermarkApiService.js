@@ -9,6 +9,7 @@
 // (실제 업로드는 호출부인 화면단에서 처리 — 이 서비스는 "서버에 요청해서 결과 URL을 받아오는" 역할만 한다).
 
 import * as FileSystem from 'expo-file-system/legacy';
+<<<<<<< HEAD
 
 const BASE_URL = 'https://versatility.cloud';
 
@@ -21,6 +22,19 @@ const BASE_URL = 'https://versatility.cloud';
 // 고전적인 { uri, name, type } 객체 형태로 돌려놓는다(.env 설정 전제).
 function toFormDataFilePart(uri, name, mimeType) {
   return { uri, name, type: mimeType };
+=======
+import { File } from 'expo-file-system';
+
+const BASE_URL = 'https://versatility.cloud';
+
+// Expo SDK 56+는 전역 fetch를 자체 WinterCG 구현으로 교체했는데, 이 fetch의 멀티파트
+// 인코더는 문자열 / Blob 인스턴스 / bytes()를 가진 객체만 이해하고, React Native의 예전
+// 파일 표현 방식인 { uri, name, type } 객체는 이해하지 못해 "Unsupported FormDataPart
+// implementation" 오류를 낸다(네트워크에 나가기도 전에 클라이언트에서 막힘).
+// expo-file-system의 새 File 클래스는 Blob 인터페이스를 구현하므로 이걸로 감싸서 보낸다.
+function toFormDataFilePart(uri) {
+  return new File(uri);
+>>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
 }
 
 function toAbsoluteUrl(pathOrUrl) {
@@ -54,7 +68,11 @@ export async function applyServerWatermark({ uri, name, mimeType, text }) {
   const watermarkText = (text ?? '').slice(0, 120);
 
   const formData = new FormData();
+<<<<<<< HEAD
   formData.append('file', toFormDataFilePart(uri, name ?? 'evidence', mimeType ?? 'application/octet-stream'));
+=======
+  formData.append('file', toFormDataFilePart(uri), name ?? 'evidence');
+>>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
   formData.append('text', watermarkText);
 
   const response = await fetch(`${BASE_URL}/api/watermark/`, {
