@@ -7,12 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
 import { transcribeVideoAudio } from '../services/videoTranscriptService';
+import { getVideoThumbnail } from '../utils/videoThumbnail';
 import { extractTextFromImage } from '../services/ocrService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
@@ -222,9 +222,9 @@ export function EvidenceUploadScreen({ navigation, route }) {
       let extra = {};
       if (evidenceType === 'video') {
         try {
-          const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(file.uri, { time: 5000 });
+          const { uri: thumbUri, stampSec } = await getVideoThumbnail(file.uri, 5);
           const { downloadURL: thumbnailURL } = await uploadEvidenceThumbnail(thumbUri);
-          extra = { thumbnailURL, thumbnailStampSec: 5 };
+          extra = { thumbnailURL, thumbnailStampSec: stampSec };
         } catch (e) {
           console.warn('영상 5초 스탬프 생성 실패:', e.message);
         }
