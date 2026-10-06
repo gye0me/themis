@@ -332,7 +332,6 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
         // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
-<<<<<<< HEAD
         // 기본은 로컬(기기 안) 합성. 사용자가 명시적으로 동의한 경우에만 서버(versatility.cloud)를
         // 1순위로 시도하고, 서버가 실패하면 로컬로 자동 대체한다.
         if (evidenceType === 'image') {
@@ -359,30 +358,6 @@ export function EvidenceUploadScreen({ navigation, route }) {
               file = buildStampedImageFile(file, stampedUri);
             } catch (stampError) {
               console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
-=======
-        // 1순위: versatility.cloud 서버 워터마크(문구+시각을 서버에서 합성, PDF도 지원).
-        // 서버 호출이 실패하면(오프라인 등) 기존 로컬 캡처 방식으로 자동 대체한다.
-        if (evidenceType === 'image') {
-          setUploadingType('image');
-          console.log('[워터마크] versatility.cloud 서버에 요청 시작...');
-          try {
-            const { localUri } = await watermarkAndDownload({
-              uri: file.uri,
-              name: file.name,
-              mimeType: file.mimeType,
-              text: buildWatermarkText(caseType),
-            });
-            file = buildStampedImageFile(file, localUri);
-            console.log('[워터마크] 서버 워터마크 성공 — 서버에서 합성된 파일로 업로드합니다.');
-          } catch (serverError) {
-            console.warn('[워터마크] 서버 실패, 로컬 합성으로 대체합니다. 원인:', serverError.message);
-            try {
-              const stampedUri = await stamperRef.current.stamp(asset.uri);
-              file = buildStampedImageFile(file, stampedUri);
-              console.log('[워터마크] 로컬 합성 성공(폴백 경로) — 이 파일로 업로드합니다.');
-            } catch (localError) {
-              console.warn('[워터마크] 로컬 합성도 실패, 워터마크 없이 원본으로 업로드합니다:', localError.message);
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
             }
           }
           // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음

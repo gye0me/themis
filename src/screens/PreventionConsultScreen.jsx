@@ -1,28 +1,15 @@
 import { useContext, useEffect, useState } from 'react';
-<<<<<<< HEAD
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator } from 'react-native';
-=======
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { askCaseAssistant } from '../services/caseAssistantService';
 import { AuthContext } from '../context/AuthContext';
-<<<<<<< HEAD
-import { getPreventionChatHistory, savePreventionChatHistory } from '../services/firebaseService';
-=======
-import { createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
+import { getPreventionChatHistory, savePreventionChatHistory, createEvidenceRecord, getEvidenceRecords } from '../services/firebaseService';
 import { PREVENTION_ROUTES } from '../navigation/routes';
 
-// 사전 예방 상담 기록에 붙이는 제목 접두어. 'general' 버킷에는 다른 화면에서 온 잡다한
-// 텍스트 기록도 섞일 수 있어서, 이 화면이 저장한 것만 구분해서 불러오기 위한 마커.
 const RECORD_TITLE_PREFIX = '사전 예방 상담';
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
-
-// 사전 예방 상담에서 고를 수 있는 상황 유형. CASE_TYPE_META 전체(5개) 중
-// caseAssistantService.js에 예방용 프롬프트가 정의된 4개만 노출한다 ('기타'는 제외).
 const PREVENTION_CASE_TYPES = ['전세사기', '금전사기', '괴롭힘', '신변위협'];
 
 function formatDate(value) {
@@ -32,30 +19,24 @@ function formatDate(value) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
-// 홈 화면 "사전 예방 상담" 진입점.
-// 대응 퀘스트(ResponseGuideScreen)의 AI 질문창과 같은 서비스(caseAssistantService)를
-<<<<<<< HEAD
-// mode: 'prevention'으로 재사용한다. 사건은 아직 없지만, 대응 가이드처럼 질문 내역이
-// 화면을 나갔다 와도 남아있도록 유형별로 Firestore에 저장한다.
-=======
-// mode: 'prevention'으로 재사용한다. 상담 자체는 화면을 나가면 휘발되는 게 기본이지만,
-// 나중에 참고하고 싶은 답변은 "기록으로 남기기"를 눌러 텍스트 증거로 저장할 수 있다.
-// 아직 사건이 없는 상태라 caseId 없이 'general' 버킷에 저장하고, 이 화면 안에서 직접
-// 목록으로 보여준다(다른 화면 어디에도 'general' 버킷을 조회하는 곳이 없기 때문).
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
 export default function PreventionConsultScreen({ navigation }) {
   const { user } = useContext(AuthContext);
+  const insets = useSafeAreaInsets();
+
   const [caseType, setCaseType] = useState('전세사기');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [askedQuestion, setAskedQuestion] = useState('');
   const [loading, setLoading] = useState(false);
-<<<<<<< HEAD
-  const [history, setHistory] = useState([]); // [{ question, answer }]
+  const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [showHistory, setShowHistory] = useState(false); // 대응가이드처럼 지난 질문은 접어둔 채 시작
+  const [showHistory, setShowHistory] = useState(false);
 
-  // caseType을 바꾸면 그 유형의 기록을 다시 불러온다 (유형별로 따로 저장되므로).
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [savedRecords, setSavedRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+
   useEffect(() => {
     if (!user) {
       setHistory([]);
@@ -64,19 +45,14 @@ export default function PreventionConsultScreen({ navigation }) {
     let cancelled = false;
     setHistoryLoading(true);
     setShowHistory(false);
-    getPreventionChatHistory(user.uid, caseType).then((saved) => {
-      if (!cancelled) setHistory(saved ?? []);
+    getPreventionChatHistory(user.uid, caseType).then((savedHistory) => {
+      if (!cancelled) setHistory(savedHistory ?? []);
       if (!cancelled) setHistoryLoading(false);
     });
     return () => {
       cancelled = true;
     };
   }, [user?.uid, caseType]);
-=======
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [savedRecords, setSavedRecords] = useState([]);
-  const [recordsLoading, setRecordsLoading] = useState(false);
 
   const loadSavedRecords = async () => {
     if (!user) return;
@@ -94,14 +70,15 @@ export default function PreventionConsultScreen({ navigation }) {
   useEffect(() => {
     loadSavedRecords();
   }, [user?.uid]);
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
 
   const handleAsk = async () => {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
     setLoading(true);
     setAnswer('');
-<<<<<<< HEAD
+    setSaved(false);
+    setAskedQuestion(trimmed);
+
     let nextHistory = history;
     try {
       const response = await askCaseAssistant({ caseType, question: trimmed, mode: 'prevention' });
@@ -111,16 +88,6 @@ export default function PreventionConsultScreen({ navigation }) {
       const message = err.message ?? '오류가 발생했습니다. 다시 시도해주세요.';
       setAnswer(message);
       nextHistory = [...history, { question: trimmed, answer: message }];
-=======
-    setSaved(false);
-    try {
-      const response = await askCaseAssistant({ caseType, question: trimmed, mode: 'prevention' });
-      setAnswer(response);
-      setAskedQuestion(trimmed);
-    } catch (err) {
-      setAnswer(err.message ?? '오류가 발생했습니다. 다시 시도해주세요.');
-      setAskedQuestion(trimmed);
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
     } finally {
       setHistory(nextHistory);
       if (user) savePreventionChatHistory(user.uid, caseType, nextHistory);
@@ -140,7 +107,7 @@ export default function PreventionConsultScreen({ navigation }) {
       const meta = CASE_TYPE_META[caseType];
       await createEvidenceRecord({
         userId: user.uid,
-        caseId: 'general', // 아직 사건이 없는 상태의 상담이라 사건과 무관한 버킷에 저장
+        caseId: 'general',
         title: `${RECORD_TITLE_PREFIX} · ${meta?.label ?? caseType}`,
         note: `Q. ${askedQuestion}\n\nA. ${answer}`,
         evidenceType: 'text',
@@ -164,7 +131,11 @@ export default function PreventionConsultScreen({ navigation }) {
         onBack={() => navigation.goBack()}
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 40) }}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.sectionTitle}>어떤 상황인가요?</Text>
         <View style={styles.chipRow}>
           {PREVENTION_CASE_TYPES.map((type) => {
@@ -237,7 +208,6 @@ export default function PreventionConsultScreen({ navigation }) {
             </View>
           ) : null}
 
-          {/* 지난 질문 기록 — 대응가이드와 같은 방식: 평소엔 접혀 있고 눌러야 펼쳐짐 */}
           {history.length > 0 && (
             <View style={styles.aiHistorySection}>
               <TouchableOpacity onPress={() => setShowHistory((v) => !v)} style={styles.aiHistoryToggle}>
@@ -274,8 +244,6 @@ export default function PreventionConsultScreen({ navigation }) {
         {recordsLoading && savedRecords.length === 0 && (
           <ActivityIndicator size="small" color={C.brand600} style={{ marginTop: 8 }} />
         )}
-
-        <View style={{ height: 60 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -315,7 +283,6 @@ const styles = StyleSheet.create({
   aiResponseLabel: { color: C.brand600, fontSize: 11, fontWeight: '700' },
   aiResponseText: { color: C.ink900, fontSize: 12, lineHeight: 18, marginTop: 4 },
   aiDisclaimer: { color: C.danger600, fontSize: 10, marginTop: 8 },
-<<<<<<< HEAD
 
   aiHistorySection: { marginTop: 10, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10 },
   aiHistoryToggle: { alignSelf: 'flex-start' },
@@ -324,7 +291,6 @@ const styles = StyleSheet.create({
   aiHistoryItem: { backgroundColor: C.surface, borderRadius: 10, padding: 10 },
   aiHistoryQuestion: { color: C.brand700, fontSize: 11, fontWeight: '700', marginBottom: 4 },
   aiHistoryAnswer: { color: C.ink700, fontSize: 11, lineHeight: 16 },
-=======
   saveRecordBtn: {
     marginTop: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: C.brand600,
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
@@ -340,5 +306,4 @@ const styles = StyleSheet.create({
   savedCardDate: { color: C.ink400, fontSize: 10, marginBottom: 4 },
   savedCardTitle: { color: C.ink900, fontSize: 12.5, fontWeight: '700', marginBottom: 4 },
   savedCardNote: { color: C.ink500, fontSize: 11.5, lineHeight: 16 },
->>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
 });
