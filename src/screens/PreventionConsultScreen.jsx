@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { askCaseAssistant } from '../services/caseAssistantService';
+import { AuthContext } from '../context/AuthContext';
+import { getPreventionChatHistory, savePreventionChatHistory } from '../services/firebaseService';
 
 // 사전 예방 상담에서 고를 수 있는 상황 유형. CASE_TYPE_META 전체(5개) 중
 // caseAssistantService.js에 예방용 프롬프트가 정의된 4개만 노출한다 ('기타'는 제외).
@@ -12,25 +14,53 @@ const PREVENTION_CASE_TYPES = ['전세사기', '금전사기', '괴롭힘', '신
 
 // 홈 화면 "사전 예방 상담" 진입점.
 // 대응 퀘스트(ResponseGuideScreen)의 AI 질문창과 같은 서비스(caseAssistantService)를
-// mode: 'prevention'으로 재사용한다 — 사건이 아직 없는 상태라 질문 기록은 저장하지 않고
-// 화면을 나가면 휘발되는 가벼운 상담으로 유지한다.
+// mode: 'prevention'으로 재사용한다. 사건은 아직 없지만, 대응 가이드처럼 질문 내역이
+// 화면을 나갔다 와도 남아있도록 유형별로 Firestore에 저장한다.
 export default function PreventionConsultScreen({ navigation }) {
+  const { user } = useContext(AuthContext);
   const [caseType, setCaseType] = useState('전세사기');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]); // [{ question, answer }]
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false); // 대응가이드처럼 지난 질문은 접어둔 채 시작
+
+  // caseType을 바꾸면 그 유형의 기록을 다시 불러온다 (유형별로 따로 저장되므로).
+  useEffect(() => {
+    if (!user) {
+      setHistory([]);
+      return;
+    }
+    let cancelled = false;
+    setHistoryLoading(true);
+    setShowHistory(false);
+    getPreventionChatHistory(user.uid, caseType).then((saved) => {
+      if (!cancelled) setHistory(saved ?? []);
+      if (!cancelled) setHistoryLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, caseType]);
 
   const handleAsk = async () => {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
     setLoading(true);
     setAnswer('');
+    let nextHistory = history;
     try {
       const response = await askCaseAssistant({ caseType, question: trimmed, mode: 'prevention' });
       setAnswer(response);
+      nextHistory = [...history, { question: trimmed, answer: response }];
     } catch (err) {
-      setAnswer(err.message ?? '오류가 발생했습니다. 다시 시도해주세요.');
+      const message = err.message ?? '오류가 발생했습니다. 다시 시도해주세요.';
+      setAnswer(message);
+      nextHistory = [...history, { question: trimmed, answer: message }];
     } finally {
+      setHistory(nextHistory);
+      if (user) savePreventionChatHistory(user.uid, caseType, nextHistory);
       setLoading(false);
       setQuestion('');
     }
@@ -89,6 +119,27 @@ export default function PreventionConsultScreen({ navigation }) {
               <Text style={styles.aiDisclaimer}>본 내용은 법률 정보이며 조언이 아닙니다. 실제 계약·거래 전에는 전문가 상담을 권장합니다.</Text>
             </View>
           ) : null}
+
+          {/* 지난 질문 기록 — 대응가이드와 같은 방식: 평소엔 접혀 있고 눌러야 펼쳐짐 */}
+          {history.length > 0 && (
+            <View style={styles.aiHistorySection}>
+              <TouchableOpacity onPress={() => setShowHistory((v) => !v)} style={styles.aiHistoryToggle}>
+                <Text style={styles.aiHistoryToggleText}>
+                  {showHistory ? '지난 질문 접기 ▲' : `지난 질문 ${history.length}개 보기 ▼`}
+                </Text>
+              </TouchableOpacity>
+              {showHistory && (
+                <View style={styles.aiHistoryList}>
+                  {[...history].reverse().map((entry, idx) => (
+                    <View key={idx} style={styles.aiHistoryItem}>
+                      <Text style={styles.aiHistoryQuestion}>Q. {entry.question}</Text>
+                      <Text style={styles.aiHistoryAnswer}>{entry.answer}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         <View style={{ height: 60 }} />
@@ -122,4 +173,12 @@ const styles = StyleSheet.create({
   aiResponseLabel: { color: C.brand600, fontSize: 11, fontWeight: '700' },
   aiResponseText: { color: C.ink900, fontSize: 12, lineHeight: 18, marginTop: 4 },
   aiDisclaimer: { color: C.danger600, fontSize: 10, marginTop: 8 },
+
+  aiHistorySection: { marginTop: 10, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10 },
+  aiHistoryToggle: { alignSelf: 'flex-start' },
+  aiHistoryToggleText: { color: C.brand600, fontSize: 11, fontWeight: '600' },
+  aiHistoryList: { marginTop: 8, gap: 10 },
+  aiHistoryItem: { backgroundColor: C.surface, borderRadius: 10, padding: 10 },
+  aiHistoryQuestion: { color: C.brand700, fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  aiHistoryAnswer: { color: C.ink700, fontSize: 11, lineHeight: 16 },
 });

@@ -58,6 +58,14 @@ service cloud.firestore {
     match /chatroom_members/{docId} {
       allow read, write: if isSignedIn();
     }
+    // 계약 전 필수 체크리스트 — 문서 ID가 곧 userId (사용자 1명당 문서 1개)
+    match /preContractChecklists/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    // 사전 예방 상담 질문 기록 — 문서 ID가 곧 userId, 유형별로 내부 필드로 구분
+    match /preventionChatHistory/{uid} {
+      allow read, write: if isOwner(uid);
+    }
     match /{document=**} {
       allow read, write: if false;
     }

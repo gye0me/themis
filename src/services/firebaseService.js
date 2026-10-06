@@ -342,6 +342,45 @@ async function uploadFileFromUri(fileUri, path, contentType, webFile = null) {
 }
 
 /**
+ * 전문가 게시판에 첨부할 PDF 파일을 Storage에 업로드.
+ * (게시판 방어책: PDF만 허용 — 호출부에서 mimeType을 꼭 'application/pdf'로 확인하고 불러야 함)
+ */
+// ==================== 사전 예방 상담 질문 기록 ====================
+// 대응 가이드(ResponseGuideScreen)의 Themis AI는 사건 문서(caseDoc.aiHistory)에 저장돼서
+// 화면을 나갔다 와도 질문 내역이 남는데, 사전 예방 상담은 사건이 없는 상태라 그게 안 됐다.
+// 사용자 1명당 문서 1개, caseType별로 내역을 나눠서 저장한다.
+
+export async function getPreventionChatHistory(userId, caseType) {
+  try {
+    const snapshot = await getDoc(doc(db, 'preventionChatHistory', userId));
+    if (!snapshot.exists()) return [];
+    return snapshot.data()?.byType?.[caseType] ?? [];
+  } catch (error) {
+    console.error('사전 예방 상담 기록 조회 오류:', error);
+    return [];
+  }
+}
+
+export async function savePreventionChatHistory(userId, caseType, messages) {
+  try {
+    await setDoc(
+      doc(db, 'preventionChatHistory', userId),
+      { byType: { [caseType]: messages }, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('사전 예방 상담 기록 저장 오류:', error);
+  }
+}
+
+export async function uploadBoardAttachmentPdf(fileUri, fileName) {
+  const safeName = (fileName || `attachment-${Date.now()}.pdf`).replace(/[^\w.\-가-힣]/g, '_');
+  const path = `boardAttachments/${Date.now()}-${safeName}`;
+  const { downloadURL } = await uploadFileFromUri(fileUri, path, 'application/pdf');
+  return { url: downloadURL, name: safeName };
+}
+
+/**
  * 영상 증거의 5초 지점 캡처 이미지를 Storage에 업로드.
  * (EvidenceUploadScreen에서 expo-video-thumbnails로 뽑은 썸네일 uri를 넘긴다)
  */
