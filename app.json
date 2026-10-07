@@ -38,14 +38,16 @@
       "permissions": [
         "RECORD_AUDIO",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "extra": {
       "eas": {
-        "projectId": "a8dad4f5-d897-4cda-adac-03fc3b23ab24"
+        "projectId": "3ca3d694-e15f-4d3a-ac11-d4e1871ed6fa"
       }
     },
-    "owner": "themis-team"
+    "owner": "hdeid"
   }
 }

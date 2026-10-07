@@ -9,6 +9,7 @@ import {
   update,
   onValue,
   off,
+  get,
   query,
   orderByChild,
   limitToLast,
@@ -202,4 +203,146 @@ export async function joinRoom(roomId, uid, displayName) {
 export async function leaveRoom(roomId, uid) {
   assertRtdb();
   await update(ref(realtimeDb, `chatRooms/${roomId}/members`), { [uid]: null });
+}
+
+// ─── 새 채팅방 개설 요청 (최소 인원 모아 개설) ────────────────────────────────
+// CHAT_ROOMS에 없는 주제를 사용자가 요청하면 "관심 등록"만 받다가, 관심자가
+// MIN_PARTICIPANTS_TO_OPEN명 이상 모이면 자동으로 실제 채팅방을 개설한다.
+// 데이터 경로: roomRequests/{topicKey} = { topic, requestedBy, interested: {uid: true}, openedRoomId? }
+
+export const MIN_PARTICIPANTS_TO_OPEN = 5;
+
+// 사용자가 입력한 자유 텍스트 주제를 Realtime Database 키로 쓸 수 있게 정규화.
+// RTDB 키는 '.', '#', '$', '/', '[', ']' 를 못 쓰므로 전부 제거하고 공백은 하이픈으로.
+function topicToKey(topic) {
+  return topic
+    .trim()
+    .toLowerCase()
+    .replace(/[.#$/\[\]]/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 60);
+}
+
+/**
+ * 새 채팅방 주제에 관심(참여 의사) 등록. 관심자가 MIN_PARTICIPANTS_TO_OPEN명이 되면
+ * 이 호출 안에서 바로 실제 채팅방(chatRooms/{topicKey})을 만들고 openedRoomId를 남긴다.
+ * @returns {Promise<{ topicKey: string, interestedCount: number, opened: boolean, roomId: string|null }>}
+ */
+export async function requestNewRoomTopic(topic, uid, displayName) {
+  assertRtdb();
+  const trimmed = topic.trim();
+  if (!trimmed) throw new Error('채팅방 주제를 입력해주세요.');
+  const topicKey = topicToKey(trimmed);
+  if (!topicKey) throw new Error('채팅방 주제에 사용할 수 있는 문자가 없어요.');
+
+  const requestRef = ref(realtimeDb, `roomRequests/${topicKey}`);
+  await update(requestRef, {
+    topic: trimmed,
+    [`interested/${uid}`]: true,
+  });
+
+  // 방금 등록 직후의 관심자 수를 다시 읽어서 임계값 도달 여부를 확인한다.
+  const snap = await get(requestRef);
+  const data = snap.val() ?? {};
+  const interestedCount = Object.keys(data.interested ?? {}).length;
+
+  // 이미 열렸으면 그 방으로, 아직이고 임계값 도달이면 지금 새로 연다.
+  if (data.openedRoomId) {
+    return { topicKey, interestedCount, opened: true, roomId: data.openedRoomId };
+  }
+  if (interestedCount >= MIN_PARTICIPANTS_TO_OPEN) {
+    const roomId = `req-${topicKey}`;
+    const meta = {
+      name: trimmed,
+      description: `참여자 ${interestedCount}명이 모여 개설된 채팅방`,
+      icon: '🆕',
+      createdAt: serverTimestamp(),
+    };
+    await update(ref(realtimeDb, `chatRooms/${roomId}/meta`), meta);
+    // chatRooms/{roomId} 전체는 읽기 권한이 세분화돼 있어서(meta만 읽기 허용) 방 목록을
+    // 조회할 때 chatRooms 루트를 통째로 읽을 수가 없다. 그래서 "열린 방 목록"만 따로
+    // openedRoomsIndex에 가볍게 복사해두고, subscribeToDynamicRooms는 그걸 읽는다.
+    await update(ref(realtimeDb, `openedRoomsIndex/${roomId}`), meta);
+    await joinRoom(roomId, uid, displayName);
+    await update(requestRef, { openedRoomId: roomId });
+    return { topicKey, interestedCount, opened: true, roomId };
+  }
+  return { topicKey, interestedCount, opened: false, roomId: null };
+}
+
+/**
+ * 특정 주제 요청의 관심자 수 + 개설 여부를 실시간 구독.
+ * callback({ interestedCount, opened, roomId })
+ */
+export function subscribeToRoomRequest(topic, callback) {
+  assertRtdb();
+  const topicKey = topicToKey(topic);
+  const requestRef = ref(realtimeDb, `roomRequests/${topicKey}`);
+  const handler = onValue(
+    requestRef,
+    (snapshot) => {
+      const data = snapshot.val() ?? {};
+      const interestedCount = Object.keys(data.interested ?? {}).length;
+      callback({ interestedCount, opened: !!data.openedRoomId, roomId: data.openedRoomId ?? null });
+    },
+    (error) => console.error('채팅방 개설 요청 구독 오류:', error),
+  );
+  return () => off(requestRef, 'value', handler);
+}
+
+/**
+ * 아직 열리지 않은(=openedRoomId 없는) 모든 채팅방 요청을 실시간 구독.
+ * "나 말고 다른 사람들도 이런 방을 원하고 있다"를 보여주기 위한 목록 — 사용자가 새 주제를
+ * 직접 입력하기 전에 여기서 비슷한 요청이 있으면 그걸 눌러서 바로 합류할 수 있다.
+ * callback([{ topicKey, topic, interestedCount, isJoinedByMe }])
+ */
+export function subscribeToPendingRoomRequests(callback, myUid) {
+  assertRtdb();
+  const requestsRef = ref(realtimeDb, 'roomRequests');
+  const handler = onValue(
+    requestsRef,
+    (snapshot) => {
+      const val = snapshot.val() ?? {};
+      const pending = Object.entries(val)
+        .filter(([, data]) => !data.openedRoomId && data.topic)
+        .map(([topicKey, data]) => ({
+          topicKey,
+          topic: data.topic,
+          interestedCount: Object.keys(data.interested ?? {}).length,
+          isJoinedByMe: !!(myUid && data.interested?.[myUid]),
+        }))
+        .sort((a, b) => b.interestedCount - a.interestedCount);
+      callback(pending);
+    },
+    (error) => console.error('채팅방 요청 목록 구독 오류:', error),
+  );
+  return () => off(requestsRef, 'value', handler);
+}
+
+/**
+ * 모집이 완료되어 새로 열린 "요청 기반" 채팅방들을 실시간 구독.
+ * CHAT_ROOMS(고정 목록)에 없는 추가 방 목록을 화면에서 합쳐서 보여줄 때 사용.
+ * (chatRooms 루트는 읽기 권한이 세분화돼 있어 통째로 못 읽으므로, 가벼운 색인 노드인
+ * openedRoomsIndex를 대신 구독한다 — database.rules.json에 별도 .read 규칙 필요)
+ */
+export function subscribeToDynamicRooms(callback) {
+  assertRtdb();
+  const indexRef = ref(realtimeDb, 'openedRoomsIndex');
+  const handler = onValue(
+    indexRef,
+    (snapshot) => {
+      const val = snapshot.val() ?? {};
+      const dynamicRooms = Object.entries(val).map(([roomId, meta]) => ({
+        id: roomId,
+        name: meta.name,
+        description: meta.description ?? '',
+        icon: meta.icon ?? '🆕',
+        color: '#E0F2FE',
+        type: 'victim',
+      }));
+      callback(dynamicRooms);
+    },
+    (error) => console.error('개설된 채팅방 목록 구독 오류:', error),
+  );
+  return () => off(indexRef, 'value', handler);
 }

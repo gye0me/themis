@@ -19,6 +19,28 @@
           }
         }
       }
+    },
+    "roomRequests": {
+      ".read": "auth != null",
+      "$topicKey": {
+        "topic": {
+          ".write": "auth != null"
+        },
+        "openedRoomId": {
+          ".write": "auth != null"
+        },
+        "interested": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    },
+    "openedRoomsIndex": {
+      ".read": "auth != null",
+      "$roomId": {
+        ".write": "auth != null"
+      }
     }
   }
 }

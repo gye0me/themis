@@ -3,7 +3,17 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHAT_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
-import { CHAT_ROOMS, joinRoom, subscribeToRoomMeta, subscribeToMembers } from '../services/chatService';
+import {
+  CHAT_ROOMS,
+  joinRoom,
+  subscribeToRoomMeta,
+  subscribeToMembers,
+  requestNewRoomTopic,
+  subscribeToPendingRoomRequests,
+  subscribeToRoomRequest,
+  subscribeToDynamicRooms,
+  MIN_PARTICIPANTS_TO_OPEN,
+} from '../services/chatService';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
@@ -29,8 +39,16 @@ export function ChatScreen({ navigation }) {
   const [roomMembers, setRoomMembers] = useState({}); // { [roomId]: string[] }
   const [joining, setJoining] = useState(null);
 
+  // 새 채팅방 개설 요청 (최소 인원 모아 개설)
+  const [dynamicRooms, setDynamicRooms] = useState([]); // 모집 완료돼서 실제로 열린 방들
+  const [newTopic, setNewTopic] = useState('');
+  const [requesting, setRequesting] = useState(false);
+  const [requestStatus, setRequestStatus] = useState(null); // { interestedCount, opened, roomId }
+
+  const allRooms = useMemo(() => [...CHAT_ROOMS, ...dynamicRooms], [dynamicRooms]);
+
   useEffect(() => {
-    const unsubscribers = CHAT_ROOMS.flatMap((room) => [
+    const unsubscribers = allRooms.flatMap((room) => [
       subscribeToRoomMeta(room.id, (meta) => {
         setRoomMeta((prev) => ({ ...prev, [room.id]: meta }));
       }),
@@ -39,7 +57,60 @@ export function ChatScreen({ navigation }) {
       }),
     ]);
     return () => unsubscribers.forEach((unsub) => unsub?.());
-  }, []);
+  }, [allRooms]);
+
+  useEffect(() => subscribeToDynamicRooms(setDynamicRooms), []);
+
+  // 아직 안 열린(=모집 중인) 다른 사람들의 요청 목록 — "나 말고도 원하는 사람이 있다"를 보여줌
+  const [pendingRequests, setPendingRequests] = useState([]);
+  useEffect(() => subscribeToPendingRoomRequests(setPendingRequests, user?.uid), [user?.uid]);
+
+  const handleJoinPendingRequest = async (topic) => {
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '채팅방 요청에 참여하려면 먼저 로그인해주세요.');
+      return;
+    }
+    setRequesting(true);
+    try {
+      const result = await requestNewRoomTopic(topic, user.uid, displayName);
+      if (result.opened) {
+        Alert.alert('채팅방이 열렸어요!', `"${topic}" 채팅방에 참여자 ${result.interestedCount}명이 모여 개설됐습니다.`);
+      } else {
+        Alert.alert('관심 등록 완료', `"${topic}" — 현재 ${result.interestedCount}명 모였어요.`);
+      }
+    } catch (err) {
+      Alert.alert('오류', err.message ?? '참여하지 못했습니다.');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const handleRequestRoom = async () => {
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '채팅방을 요청하려면 먼저 로그인해주세요.');
+      return;
+    }
+    const trimmed = newTopic.trim();
+    if (!trimmed || requesting) return;
+    setRequesting(true);
+    try {
+      const result = await requestNewRoomTopic(trimmed, user.uid, displayName);
+      setRequestStatus(result);
+      if (result.opened) {
+        Alert.alert('채팅방이 열렸어요!', `"${trimmed}" 채팅방에 참여자 ${result.interestedCount}명이 모여 개설됐습니다.`);
+        setNewTopic('');
+      } else {
+        Alert.alert(
+          '관심 등록 완료',
+          `"${trimmed}" — 현재 ${result.interestedCount}명 모였어요. ${MIN_PARTICIPANTS_TO_OPEN}명이 모이면 자동으로 채팅방이 열립니다.`
+        );
+      }
+    } catch (err) {
+      Alert.alert('오류', err.message ?? '요청을 등록하지 못했습니다.');
+    } finally {
+      setRequesting(false);
+    }
+  };
 
   function matchesSearch(room, term) {
     if (!term.trim()) return true;
@@ -48,16 +119,16 @@ export function ChatScreen({ navigation }) {
   }
 
   const victimRooms = useMemo(
-    () => CHAT_ROOMS.filter((r) => r.type === 'victim' && matchesSearch(r, search)),
-    [search],
+    () => allRooms.filter((r) => r.type === 'victim' && matchesSearch(r, search)),
+    [allRooms, search],
   );
   const expertRooms = useMemo(
-    () => CHAT_ROOMS.filter((r) => r.type === 'expert' && matchesSearch(r, search)),
-    [search],
+    () => allRooms.filter((r) => r.type === 'expert' && matchesSearch(r, search)),
+    [allRooms, search],
   );
   const joinedRooms = useMemo(
-    () => CHAT_ROOMS.filter((r) => (roomMembers[r.id] ?? []).includes(user?.uid)),
-    [roomMembers, user],
+    () => allRooms.filter((r) => (roomMembers[r.id] ?? []).includes(user?.uid)),
+    [allRooms, roomMembers, user],
   );
 
   async function enterRoom(room) {
@@ -140,14 +211,54 @@ export function ChatScreen({ navigation }) {
           </View>
         ))}
 
-        {/* 새 피해자 모임 만들기 */}
-        <TouchableOpacity
-          style={styles.createRoomBtn}
-          onPress={() => Alert.alert('새 피해자 모임 만들기', '모임 개설 기능은 아직 준비 중이에요. 조금만 기다려주세요!')}
-        >
-          <Text style={styles.createRoomIcon}>+</Text>
-          <Text style={styles.createRoomText}>새 피해자 모임 만들기</Text>
-        </TouchableOpacity>
+        {/* 새 피해자 모임 만들기 — 관심자가 MIN_PARTICIPANTS_TO_OPEN명 모이면 자동 개설 */}
+        <View style={styles.requestRoomCard}>
+          <Text style={styles.createRoomText}>+ 새 피해자 모임 요청하기</Text>
+          <Text style={styles.requestRoomHint}>
+            원하는 주제를 입력하면 관심자를 모읍니다. {MIN_PARTICIPANTS_TO_OPEN}명이 모이면 자동으로 채팅방이 열려요.
+          </Text>
+          <View style={styles.requestRoomRow}>
+            <TextInput
+              style={styles.requestRoomInput}
+              placeholder="예: 반려동물 분양 사기 피해자"
+              value={newTopic}
+              onChangeText={setNewTopic}
+              editable={!requesting}
+            />
+            <TouchableOpacity
+              style={[styles.requestRoomBtn, requesting && { opacity: 0.6 }]}
+              onPress={handleRequestRoom}
+              disabled={requesting}
+            >
+              <Text style={styles.requestRoomBtnText}>{requesting ? '등록 중...' : '관심 등록'}</Text>
+            </TouchableOpacity>
+          </View>
+          {requestStatus && !requestStatus.opened && (
+            <Text style={styles.requestRoomStatus}>
+              현재 {requestStatus.interestedCount}/{MIN_PARTICIPANTS_TO_OPEN}명 모였어요
+            </Text>
+          )}
+
+          {/* 나 말고 다른 사람들이 이미 모으고 있는 주제들 — 눌러서 바로 합류 가능 */}
+          {pendingRequests.length > 0 && (
+            <View style={styles.pendingRequestsList}>
+              <Text style={styles.pendingRequestsTitle}>다른 사람들도 이런 방을 원해요</Text>
+              {pendingRequests.map((req) => (
+                <TouchableOpacity
+                  key={req.topicKey}
+                  style={styles.pendingRequestRow}
+                  onPress={() => handleJoinPendingRequest(req.topic)}
+                  disabled={requesting || req.isJoinedByMe}
+                >
+                  <Text style={styles.pendingRequestTopic} numberOfLines={1}>{req.topic}</Text>
+                  <Text style={styles.pendingRequestCount}>
+                    {req.isJoinedByMe ? '참여 중 ✓' : `${req.interestedCount}/${MIN_PARTICIPANTS_TO_OPEN}명`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
 
         {/* 전문가 채널 */}
         <Text style={[styles.sectionTitle, { marginTop: 22 }]}>전문가 채널</Text>
@@ -292,6 +403,29 @@ const styles = StyleSheet.create({
   },
   createRoomIcon: { fontSize: 16, color: C.brand600, fontWeight: '700' },
   createRoomText: { fontSize: 12.5, color: C.brand600, fontWeight: '700' },
+
+  requestRoomCard: {
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: 14,
+    padding: 14, marginTop: 8, gap: 8,
+  },
+  requestRoomHint: { fontSize: 11, color: C.ink400, lineHeight: 15 },
+  requestRoomRow: { flexDirection: 'row', gap: 8 },
+  requestRoomInput: {
+    flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8, fontSize: 12.5, color: C.ink900,
+  },
+  requestRoomBtn: { backgroundColor: C.brand600, borderRadius: 10, paddingHorizontal: 14, justifyContent: 'center' },
+  requestRoomBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  requestRoomStatus: { fontSize: 11, color: C.brand600, fontWeight: '600' },
+
+  pendingRequestsList: { marginTop: 10, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 10, gap: 6 },
+  pendingRequestsTitle: { fontSize: 11, fontWeight: '700', color: C.ink500, marginBottom: 2 },
+  pendingRequestRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: C.sky050, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+  },
+  pendingRequestTopic: { flex: 1, fontSize: 12, color: C.ink900, fontWeight: '600', marginRight: 8 },
+  pendingRequestCount: { fontSize: 11, color: C.brand600, fontWeight: '700' },
 
   rowGroup: { backgroundColor: C.surface },
   row: {

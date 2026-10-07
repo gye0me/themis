@@ -9,6 +9,20 @@
 // (실제 업로드는 호출부인 화면단에서 처리 — 이 서비스는 "서버에 요청해서 결과 URL을 받아오는" 역할만 한다).
 
 import * as FileSystem from 'expo-file-system/legacy';
+<<<<<<< HEAD
+
+const BASE_URL = 'https://versatility.cloud';
+
+// Expo SDK 56+는 전역 fetch를 자체 WinterCG 구현으로 바꿨는데, 이 구현의 멀티파트 인코더가
+// React Native의 예전 파일 표현 방식인 { uri, name, type }을 이해 못 해서
+// "Unsupported FormDataPart implementation" 오류가 났다(watermarkAndDownload 쪽에서 실제로 확인됨).
+// expo-file-system의 새 File 클래스로 감싸보는 시도도 해봤지만 실기기에서도 동일하게 실패해서,
+// 결국 .env의 EXPO_PUBLIC_USE_RN_FETCH=1 로 전역 fetch 자체를 React Native 예전 구현으로
+//되돌리는 방식을 쓰고 있다 — 그 경우 FormData도 예전 방식을 쓰므로, 파일 파트는 다시
+// 고전적인 { uri, name, type } 객체 형태로 돌려놓는다(.env 설정 전제).
+function toFormDataFilePart(uri, name, mimeType) {
+  return { uri, name, type: mimeType };
+=======
 import { File } from 'expo-file-system';
 
 const BASE_URL = 'https://versatility.cloud';
@@ -20,6 +34,7 @@ const BASE_URL = 'https://versatility.cloud';
 // expo-file-system의 새 File 클래스는 Blob 인터페이스를 구현하므로 이걸로 감싸서 보낸다.
 function toFormDataFilePart(uri) {
   return new File(uri);
+>>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
 }
 
 function toAbsoluteUrl(pathOrUrl) {
@@ -53,7 +68,11 @@ export async function applyServerWatermark({ uri, name, mimeType, text }) {
   const watermarkText = (text ?? '').slice(0, 120);
 
   const formData = new FormData();
+<<<<<<< HEAD
+  formData.append('file', toFormDataFilePart(uri, name ?? 'evidence', mimeType ?? 'application/octet-stream'));
+=======
   formData.append('file', toFormDataFilePart(uri), name ?? 'evidence');
+>>>>>>> 3cfbae1420611307338805b1f546c8e6e12d40a6
   formData.append('text', watermarkText);
 
   const response = await fetch(`${BASE_URL}/api/watermark/`, {

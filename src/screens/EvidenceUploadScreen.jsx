@@ -127,6 +127,44 @@ export function EvidenceUploadScreen({ navigation, route }) {
   const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
   const recordingStartRef = useRef(null); // 앱 안에서 직접 녹음할 때 시작 시각(정확한 사건 발생 시각)
 
+  // 서버(versatility.cloud) 워터마크는 기본값 OFF — 인증·삭제 기능이 없는 외부 서버라
+  // 민감한 원본 증거를 기본으로 보내지 않는다. 명시적으로 동의한 경우에만 켜짐.
+  // 기본(꺼짐)일 땐 기기 안에서만 처리되는 로컬 워터마크를 쓴다.
+  const [useServerWatermark, setUseServerWatermark] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('themis:useServerWatermark').then((v) => setUseServerWatermark(v === 'true'));
+  }, []);
+  const toggleServerWatermark = () => {
+    if (useServerWatermark) {
+      setUseServerWatermark(false);
+      AsyncStorage.setItem('themis:useServerWatermark', 'false');
+      return;
+    }
+    Alert.alert(
+      '외부 서버 워터마크 사용',
+      '이 기능은 사진을 외부 서버(versatility.cloud)로 전송합니다. 이 서버는 로그인 인증이 없고, ' +
+        '올린 파일을 삭제하는 기능도 제공하지 않아 사실상 영구 보관됩니다.\n\n' +
+        '민감한 증거라면 기기 안에서만 처리되는 기본(로컬) 워터마크를 권장합니다. 그래도 사용하시겠어요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '동의하고 사용',
+          style: 'destructive',
+          onPress: () => {
+            setUseServerWatermark(true);
+            AsyncStorage.setItem('themis:useServerWatermark', 'true');
+          },
+        },
+      ]
+    );
+  };
+
+  function buildWatermarkText(type) {
+    const now = new Date();
+    const stamp = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return `THEMIS 원본 · ${type || '증거'} · ${stamp}`;
+  }
+
   // 자동 추출이 실패한 음성/영상 파일의 사건 발생 시각을 직접 입력받기 위한 대기 상태
   const [pendingManualEntry, setPendingManualEntry] = useState(null); // { evidenceType, file }
 
@@ -294,28 +332,32 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
         // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
-        // 1순위: versatility.cloud 서버 워터마크(문구+시각을 서버에서 합성, PDF도 지원).
-        // 서버 호출이 실패하면(오프라인 등) 기존 로컬 캡처 방식으로 자동 대체한다.
+        // 기본은 로컬(기기 안) 합성. 사용자가 명시적으로 동의한 경우에만 서버(versatility.cloud)를
+        // 1순위로 시도하고, 서버가 실패하면 로컬로 자동 대체한다.
         if (evidenceType === 'image') {
           setUploadingType('image');
-          console.log('[워터마크] versatility.cloud 서버에 요청 시작...');
-          try {
-            const { localUri } = await watermarkAndDownload({
-              uri: file.uri,
-              name: file.name,
-              mimeType: file.mimeType,
-              text: buildWatermarkText(caseType),
-            });
-            file = buildStampedImageFile(file, localUri);
-            console.log('[워터마크] 서버 워터마크 성공 — 서버에서 합성된 파일로 업로드합니다.');
-          } catch (serverError) {
-            console.warn('[워터마크] 서버 실패, 로컬 합성으로 대체합니다. 원인:', serverError.message);
+          let stamped = false;
+          if (useServerWatermark) {
             try {
-              const stampedUri = await stamperRef.current.stamp(asset.uri);
+              const { localUri } = await watermarkAndDownload({
+                uri: file.uri,
+                name: file.name,
+                mimeType: file.mimeType,
+                text: buildWatermarkText(caseType),
+              });
+              file = buildStampedImageFile(file, localUri);
+              stamped = true;
+            } catch (serverError) {
+              console.warn('서버 워터마크 실패, 로컬 합성으로 대체합니다:', serverError.message);
+            }
+          }
+          if (!stamped) {
+            try {
+              // 서버를 썼을 때와 같은 문구가 남도록 동일한 buildWatermarkText()를 사용
+              const stampedUri = await stamperRef.current.stamp(asset.uri, buildWatermarkText(caseType));
               file = buildStampedImageFile(file, stampedUri);
-              console.log('[워터마크] 로컬 합성 성공(폴백 경로) — 이 파일로 업로드합니다.');
-            } catch (localError) {
-              console.warn('[워터마크] 로컬 합성도 실패, 워터마크 없이 원본으로 업로드합니다:', localError.message);
+            } catch (stampError) {
+              console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
             }
           }
           // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음
@@ -482,6 +524,20 @@ export function EvidenceUploadScreen({ navigation, route }) {
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity style={styles.watermarkToggleRow} onPress={toggleServerWatermark} activeOpacity={0.7}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.watermarkToggleTitle}>
+              사진 워터마크: {useServerWatermark ? '외부 서버 사용 중' : '기기 내 처리(기본, 권장)'}
+            </Text>
+            <Text style={styles.watermarkToggleDesc}>
+              {useServerWatermark
+                ? '사진이 versatility.cloud로 전송됩니다. 탭하면 끌 수 있어요.'
+                : '사진이 기기 밖으로 나가지 않아요. 탭하면 외부 서버 사용에 동의할 수 있어요.'}
+            </Text>
+          </View>
+          <Text style={styles.watermarkToggleBadge}>{useServerWatermark ? 'ON' : 'OFF'}</Text>
+        </TouchableOpacity>
+
         {lastSaved && (
           <View style={styles.savedBanner}>
             <Text style={styles.savedBannerText}>
@@ -681,6 +737,13 @@ export function EvidenceUploadScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
   content: { flex: 1, padding: 20 },
+  watermarkToggleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.sky050,
+    borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, marginBottom: 14,
+  },
+  watermarkToggleTitle: { fontSize: 12, fontWeight: '700', color: C.ink900, marginBottom: 2 },
+  watermarkToggleDesc: { fontSize: 10.5, color: C.ink400, lineHeight: 14 },
+  watermarkToggleBadge: { fontSize: 11, fontWeight: '800', color: C.brand600 },
   savedBanner: {
     backgroundColor: C.safe100, borderRadius: 14, padding: 14, marginBottom: 14, gap: 10,
   },
