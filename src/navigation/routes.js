@@ -34,6 +34,10 @@ export const EXPERT_ROUTES = {
   GUIDE: 'ResponseGuide',
 };
 
+export const GUARDIAN_ROUTES = {
+  MANAGE: 'GuardianManage',
+};
+
 export const PREVENTION_ROUTES = {
   CONSULT: 'PreventionConsult',
   CHECKLIST: 'PreContractChecklist',

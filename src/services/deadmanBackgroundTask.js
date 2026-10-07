@@ -17,6 +17,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GUARDIAN_CACHE_KEY, sendExpoPush } from './guardianService';
 
 const ANDROID_CHANNEL_ID = 'deadman-alerts';
 
@@ -62,7 +63,14 @@ const KEYS = {
   contactPhone: 'deadman:contactPhone',
   timeoutMin: 'deadman:timeoutMin',
   triggered: 'deadman:triggered', // 이미 알림을 보냈는지 — 중복 알림 방지
+  guardiansPushedAt: 'deadman:guardiansPushedAt', // 백그라운드에서 보호자 푸시를 보낸 시각 — 앱 복귀 시 중복 발송 방지
 };
+
+// 백그라운드 작업이 최근(1시간 이내)에 이미 보호자에게 푸시를 보냈는지
+export async function wasGuardianPushSentRecently() {
+  const at = Number(await AsyncStorage.getItem(KEYS.guardiansPushedAt)) || 0;
+  return Date.now() - at < 60 * 60 * 1000;
+}
 
 /**
  * HomeScreen의 상태(켜짐 여부/마지막 체크인/보호자 연락처)가 바뀔 때마다 호출해서
@@ -109,10 +117,23 @@ TaskManager.defineTask(DEADMAN_TASK_NAME, async () => {
 
     if (Date.now() - lastCheckIn >= timeoutMin * 60 * 1000) {
       await AsyncStorage.setItem(KEYS.triggered, '1');
+
+      // 연결된 보호자 폰으로 바로 앱 푸시 — 문자와 달리 사용자 조작 없이 자동으로 보낼 수 있다.
+      // (위치는 백그라운드에서 얻기 어려워, 보호자는 앱의 알림 기록에서 확인 · 사용자가 앱을 열면 위치와 함께 기록이 남는다)
+      const cache = JSON.parse((await AsyncStorage.getItem(GUARDIAN_CACHE_KEY)) || '{}');
+      const pushed = await sendExpoPush(cache.tokens, {
+        title: `⚠️ ${cache.myName || 'Themis 사용자'}님이 응답이 없어요`,
+        body: `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없었어요. 연락해서 안전을 확인해주세요.`,
+        data: { type: 'guardian-alert' },
+      });
+      if (pushed > 0) await AsyncStorage.setItem(KEYS.guardiansPushedAt, String(Date.now()));
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '⚠️ Themis 무응답 감지됨',
-          body: `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없었어요. 탭해서 ${contactName}에게 위치와 함께 알림을 보내세요.`,
+          body: pushed > 0
+            ? `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없어 보호자 ${pushed}명에게 알림을 보냈어요. 괜찮다면 앱을 열어주세요.`
+            : `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없었어요. 탭해서 ${contactName}에게 위치와 함께 알림을 보내세요.`,
           sound: true,
           priority: Notifications.AndroidNotificationPriority?.MAX,
           data: { type: 'deadman-alert' },
