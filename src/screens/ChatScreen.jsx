@@ -218,7 +218,7 @@ export function ChatScreen({ navigation }) {
             원하는 주제를 입력하면 관심자를 모읍니다. {MIN_PARTICIPANTS_TO_OPEN}명이 모이면 자동으로 채팅방이 열려요.
           </Text>
           <Text style={styles.requestRoomNotice}>
-            상대방 실명 대신 "OO 사건"처럼 사건 중심으로 적어주세요. 특정인이 식별되면 명예훼손 책임이 생길 수 있어요.
+            채팅방 이름(주제)에는 가해자·피해자의 실명 등 개인정보 대신 "OO 사건"처럼 사건 내용으로 적어주세요.
           </Text>
           <View style={styles.requestRoomRow}>
             <TextInput
