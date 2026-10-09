@@ -438,10 +438,6 @@ export function ExpertScreen({ navigation }) {
                       <Text style={styles.anonToggleText}>익명으로 답글 달기</Text>
                     </TouchableOpacity>
 
-                    <Text style={styles.commentNoticeText}>
-                      상대방 실명 대신 사건 중심으로 적어주세요. 특정인이 식별되면 명예훼손 책임이 생길 수 있어요.
-                    </Text>
-
                     <View style={styles.commentInputRow}>
                       <TextInput
                         style={styles.commentInput}
@@ -629,7 +625,6 @@ const styles = StyleSheet.create({
 
   anonToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 4 },
   anonToggleText: { fontSize: 11.5, color: C.ink500 },
-  commentNoticeText: { fontSize: 10.5, color: C.ink400, marginBottom: 6, lineHeight: 15 },
   checkboxOffSmall: {
     width: 16, height: 16, borderRadius: 4,
     borderWidth: 1.5, borderColor: C.line,

@@ -201,9 +201,6 @@ export function ChatRoomScreen({ navigation, route }) {
       )}
 
       {/* 메시지 입력창 */}
-      <Text style={styles.chatNoticeText}>
-        상대방 실명 대신 사건 중심으로 이야기해주세요. 특정인이 식별되면 명예훼손 책임이 생길 수 있어요.
-      </Text>
       <View style={styles.inputBar}>
         <TextInput
           style={styles.input}
@@ -227,10 +224,6 @@ export function ChatRoomScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
   leaveBtnText: { color: C.danger600, fontSize: 12.5, fontWeight: '600' },
-  chatNoticeText: {
-    fontSize: 10, color: C.ink400, textAlign: 'center',
-    paddingHorizontal: 16, paddingTop: 6, backgroundColor: C.surface,
-  },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: C.ink400, fontSize: 13 },

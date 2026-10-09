@@ -217,6 +217,9 @@ export function ChatScreen({ navigation }) {
           <Text style={styles.requestRoomHint}>
             원하는 주제를 입력하면 관심자를 모읍니다. {MIN_PARTICIPANTS_TO_OPEN}명이 모이면 자동으로 채팅방이 열려요.
           </Text>
+          <Text style={styles.requestRoomNotice}>
+            상대방 실명 대신 "OO 사건"처럼 사건 중심으로 적어주세요. 특정인이 식별되면 명예훼손 책임이 생길 수 있어요.
+          </Text>
           <View style={styles.requestRoomRow}>
             <TextInput
               style={styles.requestRoomInput}
@@ -409,6 +412,7 @@ const styles = StyleSheet.create({
     padding: 14, marginTop: 8, gap: 8,
   },
   requestRoomHint: { fontSize: 11, color: C.ink400, lineHeight: 15 },
+  requestRoomNotice: { fontSize: 10.5, color: C.warn600, lineHeight: 15, marginTop: 4 },
   requestRoomRow: { flexDirection: 'row', gap: 8 },
   requestRoomInput: {
     flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 10,
