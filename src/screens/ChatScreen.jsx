@@ -12,6 +12,7 @@ import {
   subscribeToPendingRoomRequests,
   subscribeToRoomRequest,
   subscribeToDynamicRooms,
+  subscribeToMyDirectRooms,
   MIN_PARTICIPANTS_TO_OPEN,
 } from '../services/chatService';
 import { ScreenTopBar } from '../components/ScreenTopBar';
@@ -45,7 +46,11 @@ export function ChatScreen({ navigation }) {
   const [requesting, setRequesting] = useState(false);
   const [requestStatus, setRequestStatus] = useState(null); // { interestedCount, opened, roomId }
 
-  const allRooms = useMemo(() => [...CHAT_ROOMS, ...dynamicRooms], [dynamicRooms]);
+  // 전문가 질문 게시판에서 "채팅 보내기"로 만들어진 1:1 DM 방들 (비공개 — 나만 보임)
+  const [directRooms, setDirectRooms] = useState([]);
+  useEffect(() => subscribeToMyDirectRooms(user?.uid, setDirectRooms), [user?.uid]);
+
+  const allRooms = useMemo(() => [...CHAT_ROOMS, ...dynamicRooms, ...directRooms], [dynamicRooms, directRooms]);
 
   useEffect(() => {
     const unsubscribers = allRooms.flatMap((room) => [
@@ -120,10 +125,6 @@ export function ChatScreen({ navigation }) {
 
   const victimRooms = useMemo(
     () => allRooms.filter((r) => r.type === 'victim' && matchesSearch(r, search)),
-    [allRooms, search],
-  );
-  const expertRooms = useMemo(
-    () => allRooms.filter((r) => r.type === 'expert' && matchesSearch(r, search)),
     [allRooms, search],
   );
   const joinedRooms = useMemo(
@@ -264,28 +265,7 @@ export function ChatScreen({ navigation }) {
           )}
         </View>
 
-        {/* 전문가 채널 */}
-        <Text style={[styles.sectionTitle, { marginTop: 22 }]}>전문가 채널</Text>
-        <View style={styles.rowGroup}>
-          {expertRooms.map((room, i) => (
-            <TouchableOpacity
-              key={room.id}
-              style={[styles.row, i === 0 && styles.rowFirst]}
-              onPress={() => enterRoom(room)}
-            >
-              <View style={[styles.roomIcon, { backgroundColor: room.color }]}>
-                <Text style={styles.roomIconText}>{room.icon}</Text>
-              </View>
-              <View style={styles.roomInfo}>
-                <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
-                <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
-              </View>
-              <Text style={styles.expertArrow}>›</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* 참여 중인 방 */}
+        {/* 참여 중인 방 — 피해자 연대방 + 모집으로 열린 방 + 전문가 질문 게시판에서 시작한 1:1 DM */}
         <Text style={[styles.sectionTitle, { marginTop: 22 }]}>참여 중인 방</Text>
         {joinedRooms.length === 0 ? (
           <Text style={styles.noJoinedText}>아직 참여한 방이 없어요. 위에서 방을 선택해 참여해보세요.</Text>

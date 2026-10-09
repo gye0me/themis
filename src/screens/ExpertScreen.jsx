@@ -13,8 +13,9 @@ import {
 } from '../services/expertBoardService';
 import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
+import { getOrCreateDirectRoom } from '../services/chatService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
-import { EXPERT_ROUTES } from '../navigation/routes';
+import { EXPERT_ROUTES, CHAT_ROUTES, APP_ROUTES } from '../navigation/routes';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
@@ -49,6 +50,7 @@ export function ExpertScreen({ navigation }) {
   const [acceptingId, setAcceptingId] = useState(null);
   const [anonDraftByPost, setAnonDraftByPost] = useState({});
   const [reportingId, setReportingId] = useState(null);
+  const [dmStartingId, setDmStartingId] = useState(null);
 
   const loadPosts = useCallback(() => {
     setLoadingPosts(true);
@@ -167,6 +169,32 @@ export function ExpertScreen({ navigation }) {
       Alert.alert('오류', err?.message ?? '처리하지 못했습니다.');
     } finally {
       setAcceptingId(null);
+    }
+  };
+
+  // 댓글 작성자에게 1:1로 "채팅 보내기" — 익명 댓글은 실명이 드러나면 안 되니 DM 자체를 막는다.
+  const startDmWithComment = async (comment) => {
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '채팅을 보내려면 먼저 로그인해주세요.');
+      return;
+    }
+    setDmStartingId(comment.id);
+    try {
+      const roomId = await getOrCreateDirectRoom({
+        myUid: user.uid,
+        myName: displayName,
+        otherUid: comment.userId,
+        otherName: comment.authorName ?? '익명',
+      });
+      navigation.navigate(APP_ROUTES.CHATS_STACK, {
+        screen: CHAT_ROUTES.ROOM,
+        params: { roomId, roomName: comment.authorName ?? '익명' },
+      });
+    } catch (err) {
+      console.error('1:1 채팅방 생성 오류:', err);
+      Alert.alert('오류', err?.message ?? '채팅방을 열지 못했습니다.');
+    } finally {
+      setDmStartingId(null);
     }
   };
 
@@ -404,6 +432,19 @@ export function ExpertScreen({ navigation }) {
                                     )}
                                   </TouchableOpacity>
                                 ) : null}
+                                {!isCommentMine && !c.isAnonymous ? (
+                                  <TouchableOpacity
+                                    style={styles.commentDmBtn}
+                                    onPress={() => startDmWithComment(c)}
+                                    disabled={dmStartingId === c.id}
+                                  >
+                                    {dmStartingId === c.id ? (
+                                      <ActivityIndicator size="small" color={C.brand600} />
+                                    ) : (
+                                      <Text style={styles.commentDmBtnText}>💬 채팅 보내기</Text>
+                                    )}
+                                  </TouchableOpacity>
+                                ) : null}
                                 {!isCommentMine ? (
                                   <TouchableOpacity
                                     style={styles.commentReportBtn}
@@ -622,6 +663,8 @@ const styles = StyleSheet.create({
   acceptBtnTextCancel: { color: C.ink500, fontSize: 11, fontWeight: '600' },
   commentReportBtn: { paddingVertical: 2, marginLeft: 'auto' },
   commentReportBtnText: { color: C.ink400, fontSize: 10.5, fontWeight: '600' },
+  commentDmBtn: { paddingVertical: 2 },
+  commentDmBtnText: { color: C.brand600, fontSize: 10.5, fontWeight: '700' },
 
   anonToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 4 },
   anonToggleText: { fontSize: 11.5, color: C.ink500 },

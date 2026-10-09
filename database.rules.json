@@ -15,7 +15,7 @@
         "members": {
           ".read": "auth != null",
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid"
+            ".write": "auth != null && (auth.uid === $uid || ($roomId.beginsWith('dm-') && $roomId.contains(auth.uid)))"
           }
         }
       }
@@ -40,6 +40,14 @@
       ".read": "auth != null",
       "$roomId": {
         ".write": "auth != null"
+      }
+    },
+    "userDmRooms": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$roomId": {
+          ".write": "auth != null && $roomId.contains(auth.uid)"
+        }
       }
     }
   }

@@ -15,7 +15,11 @@ import {
   limitToLast,
   serverTimestamp,
 } from 'firebase/database';
+import * as Print from 'expo-print';
 import { realtimeDb } from '../config/firebase';
+import { buildQuestSteps } from './responseGuideSteps';
+import { buildCaseReportHtml } from './reportHtml';
+import { getCaseById, getEvidenceRecords, uploadBoardAttachmentPdf } from './firebaseService';
 
 // 고정 채팅방 목록. '전문가 채널'은 공익변호사 / 법률구조공단 등 실제 상담 창구로 연결되는
 // 채널로, 일반 피해자 연대방과 같은 실시간 채팅 구조를 쓰되 room_type만 다르게 둔다.
@@ -52,22 +56,10 @@ export const CHAT_ROOMS = [
     color: '#FEF3C7',
     type: 'victim',
   },
-  {
-    id: 'expert-public-lawyer',
-    name: '공익변호사 상담 채널',
-    description: '공익 목적 법률 상담을 진행하는 변호사와 1:1로 연결됩니다',
-    icon: '⚖️',
-    color: '#DBEAFE',
-    type: 'expert',
-  },
-  {
-    id: 'expert-legal-aid',
-    name: '대한법률구조공단 채널',
-    description: '법률구조공단 상담원에게 직접 문의할 수 있는 공식 채널입니다',
-    icon: '🏛️',
-    color: '#DCFCE7',
-    type: 'expert',
-  },
+  // "전문가 채널"(공익변호사/법률구조공단 고정방)은 제거했다 — 설명은 "1:1로 연결됩니다"였지만
+  // 실제로는 이 방들도 피해자 연대방과 동일한 다인 채팅방 구조라 여러 사용자가 같은 방에서
+  // 서로의 상담 내용을 보게 되는 문제가 있었다. 전문가 질문 게시판에서 답변을 단 전문가와
+  // 직접 1:1 DM(getOrCreateDirectRoom)으로 연결하는 방식으로 대체했다.
 ];
 
 export function getChatRoomMeta(roomId) {
@@ -345,4 +337,92 @@ export function subscribeToDynamicRooms(callback) {
     (error) => console.error('개설된 채팅방 목록 구독 오류:', error),
   );
   return () => off(indexRef, 'value', handler);
+}
+
+// ─── 1:1 DM (전문가 게시판 답변자에게 직접 쪽지 보내기) ──────────────────────
+// 두 사용자 사이엔 방이 하나만 있으면 되므로, uid 두 개를 정렬해서 합친 고정 roomId를
+// 쓴다 — 누가 먼저 눌렀든 같은 방으로 들어온다.
+// userDmRooms/{uid}/{roomId}는 "내가 참여 중인 DM방" 비공개 색인이다 — 전체 공개
+// 목록(CHAT_ROOMS, openedRoomsIndex)과 달리 본인만 읽을 수 있게 database.rules.json에서
+// 막아둬야 한다(다른 사람의 DM 목록이 노출되면 안 되므로).
+
+function directRoomId(uidA, uidB) {
+  return `dm-${[uidA, uidB].sort().join('_')}`;
+}
+
+/**
+ * 1:1 DM 방을 가져오거나 없으면 새로 만든다. 이미 있으면 인원/메타만 갱신하고 그대로 재사용.
+ * 양쪽 사용자의 비공개 색인에 모두 등록해서, 상대방도 "참여 중인 방"에서 이 방을 찾을 수 있게 한다.
+ * @returns {Promise<string>} roomId
+ */
+export async function getOrCreateDirectRoom({ myUid, myName, otherUid, otherName }) {
+  assertRtdb();
+  if (!myUid || !otherUid) throw new Error('채팅 상대 정보를 찾을 수 없습니다.');
+  const roomId = directRoomId(myUid, otherUid);
+
+  await update(ref(realtimeDb, `chatRooms/${roomId}/meta`), {
+    isDirect: true,
+  });
+  await update(ref(realtimeDb, `chatRooms/${roomId}/members`), {
+    [myUid]: { name: myName || '익명', joinedAt: serverTimestamp() },
+    [otherUid]: { name: otherName || '익명', joinedAt: serverTimestamp() },
+  });
+  await update(ref(realtimeDb, `userDmRooms/${myUid}`), {
+    [roomId]: { otherUid, otherName: otherName || '익명', updatedAt: serverTimestamp() },
+  });
+  await update(ref(realtimeDb, `userDmRooms/${otherUid}`), {
+    [roomId]: { otherUid: myUid, otherName: myName || '익명', updatedAt: serverTimestamp() },
+  });
+
+  return roomId;
+}
+
+/**
+ * 내가 참여 중인 1:1 DM 방 목록을 실시간 구독 (비공개 — 본인만 조회).
+ * ChatScreen의 "참여 중인 방" 섹션에 CHAT_ROOMS/dynamicRooms와 합쳐서 보여주기 위한
+ * 형태(id, name, description, icon, color, type)로 맞춰서 반환한다.
+ */
+export function subscribeToMyDirectRooms(uid, callback) {
+  assertRtdb();
+  if (!uid) {
+    callback([]);
+    return () => {};
+  }
+  const indexRef = ref(realtimeDb, `userDmRooms/${uid}`);
+  const handler = onValue(
+    indexRef,
+    (snapshot) => {
+      const val = snapshot.val() ?? {};
+      const rooms = Object.entries(val).map(([roomId, data]) => ({
+        id: roomId,
+        name: data.otherName || '1:1 채팅',
+        description: '1:1 비공개 채팅',
+        icon: '💬',
+        color: '#EDE9FE',
+        type: 'dm',
+      }));
+      callback(rooms);
+    },
+    (error) => console.error('내 1:1 채팅방 목록 구독 오류:', error),
+  );
+  return () => off(indexRef, 'value', handler);
+}
+
+/**
+ * 1:1 DM 방에서 "보고서 보내기" — 선택한 사건의 보고서를 PDF로 만들어 Storage에 올리고,
+ * 그 링크를 채팅 메시지(file)로 전송한다. 법학 교수님 피드백대로 "1:1은 파일 전송 가능"
+ * 범위 안에서만 동작하도록, 공개 게시판이 아니라 DM 방에서만 쓰는 걸 전제로 한다.
+ */
+export async function shareCaseReportInRoom({ roomId, userId, userName, caseId }) {
+  const caseData = await getCaseById(caseId);
+  if (!caseData) throw new Error('사건 정보를 찾을 수 없습니다.');
+  const records = await getEvidenceRecords(userId, caseId);
+  const questItems = buildQuestSteps(caseData.caseType, caseData.questSteps ?? [], caseData.tags ?? []).items;
+  const html = buildCaseReportHtml({ caseData, records, questItems, forPrint: true });
+
+  const { uri } = await Print.printToFileAsync({ html });
+  const fileName = `${caseData.title || '보고서'}.pdf`;
+  const { url, name } = await uploadBoardAttachmentPdf(uri, fileName);
+
+  await sendMessage(roomId, { uid: userId, name: userName, file: { name, url } });
 }
