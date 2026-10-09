@@ -98,7 +98,8 @@ export default function ExpertQuestionScreen({ navigation }) {
         <View style={styles.divider} />
 
         <Text style={styles.disclaimer}>
-          본 질문은 전문가 채널에 공개됩니다. 개인정보가 포함되지 않도록 주의해주세요.
+          본 질문은 전문가 채널에 공개됩니다. 상대방 실명 등 특정 가능한 개인정보 대신 "OO 사건"처럼
+          사건 중심으로 적어주세요. 공개된 글로 특정인의 명예가 훼손되면 법적 책임이 생길 수 있어요.
         </Text>
 
         <View style={{ height: 80 }} />

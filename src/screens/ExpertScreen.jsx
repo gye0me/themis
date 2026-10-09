@@ -14,6 +14,7 @@ import {
 import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
+import { EXPERT_ROUTES } from '../navigation/routes';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
@@ -79,19 +80,9 @@ export function ExpertScreen({ navigation }) {
 
   // "지금 주목받는 사건"은 채팅방 입장 버튼이 아니라, 기자·변호사 등 전문가와 다른
   // 사용자들에게 사건을 알리는 게시글 성격이다. 그래서 눌렀을 때도 채팅방으로 이동시키지
-  // 않고, 어떤 사건인지 요약해서 보여준다. real(비데모) 항목은 curated description/
-  // watchingExperts가 없을 수 있어 일반적인 문구로 대체한다 — 동일 가해자 여부 등
-  // 실데이터에 없는 내용은 지어내지 않는다.
+  // 않고, 일반 게시판 글과 같은 톤의 상세 페이지(HotBoardDetailScreen)로 이동한다.
   const showHotEntryDetail = (entry) => {
-    const meta = CASE_TYPE_META[entry.caseType] ?? CASE_TYPE_META['기타'];
-    const description = entry.description || `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다.`;
-    const expertsLine = entry.watchingExperts?.length
-      ? `\n\n${entry.watchingExperts.join(', ')}가 이 사건을 주목하고 있어요.`
-      : '';
-    Alert.alert(
-      entry.roomName || `${meta.label} 피해자 연대`,
-      `${description}${expertsLine}\n\n상세 페이지는 준비 중이에요.`
-    );
+    navigation.navigate(EXPERT_ROUTES.HOT_BOARD_DETAIL, { entry });
   };
 
   const loadComments = (postId) => {
@@ -447,6 +438,10 @@ export function ExpertScreen({ navigation }) {
                       <Text style={styles.anonToggleText}>익명으로 답글 달기</Text>
                     </TouchableOpacity>
 
+                    <Text style={styles.commentNoticeText}>
+                      상대방 실명 대신 사건 중심으로 적어주세요. 특정인이 식별되면 명예훼손 책임이 생길 수 있어요.
+                    </Text>
+
                     <View style={styles.commentInputRow}>
                       <TextInput
                         style={styles.commentInput}
@@ -634,6 +629,7 @@ const styles = StyleSheet.create({
 
   anonToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 4 },
   anonToggleText: { fontSize: 11.5, color: C.ink500 },
+  commentNoticeText: { fontSize: 10.5, color: C.ink400, marginBottom: 6, lineHeight: 15 },
   checkboxOffSmall: {
     width: 16, height: 16, borderRadius: 4,
     borderWidth: 1.5, borderColor: C.line,

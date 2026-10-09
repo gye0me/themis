@@ -22,6 +22,7 @@ import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
 import PreventionConsultScreen from '../screens/PreventionConsultScreen';
 import PreContractChecklistScreen from '../screens/PreContractChecklistScreen';
 import { GuardianScreen } from '../screens/GuardianScreen';
+import { HotBoardDetailScreen } from '../screens/HotBoardDetailScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -192,6 +193,7 @@ function AppStack() {
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
       <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={EXPERT_ROUTES.HOT_BOARD_DETAIL} component={HotBoardDetailScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={GUARDIAN_ROUTES.MANAGE} component={GuardianScreen} options={{ headerShown: false }} />

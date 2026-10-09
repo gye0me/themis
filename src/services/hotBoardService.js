@@ -48,6 +48,51 @@ export const DEMO_HOT_BOARD_ENTRIES = [
   },
 ];
 
+// 핫게시판 상세 페이지에서 "전문가들이 이미 댓글을 달아 주목하고 있다"는 걸 보여주기 위한
+// 예시용 댓글 데이터. DEMO_HOT_BOARD_ENTRIES의 id와 1:1로 매칭되며, 실데이터 조회·저장과는
+// 무관하다(완전히 화면단 더미) — 실제 사건이 생기면 이 댓글은 쓰이지 않는다.
+export const DEMO_HOT_BOARD_COMMENTS = {
+  'demo-jeonse': [
+    {
+      id: 'demo-jeonse-c1',
+      expertType: '변호사',
+      authorName: '김민석 변호사',
+      content: '보증금 반환 소송을 준비하신다면 임차권등기명령부터 먼저 신청하시는 걸 추천드려요. 동일 임대인 피해자가 여럿이면 소송에서도 유리하게 작용할 수 있습니다.',
+      relativeTime: '2시간 전',
+    },
+    {
+      id: 'demo-jeonse-c2',
+      expertType: '기자',
+      authorName: '이지은 기자',
+      content: '비슷한 수법의 전세사기 제보를 받고 있습니다. 피해 사실을 기사로 다뤄볼 수 있을지 검토 중이에요. 괜찮으시면 쪽지 주세요.',
+      relativeTime: '5시간 전',
+    },
+    {
+      id: 'demo-jeonse-c3',
+      expertType: '부동산중개사',
+      authorName: '박현우 공인중개사',
+      content: '등기부등본상 근저당 설정 시점을 꼭 확인하시고, 계약 당시와 지금 상태가 달라졌는지 비교해보세요.',
+      relativeTime: '1일 전',
+    },
+  ],
+  'demo-money': [
+    {
+      id: 'demo-money-c1',
+      expertType: '변호사',
+      authorName: '정수아 변호사',
+      content: '동일 계좌로 입금한 피해자가 많다면 형사 고소 시 병합 처리가 가능할 수 있어요. 입금 내역과 대화 캡처를 꼭 모아두세요.',
+      relativeTime: '3시간 전',
+    },
+    {
+      id: 'demo-money-c2',
+      expertType: '기자',
+      authorName: '한도윤 기자',
+      content: '유사 피해 사례를 모아 취재 중입니다. 제보 주시면 익명으로 다뤄드릴 수 있어요.',
+      relativeTime: '하루 전',
+    },
+  ],
+};
+
 // 같은 방에서 SOS를 재발동하려면 이만큼 간격을 둬야 한다 (연타 스팸 방지).
 export const SOS_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24시간
 

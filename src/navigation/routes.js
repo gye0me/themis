@@ -32,6 +32,7 @@ export const RECORD_ROUTES = {
 
 export const EXPERT_ROUTES = {
   GUIDE: 'ResponseGuide',
+  HOT_BOARD_DETAIL: 'HotBoardDetail',
 };
 
 export const GUARDIAN_ROUTES = {
