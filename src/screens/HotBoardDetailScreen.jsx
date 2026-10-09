@@ -34,8 +34,30 @@ export function HotBoardDetailScreen({ navigation, route }) {
             </View>
           </View>
 
+          {entry.caseSummary?.length > 0 && (
+            <View style={styles.summaryGrid}>
+              {entry.caseSummary.map((row, i) => {
+                const isRightCol = i % 2 === 1;
+                const isLastRow = i >= entry.caseSummary.length - (entry.caseSummary.length % 2 === 0 ? 2 : 1);
+                return (
+                  <View
+                    key={row.label}
+                    style={[
+                      styles.summaryCell,
+                      !isRightCol && styles.summaryCellBorderRight,
+                      !isLastRow && styles.summaryCellBorderBottom,
+                    ]}
+                  >
+                    <Text style={styles.summaryLabel}>{row.label}</Text>
+                    <Text style={styles.summaryValue}>{row.value}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <Text style={styles.body}>
-            {entry.description || `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다.`}
+            {entry.detailDescription || entry.description || `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다.`}
           </Text>
 
           {entry.watchingExperts?.length > 0 && (
@@ -106,6 +128,19 @@ const styles = StyleSheet.create({
   victimBadgeText: { color: C.danger600, fontSize: 11, fontWeight: '700' },
 
   body: { fontSize: 13, color: C.ink700, lineHeight: 19 },
+
+  summaryGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    backgroundColor: C.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: C.line, overflow: 'hidden',
+  },
+  summaryCell: {
+    width: '50%', paddingHorizontal: 12, paddingVertical: 9, gap: 2,
+  },
+  summaryCellBorderRight: { borderRightWidth: 1, borderColor: C.line },
+  summaryCellBorderBottom: { borderBottomWidth: 1, borderColor: C.line },
+  summaryLabel: { fontSize: 10, color: C.ink400, fontWeight: '600' },
+  summaryValue: { fontSize: 12, color: C.ink900, fontWeight: '700' },
 
   tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   tag: {
