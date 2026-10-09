@@ -1,5 +1,5 @@
 import { useCallback, useContext, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
@@ -136,6 +136,7 @@ export function TimelineScreen({ navigation, route }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [deleting, setDeleting] = useState(false);
   const [preventionVisible, setPreventionVisible] = useState(false);
+  const [viewerUri, setViewerUri] = useState(null); // 증거 사진 전체화면 보기 (null이면 닫힘)
   function toggleExpand(id) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -480,11 +481,13 @@ export function TimelineScreen({ navigation, route }) {
                       {isContract && isExpanded && (
                         <View style={styles.contractDetail}>
                           {item.downloadURL ? (
-                            <Image
-                              source={{ uri: item.downloadURL }}
-                              style={styles.contractImage}
-                              resizeMode="cover"
-                            />
+                            <TouchableOpacity onPress={() => setViewerUri(item.downloadURL)} activeOpacity={0.85}>
+                              <Image
+                                source={{ uri: item.downloadURL }}
+                                style={styles.contractImage}
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
                           ) : null}
 
                           {(item.analysisItems ?? []).map((detail, i) => (
@@ -517,11 +520,13 @@ export function TimelineScreen({ navigation, route }) {
                       {/* 사진 상세 */}
                       {item.evidenceType === 'image' && isExpanded && item.downloadURL && (
                         <View style={styles.contractDetail}>
-                          <Image
-                            source={{ uri: item.downloadURL }}
-                            style={styles.contractImage}
-                            resizeMode="cover"
-                          />
+                          <TouchableOpacity onPress={() => setViewerUri(item.downloadURL)} activeOpacity={0.85}>
+                            <Image
+                              source={{ uri: item.downloadURL }}
+                              style={styles.contractImage}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
                           {item.note ? (
                             <TouchableOpacity 
                               style={styles.hashCard}
@@ -627,12 +632,39 @@ export function TimelineScreen({ navigation, route }) {
         caseType={caseData?.caseType}
         onClose={closePrevention}
       />
+
+      {/* 증거 사진 전체화면 보기 */}
+      <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
+        <View style={styles.viewerBackdrop}>
+          <TouchableOpacity style={styles.viewerCloseBtn} onPress={() => setViewerUri(null)}>
+            <Text style={styles.viewerCloseText}>✕</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.viewerImageWrap}
+            activeOpacity={1}
+            onPress={() => setViewerUri(null)}
+          >
+            {viewerUri ? (
+              <Image source={{ uri: viewerUri }} style={styles.viewerImage} resizeMode="contain" />
+            ) : null}
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
+  viewerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' },
+  viewerCloseBtn: {
+    position: 'absolute', top: 50, right: 20, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  viewerCloseText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  viewerImageWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  viewerImage: { width: '100%', height: '100%' },
   shareBtn: { padding: 4 },
   shareBtnText: { color: C.ink500, fontSize: 18 },
   deleteBtn: { padding: 4 },

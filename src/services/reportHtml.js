@@ -64,7 +64,9 @@ function resolveEventDate(record) {
   return toDate(record.eventTime ?? record.capturedAt);
 }
 
-function buildEvidenceCard(record) {
+// forPrint: PDF 인쇄용 — <video>/<audio>는 PDF에 그려지지 않아 빈칸이 되므로
+// 영상은 썸네일 이미지(5초 스탬프)로, 음성은 원본 링크 문구로 대신 보여준다.
+function buildEvidenceCard(record, { forPrint = false } = {}) {
   const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
   const eventDate = resolveEventDate(record);
   const uploadDate = toDate(record.capturedAt);
@@ -84,9 +86,19 @@ function buildEvidenceCard(record) {
     // 여기서 또 겹쳐 찍으면 이중 워터마크가 되므로, 보고서에서는 페이지 전체 워터마크만 유지한다.
     mediaHtml = `<a href="${escapeHtml(record.downloadURL)}" target="_blank"><img class="thumb" src="${escapeHtml(record.downloadURL)}" alt="증거 사진" /></a>`;
   } else if (record.evidenceType === 'audio' && record.downloadURL) {
-    mediaHtml = `<audio controls src="${escapeHtml(record.downloadURL)}"></audio>`;
+    mediaHtml = forPrint
+      ? `<div class="media-link">🎵 음성 파일 — <a href="${escapeHtml(record.downloadURL)}">원본 듣기</a></div>`
+      : `<audio controls src="${escapeHtml(record.downloadURL)}"></audio>`;
   } else if (record.evidenceType === 'video' && record.downloadURL) {
-    mediaHtml = `<video controls class="thumb" src="${escapeHtml(record.downloadURL)}"></video>`;
+    const poster = record.thumbnailURL ? escapeHtml(record.thumbnailURL) : '';
+    if (forPrint) {
+      mediaHtml = poster
+        ? `<a href="${escapeHtml(record.downloadURL)}"><img class="thumb" src="${poster}" alt="영상 ${record.thumbnailStampSec ?? 5}초 지점" /></a>
+        <div class="media-link">🎬 영상 ${record.thumbnailStampSec ?? 5}초 지점 화면 — <a href="${escapeHtml(record.downloadURL)}">원본 영상 보기</a></div>`
+        : `<div class="media-link">🎬 영상 파일 — <a href="${escapeHtml(record.downloadURL)}">원본 영상 보기</a></div>`;
+    } else {
+      mediaHtml = `<video controls class="thumb" src="${escapeHtml(record.downloadURL)}"${poster ? ` poster="${poster}"` : ''}></video>`;
+    }
   }
 
   const transcript = record.transcript ?? record.transcribedText ?? null;
@@ -148,8 +160,9 @@ export function buildReportHashPayload({ caseData = {}, records = [], questItems
  * @param {Array} records - evidenceRecords 배열
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
  * @param {{ hash: string, finalizedAt: (Date|string|null) }|null} finalization - 확정 정보 (법적 효력 안내 확인 시각 + 해시)
+ * @param {boolean} forPrint - PDF 인쇄용 HTML (영상·음성을 인쇄 가능한 썸네일/링크로 대체)
  */
-export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], finalization = null }) {
+export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], finalization = null, forPrint = false }) {
   // 숨김 처리된 증거(hidden === true)는 보고서에서 제외한다 — 삭제는 무결성이 깨질 수 있어
   // 대신 hidden 플래그로 처리하는 항목이라, 타임라인 화면에는 흐릿하게 남아있어도 정식 보고서에는 안 나가야 한다.
   const visibleRecords = records.filter((r) => !r.hidden);
@@ -164,7 +177,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 
   // 타임라인 항목을 "사건 발생 시각" 기준 오름차순으로 병합 (업로드 순서가 아니라 실제 사건 순서)
   const timelineEntries = [
-    ...visibleRecords.map((r) => ({ type: 'evidence', date: resolveEventDate(r), html: buildEvidenceCard(r) })),
+    ...visibleRecords.map((r) => ({ type: 'evidence', date: resolveEventDate(r), html: buildEvidenceCard(r, { forPrint }) })),
     ...completedQuests.map((q) => ({ type: 'quest', date: toDate(q.completedAt), html: buildQuestCard(q) })),
   ]
     .filter((e) => e.date)
@@ -226,6 +239,8 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
   .card-meta { font-size: 11px; color: var(--ink-400); }
   .card-type { font-size: 14px; font-weight: 700; color: var(--ink-900); }
   .thumb { max-width: 100%; border-radius: 10px; margin: 4px 0; }
+  .media-link { font-size: 11.5px; color: var(--ink-500); margin: 2px 0 4px; }
+  .evidence-card, .thumb { break-inside: avoid; page-break-inside: avoid; }
   audio, video { width: 100%; margin: 4px 0; border-radius: 10px; }
   .transcript { font-size: 12px; color: var(--ink-700); margin: 2px 0; }
   .summary { font-size: 12px; color: var(--brand-600); margin: 2px 0; }

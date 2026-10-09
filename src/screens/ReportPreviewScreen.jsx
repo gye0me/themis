@@ -19,6 +19,61 @@ import {
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
 
+// HTML 안의 원격 <img src="https://...">를 data URI로 바꾼다 (실패한 이미지는 원래 주소 유지)
+async function inlineRemoteImages(html) {
+  const urls = [...new Set([...html.matchAll(/<img[^>]+src="(https?:[^"]+)"/g)].map((m) => m[1]))];
+  let result = html;
+  await Promise.all(
+    urls.map(async (escapedUrl) => {
+      try {
+        const url = escapedUrl.replace(/&amp;/g, '&');
+        const blob = await (await fetch(url)).blob();
+        const dataUri = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        result = result.split(`src="${escapedUrl}"`).join(`src="${dataUri}"`);
+      } catch (err) {
+        console.warn('PDF용 이미지 변환 실패:', err?.message);
+      }
+    })
+  );
+  return result;
+}
+
+// 웹: 보고서 HTML만 담은 숨김 iframe을 만들고, 이미지가 모두 로드된 뒤 그 iframe을 인쇄한다
+function printHtmlOnWeb(html) {
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });
+    iframe.onload = async () => {
+      const doc = iframe.contentDocument;
+      const images = [...(doc?.images ?? [])];
+      await Promise.all(
+        images.map((img) =>
+          img.complete
+            ? null
+            : new Promise((done) => {
+                img.onload = done;
+                img.onerror = done;
+                setTimeout(done, 8000); // 너무 오래 걸리는 이미지는 기다리지 않음
+              })
+        )
+      );
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      // 인쇄 대화상자를 닫은 뒤 정리
+      setTimeout(() => iframe.remove(), 1000);
+      resolve();
+    };
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+  });
+}
+
 function toJsDate(value) {
   if (!value) return null;
   if (value?.toDate) return value.toDate();
@@ -46,7 +101,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
   const [finalizedAt, setFinalizedAt] = useState(() => toJsDate(caseData?.reportFinalizedAt) ?? null);
 
   const questItems = useMemo(
-    () => (caseData ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? []).items : []),
+    () => (caseData ? buildQuestSteps(caseData.caseType, caseData.questSteps ?? [], caseData.tags ?? []).items : []),
     [caseData]
   );
 
@@ -56,11 +111,12 @@ export default function ReportPreviewScreen({ navigation, route }) {
     createdAt: caseData?.createdAt ?? records[records.length - 1]?.capturedAt,
   }), [caseData, records]);
 
-  const buildHtml = useCallback((hash, finalizedAtValue) => buildCaseReportHtml({
+  const buildHtml = useCallback((hash, finalizedAtValue, forPrint = false) => buildCaseReportHtml({
     caseData: effectiveCaseData,
     records,
     questItems,
     finalization: hash ? { hash, finalizedAt: finalizedAtValue } : null,
+    forPrint,
   }), [effectiveCaseData, records, questItems]);
 
   const html = useMemo(
@@ -144,18 +200,22 @@ export default function ReportPreviewScreen({ navigation, route }) {
   }
 
   async function handleDownloadPdf() {
-    const htmlToUse = html;
     if (savingPdf) return;
     setSavingPdf(true);
     try {
-      // 웹은 브라우저 인쇄 대화상자를 통해 사용자가 직접 "PDF로 저장"을 선택한다.
+      // PDF용 HTML: 영상은 썸네일, 음성은 링크로 바꾼 인쇄용 버전
+      const printHtml = buildHtml(finalizationHash, finalizedAt, true);
+
+      // 웹: expo-print의 웹 구현은 넘긴 HTML을 무시하고 현재 앱 화면을 window.print()해 버려서
+      // 보고서 사진·썸네일이 PDF에 안 나왔다. 보고서만 담은 숨김 iframe에서 이미지 로딩을 기다린 뒤 인쇄한다.
       if (Platform.OS === 'web') {
-        await Print.printToFileAsync({ html: htmlToUse });
+        await printHtmlOnWeb(printHtml);
         return;
       }
 
-      // 지금 만든 HTML(워터마크·SHA-256·서버 타임스탬프 포함)을 그대로 PDF로 렌더링한다.
-      const { uri } = await Print.printToFileAsync({ html: htmlToUse });
+      // 앱: 원격 이미지가 다 받아지기 전에 PDF가 렌더링되면 썸네일이 빈칸으로 나와서,
+      // 이미지를 data URI로 미리 넣어둔 HTML로 렌더링한다 (워터마크·SHA-256·서버 타임스탬프 포함).
+      const { uri } = await Print.printToFileAsync({ html: await inlineRemoteImages(printHtml) });
       const fileName = `themis-report-${Date.now()}.pdf`;
 
       if (Platform.OS === 'android') {

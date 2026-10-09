@@ -7,21 +7,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
 import { transcribeVideoAudio } from '../services/videoTranscriptService';
+import { getVideoThumbnail } from '../utils/videoThumbnail';
 import { extractTextFromImage } from '../services/ocrService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
 import { buildStampedImageFile } from '../utils/buildStampedImageFile';
+import { watermarkAndDownload } from '../services/watermarkApiService';
 import { BackHeader } from '../components/BackHeader';
 import { EventTimeInputModal } from '../components/EventTimeInputModal';
 import { CasePickerModal } from '../components/CasePickerModal';
 import { PreventionGuideModal } from '../components/PreventionGuideModal';
 import { extractPhotoCaptureDate, extractContainerCreationTime } from '../utils/mediaEventTime';
 import { C } from '../theme/tokens';
+
+// 서버 워터마크(versatility.cloud)에 박아 넣을 문구. 사건 유형 + 현재 시각으로 구성해
+// "언제, 어떤 사건 관련 원본인지"가 워터마크 자체에 남도록 한다.
+function buildWatermarkText(caseType) {
+  const now = new Date();
+  const stamp = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return `THEMIS 원본 · ${caseType || '증거'} · ${stamp}`;
+}
 
 // 타입별로 "사건 발생 시각"을 자동으로 구해본다. 실패하면 null을 반환하고,
 // 호출부에서 필요 시(음성/영상) 사용자에게 직접 입력을 받는다.
@@ -118,13 +127,61 @@ export function EvidenceUploadScreen({ navigation, route }) {
   const stamperRef = useRef(null); // 사진에 워터마크를 픽셀로 합성하는 오프스크린 캡처기
   const recordingStartRef = useRef(null); // 앱 안에서 직접 녹음할 때 시작 시각(정확한 사건 발생 시각)
 
+  // 서버(versatility.cloud) 워터마크는 기본값 OFF — 인증·삭제 기능이 없는 외부 서버라
+  // 민감한 원본 증거를 기본으로 보내지 않는다. 명시적으로 동의한 경우에만 켜짐.
+  // 기본(꺼짐)일 땐 기기 안에서만 처리되는 로컬 워터마크를 쓴다.
+  const [useServerWatermark, setUseServerWatermark] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('themis:useServerWatermark').then((v) => setUseServerWatermark(v === 'true'));
+  }, []);
+  const toggleServerWatermark = () => {
+    if (useServerWatermark) {
+      setUseServerWatermark(false);
+      AsyncStorage.setItem('themis:useServerWatermark', 'false');
+      return;
+    }
+    Alert.alert(
+      '외부 서버 워터마크 사용',
+      '이 기능은 사진을 외부 서버(versatility.cloud)로 전송합니다. 이 서버는 로그인 인증이 없고, ' +
+        '올린 파일을 삭제하는 기능도 제공하지 않아 사실상 영구 보관됩니다.\n\n' +
+        '민감한 증거라면 기기 안에서만 처리되는 기본(로컬) 워터마크를 권장합니다. 그래도 사용하시겠어요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '동의하고 사용',
+          style: 'destructive',
+          onPress: () => {
+            setUseServerWatermark(true);
+            AsyncStorage.setItem('themis:useServerWatermark', 'true');
+          },
+        },
+      ]
+    );
+  };
+
+  function buildWatermarkText(type) {
+    const now = new Date();
+    const stamp = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return `THEMIS 원본 · ${type || '증거'} · ${stamp}`;
+  }
+
   // 자동 추출이 실패한 음성/영상 파일의 사건 발생 시각을 직접 입력받기 위한 대기 상태
   const [pendingManualEntry, setPendingManualEntry] = useState(null); // { evidenceType, file }
 
   // 파일 선택/녹음 두 경로가 공통으로 쓰는 업로드 처리 (위치 기록 → 클로바 변환 → Firestore 저장 → 결과 안내)
   // eventTime/eventTimeSource: 사건 발생 시각을 이미 구해둔 경우(EXIF, 앱 내 녹음 시작 시각 등) 전달
   // target: 저장할 사건 (빠른 기록에서 고른 사건, 기본은 이 화면의 사건)
-  const uploadEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null, target = { caseId, caseTitle: null }) => {
+  // ocrSourceUri: OCR에 쓸 이미지 uri. 지정하지 않으면 file.uri(업로드될 파일)를 그대로 쓴다.
+  //   워터마크가 찍힌 file.uri로 OCR을 돌리면 대각선 워터마크 문구("THEMIS 원본 · ...")까지
+  //   글자로 인식돼 note에 섞여 들어가므로, 사진은 항상 워터마크 찍기 전 원본 uri를 넘겨야 한다.
+  const uploadEvidence = async (
+    evidenceType,
+    file,
+    eventTime = null,
+    eventTimeSource = null,
+    target = { caseId, caseTitle: null },
+    ocrSourceUri = null
+  ) => {
     const cfg = UPLOAD_TYPES[evidenceType];
     setUploadingType(evidenceType);
     try {
@@ -152,9 +209,10 @@ export function EvidenceUploadScreen({ navigation, route }) {
           sttError = e.message;
         }
       } else if (evidenceType === 'image') {
-        console.log('OCR 시작:', file.uri);
+        console.log('OCR 시작:', ocrSourceUri ?? file.uri);
         try {
-          note = await extractTextFromImage(file.uri);
+          // 워터마크가 찍히지 않은 원본으로 OCR — 워터마크 문구가 note에 섞이는 걸 방지
+          note = await extractTextFromImage(ocrSourceUri ?? file.uri);
           console.log('OCR 완료:', note);
         } catch (e) {
           console.warn('OCR 변환 실패:', e.message);
@@ -164,9 +222,9 @@ export function EvidenceUploadScreen({ navigation, route }) {
       let extra = {};
       if (evidenceType === 'video') {
         try {
-          const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(file.uri, { time: 5000 });
+          const { uri: thumbUri, stampSec } = await getVideoThumbnail(file.uri, 5);
           const { downloadURL: thumbnailURL } = await uploadEvidenceThumbnail(thumbUri);
-          extra = { thumbnailURL, thumbnailStampSec: 5 };
+          extra = { thumbnailURL, thumbnailStampSec: stampSec };
         } catch (e) {
           console.warn('영상 5초 스탬프 생성 실패:', e.message);
         }
@@ -214,22 +272,27 @@ export function EvidenceUploadScreen({ navigation, route }) {
   };
 
   // 사건이 정해져 있으면 바로 저장하고, 빠른 기록이면 저장할 사건을 먼저 고르게 한다.
-  const saveEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null) => {
+  // ocrSourceUri: 사진일 때 OCR에 쓸 원본(워터마크 찍기 전) uri — saveEvidence.js 상단 설명 참고.
+  const saveEvidence = async (evidenceType, file, eventTime = null, eventTimeSource = null, ocrSourceUri = null) => {
     if (isQuickMode) {
-      setPendingQuickSave({ evidenceType, file, eventTime, eventTimeSource });
+      setPendingQuickSave({ evidenceType, file, eventTime, eventTimeSource, ocrSourceUri });
       return;
     }
-    await uploadEvidence(evidenceType, file, eventTime, eventTimeSource);
+    await uploadEvidence(evidenceType, file, eventTime, eventTimeSource, { caseId, caseTitle: null }, ocrSourceUri);
   };
 
   const handleQuickCaseSelected = async (picked) => {
     const entry = pendingQuickSave;
     setPendingQuickSave(null);
     if (!entry) return;
-    await uploadEvidence(entry.evidenceType, entry.file, entry.eventTime, entry.eventTimeSource, {
-      caseId: picked.id,
-      caseTitle: picked.title || '이름 없는 사건',
-    });
+    await uploadEvidence(
+      entry.evidenceType,
+      entry.file,
+      entry.eventTime,
+      entry.eventTimeSource,
+      { caseId: picked.id, caseTitle: picked.title || '이름 없는 사건' },
+      entry.ocrSourceUri
+    );
   };
 
   // 저장한 사건의 타임라인으로 이동 — 그 사건 타임라인이 이미 뒤에 쌓여 있으면 새로 쌓지 않고 그 화면으로 돌아간다
@@ -269,16 +332,37 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         // 사진 증거는 업로드 전에 원본 픽셀에 워터마크를 합성한다 — 원본 파일을 그대로
         // 내려받아도 위변조 방지용 워터마크가 함께 찍혀 있도록 하기 위함.
+        // 기본은 로컬(기기 안) 합성. 사용자가 명시적으로 동의한 경우에만 서버(versatility.cloud)를
+        // 1순위로 시도하고, 서버가 실패하면 로컬로 자동 대체한다.
         if (evidenceType === 'image') {
           setUploadingType('image');
-          try {
-            const stampedUri = await stamperRef.current.stamp(asset.uri);
-            file = buildStampedImageFile(file, stampedUri);
-          } catch (stampError) {
-            console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
+          let stamped = false;
+          if (useServerWatermark) {
+            try {
+              const { localUri } = await watermarkAndDownload({
+                uri: file.uri,
+                name: file.name,
+                mimeType: file.mimeType,
+                text: buildWatermarkText(caseType),
+              });
+              file = buildStampedImageFile(file, localUri);
+              stamped = true;
+            } catch (serverError) {
+              console.warn('서버 워터마크 실패, 로컬 합성으로 대체합니다:', serverError.message);
+            }
+          }
+          if (!stamped) {
+            try {
+              // 서버를 썼을 때와 같은 문구가 남도록 동일한 buildWatermarkText()를 사용
+              const stampedUri = await stamperRef.current.stamp(asset.uri, buildWatermarkText(caseType));
+              file = buildStampedImageFile(file, stampedUri);
+            } catch (stampError) {
+              console.warn('워터마크 합성 실패, 원본으로 업로드합니다:', stampError.message);
+            }
           }
           // EXIF를 못 읽었으면(권한/포맷 문제 등) 조용히 업로드 시각으로 대체 — 스펙상 사진은 입력창을 띄우지 않음
-          await saveEvidence('image', file, autoEventTime, autoEventTimeSource);
+          // asset.uri: 워터마크 찍기 전 원본 — OCR은 항상 이걸로 돌려서 워터마크 문구가 note에 섞이지 않게 한다
+          await saveEvidence('image', file, autoEventTime, autoEventTimeSource, asset.uri);
           return;
         }
 
@@ -440,6 +524,20 @@ export function EvidenceUploadScreen({ navigation, route }) {
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity style={styles.watermarkToggleRow} onPress={toggleServerWatermark} activeOpacity={0.7}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.watermarkToggleTitle}>
+              사진 워터마크: {useServerWatermark ? '외부 서버 사용 중' : '기기 내 처리(기본, 권장)'}
+            </Text>
+            <Text style={styles.watermarkToggleDesc}>
+              {useServerWatermark
+                ? '사진이 versatility.cloud로 전송됩니다. 탭하면 끌 수 있어요.'
+                : '사진이 기기 밖으로 나가지 않아요. 탭하면 외부 서버 사용에 동의할 수 있어요.'}
+            </Text>
+          </View>
+          <Text style={styles.watermarkToggleBadge}>{useServerWatermark ? 'ON' : 'OFF'}</Text>
+        </TouchableOpacity>
+
         {lastSaved && (
           <View style={styles.savedBanner}>
             <Text style={styles.savedBannerText}>
@@ -639,6 +737,13 @@ export function EvidenceUploadScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
   content: { flex: 1, padding: 20 },
+  watermarkToggleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.sky050,
+    borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, marginBottom: 14,
+  },
+  watermarkToggleTitle: { fontSize: 12, fontWeight: '700', color: C.ink900, marginBottom: 2 },
+  watermarkToggleDesc: { fontSize: 10.5, color: C.ink400, lineHeight: 14 },
+  watermarkToggleBadge: { fontSize: 11, fontWeight: '800', color: C.brand600 },
   savedBanner: {
     backgroundColor: C.safe100, borderRadius: 14, padding: 14, marginBottom: 14, gap: 10,
   },

@@ -58,6 +58,85 @@ service cloud.firestore {
     match /chatroom_members/{docId} {
       allow read, write: if isSignedIn();
     }
+    // 핫게시판(지금 주목받는 사건) — 로그인 사용자 누구나 조회.
+    // 채팅방 인원이 기준을 넘거나 "공론화 SOS"를 누르면 그 사용자의 앱이 항목을 만들거나 인원수를 갱신한다.
+    // 삭제는 막아둔다 (해결된 사건은 status만 'resolved'로 바꿔 목록에서 내림).
+    match /hotBoardEntries/{docId} {
+      allow read, create, update: if isSignedIn();
+      allow delete: if false;
+    }
+    // 전자서명 기록 — 생성만 가능, 한 번 남기면 누구도 수정·삭제할 수 없다 (signatureService.js)
+    match /signatures/{docId} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if false;
+    }
+    // ── 데드맨 스위치 보호자 연결 (guardianService.js) ──────────────────────────
+    // 수락된 보호자 연결이 있는지: 요청자(보호받는 사람) uid + '_' + 보호자 uid 문서
+    function isAcceptedGuardianOf(requesterId, guardianId) {
+      let path = /databases/$(database)/documents/guardianLinks/$(requesterId + '_' + guardianId);
+      return exists(path) && get(path).data.status == 'accepted';
+    }
+    // Themis ID → 사용자. 코드를 아는 사람만 단건 조회 가능(목록 조회로 전체 사용자 훑기 방지)
+    match /themisIds/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+    // 이메일 → 사용자 (이메일을 정확히 아는 경우만 단건 조회)
+    match /userDirectory/{emailKey} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+    // 보호자 연결 — 요청자만 만들고(대기 상태), 보호자만 수락/거절하며, 둘 다 연결을 끊을 수 있다
+    match /guardianLinks/{linkId} {
+      // 단건 조회는 문서 ID(요청자_보호자)에 내 uid가 들어있으면 허용 — 아직 없는 문서(요청 전 중복 확인)도 조회 가능
+      allow get: if isSignedIn()
+        && (linkId.matches(request.auth.uid + '_.*') || linkId.matches('.*_' + request.auth.uid));
+      allow list: if isSignedIn()
+        && (resource.data.requesterId == request.auth.uid || resource.data.guardianId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && linkId == request.auth.uid + '_' + request.resource.data.guardianId;
+      allow update: if isSignedIn()
+        && resource.data.guardianId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
+        && request.resource.data.status in ['accepted', 'rejected'];
+      allow delete: if isSignedIn()
+        && (resource.data.requesterId == request.auth.uid || resource.data.guardianId == request.auth.uid);
+    }
+    // 푸시 토큰 — 본인, 그리고 나를 보호자로 둔(수락된) 사람만 읽을 수 있다
+    match /pushTokens/{uid} {
+      allow read: if isOwner(uid) || (isSignedIn() && isAcceptedGuardianOf(request.auth.uid, uid));
+      allow write: if isOwner(uid);
+    }
+    // 위급 알림 기록 — 수락된 보호자에게만 보낼 수 있고, 보낸 사람·받은 사람만 볼 수 있다
+    match /deadmanAlerts/{alertId} {
+      allow read: if isSignedIn()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && isAcceptedGuardianOf(request.auth.uid, request.resource.data.toUid);
+      allow update: if isSignedIn()
+        && resource.data.toUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+      allow delete: if false;
+    }
+    // 계약 전 필수 체크리스트 — 문서 ID가 곧 userId (사용자 1명당 문서 1개)
+    match /preContractChecklists/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    // 사전 예방 상담 질문 기록 — 문서 ID가 곧 userId, 유형별로 내부 필드로 구분
+    match /preventionChatHistory/{uid} {
+      allow read, write: if isOwner(uid);
+    }
     match /{document=**} {
       allow read, write: if false;
     }

@@ -20,6 +20,8 @@ import ResponseGuideScreen from '../screens/ResponseGuideScreen';
 import ReportPreviewScreen from '../screens/ReportPreviewScreen';
 import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
 import PreventionConsultScreen from '../screens/PreventionConsultScreen';
+import PreContractChecklistScreen from '../screens/PreContractChecklistScreen';
+import { GuardianScreen } from '../screens/GuardianScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -28,6 +30,7 @@ import {
   EXPERT_ROUTES,
   CHAT_ROUTES,
   PREVENTION_ROUTES,
+  GUARDIAN_ROUTES,
 } from './routes';
 
 // 같은 사건(caseId)의 증거 업로드/타임라인 화면은 스택에 하나만 두기 위한 id.
@@ -190,6 +193,8 @@ function AppStack() {
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
       <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={GUARDIAN_ROUTES.MANAGE} component={GuardianScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );

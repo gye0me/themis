@@ -34,14 +34,21 @@ import {
 
 /**
  * 이메일/비밀번호로 회원가입
+ * accountType: 'user'(일반) | 'expert'(전문가 전용 가입) — 전문가 배지는 전문가 계정에만 노출된다.
+ * expertProfile: 전문가 가입 시 { job, organization, licenseNumber }
  */
-export async function signUp(email, password, displayName = '') {
+export async function signUp(email, password, displayName = '', { accountType = 'user', expertProfile = null } = {}) {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const isExpertAccount = accountType === 'expert';
 
     await addUserProfile(userCredential.user.uid, {
       email,
       nickname: displayName,
+      accountType: isExpertAccount ? 'expert' : 'user',
+      // 전문가 계정은 가입하면서 배지가 켜진 상태로 시작한다 (홈에서 표시 여부만 끌 수 있음)
+      isExpert: isExpertAccount,
+      expertProfile: isExpertAccount ? expertProfile : null,
     });
 
     return userCredential.user;
@@ -342,6 +349,45 @@ async function uploadFileFromUri(fileUri, path, contentType, webFile = null) {
 }
 
 /**
+ * 전문가 게시판에 첨부할 PDF 파일을 Storage에 업로드.
+ * (게시판 방어책: PDF만 허용 — 호출부에서 mimeType을 꼭 'application/pdf'로 확인하고 불러야 함)
+ */
+// ==================== 사전 예방 상담 질문 기록 ====================
+// 대응 가이드(ResponseGuideScreen)의 Themis AI는 사건 문서(caseDoc.aiHistory)에 저장돼서
+// 화면을 나갔다 와도 질문 내역이 남는데, 사전 예방 상담은 사건이 없는 상태라 그게 안 됐다.
+// 사용자 1명당 문서 1개, caseType별로 내역을 나눠서 저장한다.
+
+export async function getPreventionChatHistory(userId, caseType) {
+  try {
+    const snapshot = await getDoc(doc(db, 'preventionChatHistory', userId));
+    if (!snapshot.exists()) return [];
+    return snapshot.data()?.byType?.[caseType] ?? [];
+  } catch (error) {
+    console.error('사전 예방 상담 기록 조회 오류:', error);
+    return [];
+  }
+}
+
+export async function savePreventionChatHistory(userId, caseType, messages) {
+  try {
+    await setDoc(
+      doc(db, 'preventionChatHistory', userId),
+      { byType: { [caseType]: messages }, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('사전 예방 상담 기록 저장 오류:', error);
+  }
+}
+
+export async function uploadBoardAttachmentPdf(fileUri, fileName) {
+  const safeName = (fileName || `attachment-${Date.now()}.pdf`).replace(/[^\w.\-가-힣]/g, '_');
+  const path = `boardAttachments/${Date.now()}-${safeName}`;
+  const { downloadURL } = await uploadFileFromUri(fileUri, path, 'application/pdf');
+  return { url: downloadURL, name: safeName };
+}
+
+/**
  * 영상 증거의 5초 지점 캡처 이미지를 Storage에 업로드.
  * (EvidenceUploadScreen에서 expo-video-thumbnails로 뽑은 썸네일 uri를 넘긴다)
  */
@@ -630,6 +676,46 @@ export async function deleteFile(path) {
     await deleteObject(fileRef);
   } catch (error) {
     console.error('파일 삭제 오류:', error);
+    throw error;
+  }
+}
+
+// ==================== 계약 전 체크리스트 (사전 예방) ====================
+// 사건(case)과 무관하게, 사용자 1명당 "현재 확인 중인 매물" 체크리스트 하나를 유지한다.
+// (여러 매물을 동시에 비교하는 기능이 아니라, 지금 계약을 고민 중인 곳 하나에 집중하는 도구)
+
+const PRE_CONTRACT_CHECKLIST_COLLECTION = 'preContractChecklists';
+
+/**
+ * 저장된 체크리스트 상태를 불러온다. 저장된 적 없으면 null 반환.
+ * @param {string} userId
+ * @returns {Promise<Array<{id: string, completed: boolean, checkedAt: any}>|null>}
+ */
+export async function getPreContractChecklistState(userId) {
+  try {
+    const snapshot = await getDoc(doc(db, PRE_CONTRACT_CHECKLIST_COLLECTION, userId));
+    if (!snapshot.exists()) return null;
+    return snapshot.data()?.items ?? null;
+  } catch (error) {
+    console.error('계약 전 체크리스트 조회 오류:', error);
+    throw error;
+  }
+}
+
+/**
+ * 체크리스트 완료 상태를 저장한다 (덮어쓰기).
+ * @param {string} userId
+ * @param {Array<{id: string, completed: boolean, checkedAt: any}>} items
+ */
+export async function savePreContractChecklistState(userId, items) {
+  try {
+    await setDoc(
+      doc(db, PRE_CONTRACT_CHECKLIST_COLLECTION, userId),
+      { items, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('계약 전 체크리스트 저장 오류:', error);
     throw error;
   }
 }
