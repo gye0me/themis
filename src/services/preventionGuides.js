@@ -10,17 +10,17 @@
 export const PREVENTION_GUIDES = {
   전세사기: {
     requiredEvidence: [
-      { icon: '📑', title: '계약서 전체', desc: '특약사항까지 모든 페이지를 사진으로' },
-      { icon: '📄', title: '등기부등본', desc: '계약 전·잔금 전에 뗀 것 모두 (소유자·근저당 확인)' },
-      { icon: '🧾', title: '보증금 이체 내역', desc: '계약금·중도금·잔금 이체 확인증' },
-      { icon: '🏠', title: '집 상태 사진·영상', desc: '입주 전, 하자 발생 시, 퇴거 시 각각' },
-      { icon: '💬', title: '임대인·중개사 대화', desc: '문자·카톡 캡처, 통화 녹음' },
+      { icon: 'contract', title: '계약서 전체', desc: '특약사항까지 모든 페이지를 사진으로' },
+      { icon: 'file', title: '등기부등본', desc: '계약 전·잔금 전에 뗀 것 모두 (소유자·근저당 확인)' },
+      { icon: 'receipt', title: '보증금 이체 내역', desc: '계약금·중도금·잔금 이체 확인증' },
+      { icon: 'home', title: '집 상태 사진·영상', desc: '입주 전, 하자 발생 시, 퇴거 시 각각' },
+      { icon: 'message', title: '임대인·중개사 대화', desc: '문자·카톡 캡처, 통화 녹음' },
     ],
     scenarios: [
       {
         id: 'rent',
         label: '전월세',
-        icon: '🔑',
+        icon: 'key',
         summary: '보증금을 지키려면 계약 전 확인과 입주 직후 신고가 가장 중요해요.',
         tips: [
           '계약 전에 등기부등본을 직접 떼서 집주인 이름과 근저당·압류가 있는지 확인하세요.',
@@ -44,7 +44,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'sale',
         label: '매매',
-        icon: '🏢',
+        icon: 'building',
         summary: '큰돈이 오가는 만큼 잔금 전 마지막 확인이 중요해요.',
         tips: [
           '계약 전과 잔금 치르기 직전에 등기부등본을 다시 떼서 바뀐 권리관계가 없는지 확인하세요.',
@@ -66,17 +66,17 @@ export const PREVENTION_GUIDES = {
 
   금전사기: {
     requiredEvidence: [
-      { icon: '🖼️', title: '판매·광고 글 캡처', desc: '작성자 아이디, 가격, 작성 시간이 보이게' },
-      { icon: '💬', title: '대화 내용 전체', desc: '앱 밖 메신저로 옮겨간 대화까지 모두' },
-      { icon: '🧾', title: '송금·이체 내역', desc: '이체 확인증, 계좌 거래내역' },
-      { icon: '🪪', title: '상대방 정보', desc: '계좌번호, 예금주, 전화번호, 아이디' },
-      { icon: '📞', title: '통화 녹음', desc: '보이스피싱이면 통화 기록과 녹음' },
+      { icon: 'image', title: '판매·광고 글 캡처', desc: '작성자 아이디, 가격, 작성 시간이 보이게' },
+      { icon: 'message', title: '대화 내용 전체', desc: '앱 밖 메신저로 옮겨간 대화까지 모두' },
+      { icon: 'receipt', title: '송금·이체 내역', desc: '이체 확인증, 계좌 거래내역' },
+      { icon: 'id-card', title: '상대방 정보', desc: '계좌번호, 예금주, 전화번호, 아이디' },
+      { icon: 'phone', title: '통화 녹음', desc: '보이스피싱이면 통화 기록과 녹음' },
     ],
     scenarios: [
       {
         id: 'ticket',
         label: '티켓 거래',
-        icon: '🎫',
+        icon: 'ticket',
         summary: '공연·스포츠 티켓 양도는 "먼저 입금"을 요구하는 사기가 가장 많아요.',
         tips: [
           '가능하면 공식 예매처나 공식 양도·리셀 서비스를 이용하세요.',
@@ -97,7 +97,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'used',
         label: '중고거래',
-        icon: '📦',
+        icon: 'package',
         summary: '직거래가 가장 안전하고, 택배거래는 안전결제와 개봉 영상이 핵심이에요.',
         tips: [
           '가능하면 사람 많은 곳에서 직거래하고 물건을 확인한 뒤 돈을 보내세요.',
@@ -116,7 +116,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'phishing',
         label: '보이스피싱',
-        icon: '📞',
+        icon: 'phone',
         summary: '수사기관·금융기관은 전화로 돈을 보내라고 하거나 앱 설치를 요구하지 않아요.',
         tips: [
           '검찰·경찰·금감원을 사칭하며 돈이나 개인정보를 요구하면 바로 끊으세요.',
@@ -134,7 +134,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'invest',
         label: '투자 권유',
-        icon: '📈',
+        icon: 'trending-up',
         summary: '"원금 보장·고수익"을 약속하는 투자 권유는 대부분 사기예요.',
         tips: [
           '금융감독원 "파인"에서 제도권 금융회사인지 먼저 조회하세요.',
@@ -153,17 +153,17 @@ export const PREVENTION_GUIDES = {
 
   괴롭힘: {
     requiredEvidence: [
-      { icon: '📝', title: '일시·장소·내용 기록', desc: '언제, 어디서, 누가, 무슨 말·행동을 했는지' },
-      { icon: '🎙️', title: '녹음', desc: '내가 참여한 대화 녹음' },
-      { icon: '💬', title: '메시지·이메일', desc: '문자, 메신저, 사내 메일 캡처' },
-      { icon: '🏥', title: '진단서·진료 기록', desc: '신체·정신적 피해 모두' },
-      { icon: '👀', title: '목격자 정보', desc: '함께 본 사람의 이름·연락처' },
+      { icon: 'edit', title: '일시·장소·내용 기록', desc: '언제, 어디서, 누가, 무슨 말·행동을 했는지' },
+      { icon: 'mic', title: '녹음', desc: '내가 참여한 대화 녹음' },
+      { icon: 'message', title: '메시지·이메일', desc: '문자, 메신저, 사내 메일 캡처' },
+      { icon: 'medical', title: '진단서·진료 기록', desc: '신체·정신적 피해 모두' },
+      { icon: 'eye', title: '목격자 정보', desc: '함께 본 사람의 이름·연락처' },
     ],
     scenarios: [
       {
         id: 'workplace',
         label: '직장 내 괴롭힘',
-        icon: '🏢',
+        icon: 'building',
         summary: '반복된 행위를 날짜별로 꾸준히 기록하는 것이 가장 강력한 증거예요.',
         tips: [
           '일이 생길 때마다 날짜·시간·장소·발언 내용·목격자를 바로 기록하세요.',
@@ -184,7 +184,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'school',
         label: '학교폭력',
-        icon: '🏫',
+        icon: 'book',
         summary: '다친 곳은 바로 사진을 찍고 병원 진단서를 받아두세요.',
         tips: [
           '다친 곳은 날짜가 보이게 바로 사진을 찍고 병원에서 진단서를 받으세요.',
@@ -203,7 +203,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'online',
         label: '온라인 괴롭힘',
-        icon: '🌐',
+        icon: 'globe',
         summary: '게시물은 언제든 지워질 수 있어서 보자마자 저장하는 게 중요해요.',
         tips: [
           '게시글·댓글은 주소(URL)와 날짜가 함께 보이게 캡처하세요.',
@@ -221,17 +221,17 @@ export const PREVENTION_GUIDES = {
 
   신변위협: {
     requiredEvidence: [
-      { icon: '💬', title: '협박 연락 기록', desc: '문자·메신저·통화 목록 캡처' },
-      { icon: '📹', title: 'CCTV·블랙박스', desc: '영상은 보관 기간이 짧으니 빨리 요청' },
-      { icon: '📷', title: '상처 사진·진단서', desc: '다친 곳이 있다면 바로' },
-      { icon: '🚓', title: '112 신고 기록', desc: '신고한 날짜·시간, 출동 여부' },
-      { icon: '📍', title: '발생 장소·시간', desc: '따라온 경로, 마주친 장소 등' },
+      { icon: 'message', title: '협박 연락 기록', desc: '문자·메신저·통화 목록 캡처' },
+      { icon: 'video', title: 'CCTV·블랙박스', desc: '영상은 보관 기간이 짧으니 빨리 요청' },
+      { icon: 'camera', title: '상처 사진·진단서', desc: '다친 곳이 있다면 바로' },
+      { icon: 'siren', title: '112 신고 기록', desc: '신고한 날짜·시간, 출동 여부' },
+      { icon: 'map-pin', title: '발생 장소·시간', desc: '따라온 경로, 마주친 장소 등' },
     ],
     scenarios: [
       {
         id: 'stalking',
         label: '스토킹',
-        icon: '👣',
+        icon: 'eye',
         summary: '위험하다고 느끼면 망설이지 말고 112에 신고하세요. 신고 자체가 기록이 돼요.',
         tips: [
           '위협을 느끼면 바로 112에 신고하세요. 신고 기록이 나중에 중요한 증거가 돼요.',
@@ -250,7 +250,7 @@ export const PREVENTION_GUIDES = {
       {
         id: 'dating',
         label: '협박·데이트폭력',
-        icon: '💔',
+        icon: 'heart',
         summary: '다친 곳 사진과 진단서, 협박 메시지는 지워지기 전에 저장하세요.',
         tips: [
           '다친 곳은 바로 사진을 찍고 병원에서 진단서를 받으세요.',
@@ -269,16 +269,16 @@ export const PREVENTION_GUIDES = {
 
   기타: {
     requiredEvidence: [
-      { icon: '📝', title: '사건 경위 메모', desc: '언제, 어디서, 무슨 일이 있었는지' },
-      { icon: '📷', title: '사진·영상', desc: '현장, 물건, 피해 상태' },
-      { icon: '💬', title: '대화 기록', desc: '문자·메신저 캡처, 통화 녹음' },
-      { icon: '🧾', title: '거래·지출 내역', desc: '돈이 오갔다면 이체 내역' },
+      { icon: 'edit', title: '사건 경위 메모', desc: '언제, 어디서, 무슨 일이 있었는지' },
+      { icon: 'camera', title: '사진·영상', desc: '현장, 물건, 피해 상태' },
+      { icon: 'message', title: '대화 기록', desc: '문자·메신저 캡처, 통화 녹음' },
+      { icon: 'receipt', title: '거래·지출 내역', desc: '돈이 오갔다면 이체 내역' },
     ],
     scenarios: [
       {
         id: 'general',
         label: '기본 예방 수칙',
-        icon: '🛡️',
+        icon: 'shield',
         summary: '어떤 일이든 "그때그때 바로 기록"이 가장 좋은 예방이에요.',
         tips: [
           '일이 생기면 기억이 흐려지기 전에 날짜·시간·내용을 바로 기록하세요.',

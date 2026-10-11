@@ -28,7 +28,7 @@ export const CHAT_ROOMS = [
     id: 'jeonse-gangnam',
     name: '강남구 전세사기 피해자',
     description: '같은 집주인에게 사례 다수 · 집단 고소 준비',
-    icon: '🏠',
+    icon: 'home',
     color: '#FEE2E2',
     type: 'victim',
   },
@@ -36,7 +36,7 @@ export const CHAT_ROOMS = [
     id: 'stalking-support',
     name: '스토킹 피해자 지원',
     description: '피해자 지원센터 연결 · 법적 대응 공유',
-    icon: '🛡️',
+    icon: 'shield',
     color: '#F3E8FF',
     type: 'victim',
   },
@@ -44,7 +44,7 @@ export const CHAT_ROOMS = [
     id: 'workplace-harassment',
     name: '직장 내 괴롭힘 피해자',
     description: '증거 수집 방법 공유 · 노동청 신고 안내',
-    icon: '💼',
+    icon: 'briefcase',
     color: '#FFF7ED',
     type: 'victim',
   },
@@ -52,7 +52,7 @@ export const CHAT_ROOMS = [
     id: 'money-fraud-support',
     name: '금전·거래 사기 피해자',
     description: '중고거래·보이스피싱 피해 공유 · 신고 절차 안내',
-    icon: '💸',
+    icon: 'wallet',
     color: '#FEF3C7',
     type: 'victim',
   },
@@ -247,7 +247,7 @@ export async function requestNewRoomTopic(topic, uid, displayName) {
     const meta = {
       name: trimmed,
       description: `참여자 ${interestedCount}명이 모여 개설된 채팅방`,
-      icon: '🆕',
+      icon: 'message',
       createdAt: serverTimestamp(),
     };
     await update(ref(realtimeDb, `chatRooms/${roomId}/meta`), meta);
@@ -328,7 +328,7 @@ export function subscribeToDynamicRooms(callback) {
         id: roomId,
         name: meta.name,
         description: meta.description ?? '',
-        icon: meta.icon ?? '🆕',
+        icon: meta.icon ?? 'message',
         color: '#E0F2FE',
         type: 'victim',
       }));
@@ -397,13 +397,17 @@ export function subscribeToMyDirectRooms(uid, callback) {
         id: roomId,
         name: data.otherName || '1:1 채팅',
         description: '1:1 비공개 채팅',
-        icon: '💬',
+        icon: 'message',
         color: '#EDE9FE',
         type: 'dm',
       }));
       callback(rooms);
     },
-    (error) => console.error('내 1:1 채팅방 목록 구독 오류:', error),
+    (error) => {
+      // database.rules.json의 userDmRooms 규칙이 서버에 배포되지 않으면 permission_denied가 난다
+      console.warn('내 1:1 채팅방 목록 구독 오류 (Realtime DB 규칙 배포 확인 필요):', error?.message);
+      callback([]);
+    },
   );
   return () => off(indexRef, 'value', handler);
 }

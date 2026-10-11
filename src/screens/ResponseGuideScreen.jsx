@@ -19,6 +19,7 @@ import { getCaseById, saveCaseQuestSteps, saveCaseAiHistory } from '../services/
 import { askCaseAssistant } from '../services/caseAssistantService';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 export default function ResponseGuideScreen({ navigation, route }) {
   // 계약서 조항 체크리스트 흐름 (기존)
@@ -214,7 +215,7 @@ export default function ResponseGuideScreen({ navigation, route }) {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <View style={[styles.checkbox, item.completed && styles.checkboxDone]}>
-                  {item.completed && <Text style={styles.checkmark}>✓</Text>}
+                  {item.completed && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
                 </View>
               </TouchableOpacity>
             </View>
@@ -242,10 +243,10 @@ export default function ResponseGuideScreen({ navigation, route }) {
                       style={styles.linkBtn}
                       onPress={() => Linking.openURL(item.link.startsWith('http') ? item.link : `https://${item.link}`)}
                     >
-                      <Text style={styles.linkBtnText}>🔗 관련 기관 바로가기</Text>
+                      <Text style={styles.linkBtnText}>관련 기관 바로가기</Text>
                     </TouchableOpacity>
                   ) : null}
-                  {item.phone ? <Text style={styles.questEvidence}>📞 {item.phone}</Text> : null}
+                  {item.phone ? <Text style={styles.questEvidence}>연락처 {item.phone}</Text> : null}
                   <TextInput
                     style={styles.noteInput}
                     placeholder="질문이나 메모를 기록해 두세요..."
@@ -270,9 +271,9 @@ export default function ResponseGuideScreen({ navigation, route }) {
                     <Text style={styles.questDesc}>{item.description}</Text>
                   ) : null}
                   {item.evidence ? (
-                    <Text style={styles.questEvidence}>📄 {item.evidence}</Text>
+                    <Text style={styles.questEvidence}>{item.evidence}</Text>
                   ) : !item.completed ? (
-                    <Text style={styles.questMissing}>⚠️ 해당 조항 없음</Text>
+                    <Text style={styles.questMissing}>해당 조항 없음</Text>
                   ) : null}
                   {item.legalBasis ? (
                     <Text style={styles.questLegal}>근거: {item.legalBasis}</Text>

@@ -11,7 +11,7 @@ function App() {
         <AuthProvider>
           <AppNavigator />
         </AuthProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

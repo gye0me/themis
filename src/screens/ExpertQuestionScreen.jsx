@@ -5,6 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import { createExpertPost } from '../services/expertBoardService';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 export default function ExpertQuestionScreen({ navigation }) {
   const { user, profile } = useContext(AuthContext);
@@ -87,11 +88,11 @@ export default function ExpertQuestionScreen({ navigation }) {
         {/* 익명 게시 */}
         <TouchableOpacity style={styles.anonRow} onPress={() => setIsAnonymous((v) => !v)} activeOpacity={0.7}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.anonLabel}>🙈 익명으로 올리기</Text>
+            <Text style={styles.anonLabel}>익명으로 올리기</Text>
             <Text style={styles.anonSub}>켜면 닉네임 대신 "익명 작성자"로 표시돼요</Text>
           </View>
           <View style={isAnonymous ? styles.checkboxOn : styles.checkboxOff}>
-            {isAnonymous ? <Text style={styles.checkboxCheck}>✓</Text> : null}
+            {isAnonymous ? <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} /> : null}
           </View>
         </TouchableOpacity>
 

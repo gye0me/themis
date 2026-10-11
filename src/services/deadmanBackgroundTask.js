@@ -122,7 +122,7 @@ TaskManager.defineTask(DEADMAN_TASK_NAME, async () => {
       // (위치는 백그라운드에서 얻기 어려워, 보호자는 앱의 알림 기록에서 확인 · 사용자가 앱을 열면 위치와 함께 기록이 남는다)
       const cache = JSON.parse((await AsyncStorage.getItem(GUARDIAN_CACHE_KEY)) || '{}');
       const pushed = await sendExpoPush(cache.tokens, {
-        title: `⚠️ ${cache.myName || 'Themis 사용자'}님이 응답이 없어요`,
+        title: `${cache.myName || 'Themis 사용자'}님이 응답이 없어요`,
         body: `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없었어요. 연락해서 안전을 확인해주세요.`,
         data: { type: 'guardian-alert' },
       });
@@ -130,7 +130,7 @@ TaskManager.defineTask(DEADMAN_TASK_NAME, async () => {
 
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '⚠️ Themis 무응답 감지됨',
+          title: 'Themis 무응답 감지됨',
           body: pushed > 0
             ? `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없어 보호자 ${pushed}명에게 알림을 보냈어요. 괜찮다면 앱을 열어주세요.`
             : `${formatDeadmanTimeout(timeoutMin)}간 체크인이 없었어요. 탭해서 ${contactName}에게 위치와 함께 알림을 보내세요.`,

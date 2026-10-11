@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { signUp } from '../../services/firebaseService';
 import { C } from '../../theme/tokens';
+import { Icon } from '../../components/Icon';
 import { AuthLayout, AuthPrimaryButton } from './AuthLayout';
 import styles from './SignupScreen.styles';
 
 const ACCOUNT_TYPES = [
-  { key: 'user', icon: '🙋', label: '일반 사용자', desc: '내 사건을 기록하고 대응해요' },
-  { key: 'expert', icon: '🎓', label: '전문가', desc: '변호사·중개사 등 답변 제공' },
+  { key: 'user', icon: 'user', label: '일반 사용자', desc: '내 사건을 기록하고 대응해요' },
+  { key: 'expert', icon: 'graduation', label: '전문가', desc: '변호사·중개사 등 답변 제공' },
 ];
 const EXPERT_JOBS = ['변호사', '공인중개사', '기자', '회계사', '기타'];
 
@@ -126,7 +127,7 @@ export function SignupScreen({ onSwitchToLogin }) {
                 style={[styles.segmentItem, active && styles.segmentItemActive]}
                 onPress={() => setAccountType(t.key)}
               >
-                <Text style={styles.segmentIcon}>{t.icon}</Text>
+                <Icon name={t.icon} size={22} color={active ? C.brand600 : C.ink500} />
                 <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{t.label}</Text>
                 <Text style={styles.segmentDesc}>{t.desc}</Text>
               </Pressable>
@@ -179,7 +180,7 @@ export function SignupScreen({ onSwitchToLogin }) {
 
       {accountType === 'expert' && (
         <View style={styles.expertBox}>
-          <Text style={styles.expertBoxTitle}>🎓 전문가 정보</Text>
+          <Text style={styles.expertBoxTitle}>전문가 정보</Text>
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>직종</Text>

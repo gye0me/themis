@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Activi
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { askCaseAssistant } from '../services/caseAssistantService';
 import { AuthContext } from '../context/AuthContext';
@@ -147,7 +148,7 @@ export default function PreventionConsultScreen({ navigation }) {
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => setCaseType(type)}
               >
-                <Text style={styles.chipIcon}>{meta.icon}</Text>
+                <Icon name={meta.icon} size={16} color={active ? C.brand600 : C.ink500} />
                 <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{meta.label}</Text>
               </TouchableOpacity>
             );
@@ -159,7 +160,7 @@ export default function PreventionConsultScreen({ navigation }) {
           onPress={() => navigation.navigate(PREVENTION_ROUTES.CHECKLIST)}
           activeOpacity={0.8}
         >
-          <Text style={styles.checklistLinkIcon}>📋</Text>
+          <Icon name="clipboard" size={20} color={C.brand600} />
           <View style={{ flex: 1 }}>
             <Text style={styles.checklistLinkTitle}>계약 전 필수 체크리스트</Text>
             <Text style={styles.checklistLinkDesc}>등기부등본 확인, 전입신고 타이밍 등 도장 찍기 전 확인할 것들</Text>
@@ -201,7 +202,7 @@ export default function PreventionConsultScreen({ navigation }) {
                   <ActivityIndicator size="small" color={C.brand600} />
                 ) : (
                   <Text style={styles.saveRecordBtnText}>
-                    {saved ? '✓ 기록으로 남겼어요' : '📌 이 상담 기록으로 남기기'}
+                    {saved ? '기록으로 남겼어요' : '이 상담 기록으로 남기기'}
                   </Text>
                 )}
               </TouchableOpacity>

@@ -25,6 +25,14 @@ export const C = {
   warn100: '#FFF1E7',
 };
 
+// 신호등(계약서 분석 위험도) 색 — 주의는 앱 공용 경고색(주황)과 구분해 노란색을 쓴다.
+// 노란색은 밝은 배경에서 글자로 읽기 어려워서 dot(동그라미·테두리)·text(글자)·bg(배경)를 나눠 둔다.
+export const SIGNAL = {
+  dot: { danger: '#DC2626', warning: '#EAB308', safe: '#16A672' },
+  text: { danger: '#DC2626', warning: '#A16207', safe: '#16A672' },
+  bg: { danger: '#FDE9E9', warning: '#FEF9C3', safe: '#E4F7EF' },
+};
+
 // 증거 종류별 배지 색 (사진/음성/영상/계약서) — 여러 화면(홈, 기록, 타임라인)에서 공용으로 사용.
 export const EVIDENCE_TILES = [
   { type: 'image', label: '사진', bg: '#EFF6FF', color: '#1D4ED8' },

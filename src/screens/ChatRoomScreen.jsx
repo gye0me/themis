@@ -11,7 +11,10 @@ import {
 } from '../services/chatService';
 import { getCasesByUser } from '../services/firebaseService';
 import { BackHeader } from '../components/BackHeader';
+import { ConfirmSheet } from '../components/ConfirmSheet';
+import { blockUser, getBlockedUserIds } from '../services/blockService';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatTime(ts) {
   if (!ts) return '';
@@ -28,7 +31,11 @@ function formatDateLabel(ts) {
 }
 
 export function ChatRoomScreen({ navigation, route }) {
-  const { user, profile } = useContext(AuthContext);
+  const { user, profile, refreshProfile } = useContext(AuthContext);
+  // 차단한 사용자의 메시지는 내 화면에서 숨긴다 — 상대 이름을 누르면 차단할 수 있다
+  const blockedIds = getBlockedUserIds(profile);
+  const [blockTarget, setBlockTarget] = useState(null); // { uid, name }
+  const [blocking, setBlocking] = useState(false);
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
 
   const roomId = route?.params?.roomId ?? null;
@@ -184,7 +191,7 @@ export function ChatRoomScreen({ navigation, route }) {
           <View style={styles.headerRightRow}>
             {isDirect && (
               <TouchableOpacity onPress={openReportPicker} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={styles.reportSendBtnText}>📄 보고서 보내기</Text>
+                <Text style={styles.reportSendBtnText}>보고서 보내기</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={handleLeaveRoom} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -223,7 +230,7 @@ export function ChatRoomScreen({ navigation, route }) {
               <Text style={styles.emptyText}>아직 메시지가 없어요. 첫 메시지를 보내보세요!</Text>
             </View>
           ) : (
-            messages.map((msg) => {
+            messages.filter((msg) => !blockedIds.has(msg.senderId)).map((msg) => {
               const isMine = msg.senderId === user?.uid;
               const fileCard = msg.file ? (
                 <TouchableOpacity
@@ -232,7 +239,10 @@ export function ChatRoomScreen({ navigation, route }) {
                     Alert.alert('오류', '파일을 열지 못했습니다.');
                   })}
                 >
-                  <Text style={styles.fileBubbleText}>📄 {msg.file.name || '보고서.pdf'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Icon name="file" size={16} color={C.brand600} />
+                    <Text style={styles.fileBubbleText}>{msg.file.name || '보고서.pdf'}</Text>
+                  </View>
                   <Text style={styles.fileBubbleHint}>탭해서 열기</Text>
                 </TouchableOpacity>
               ) : null;
@@ -256,7 +266,9 @@ export function ChatRoomScreen({ navigation, route }) {
                     <Text style={styles.avatarText}>{initial}</Text>
                   </View>
                   <View style={styles.otherMsgBody}>
-                    <Text style={styles.senderName}>{msg.senderName}</Text>
+                    <TouchableOpacity onPress={() => setBlockTarget({ uid: msg.senderId, name: msg.senderName })} hitSlop={6}>
+                      <Text style={styles.senderName}>{msg.senderName} ›</Text>
+                    </TouchableOpacity>
                     {fileCard ?? (
                       <View style={styles.otherBubble}>
                         <Text style={styles.otherBubbleText}>{msg.text}</Text>
@@ -325,6 +337,28 @@ export function ChatRoomScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+      <ConfirmSheet
+        visible={!!blockTarget}
+        title={`${blockTarget?.name ?? '이 사용자'}님을 차단할까요?`}
+        message="차단하면 이 사용자의 메시지가 내 화면에 더 이상 보이지 않아요. 계정 화면에서 언제든 해제할 수 있어요."
+        confirmLabel="차단하기"
+        destructive
+        loading={blocking}
+        onCancel={() => setBlockTarget(null)}
+        onConfirm={async () => {
+          if (!user || !blockTarget) return;
+          setBlocking(true);
+          try {
+            await blockUser(user.uid, blockTarget.uid, blockTarget.name);
+            await refreshProfile?.();
+          } catch (err) {
+            console.error('사용자 차단 오류:', err);
+          } finally {
+            setBlocking(false);
+            setBlockTarget(null);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }

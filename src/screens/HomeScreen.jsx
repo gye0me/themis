@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState, Image, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,9 +7,9 @@ import Svg, { Defs, LinearGradient as SvgGradient, Stop, Ellipse, Circle, Path }
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
-import { APP_ROUTES, RECORD_ROUTES, PREVENTION_ROUTES, GUARDIAN_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, PREVENTION_ROUTES, GUARDIAN_ROUTES, ACCOUNT_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
-import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
+import { getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
 import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
 import {
   syncDeadmanLocalState,
@@ -32,8 +32,11 @@ import {
   registerPushToken,
   sendDeadmanAlertToGuardians,
 } from '../services/guardianService';
+import { getUnreadNotificationCount } from '../services/notificationService';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { ScreenTopBar } from '../components/ScreenTopBar';
 import { C, EVIDENCE_TILES } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 // 앱이 백그라운드에 있어도 알림이 뜨도록 설정 (데드맨 스위치 초과 알림용)
 Notifications.setNotificationHandler({
@@ -46,7 +49,6 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const THEMIS_LOGO = require('../assets/themis-logo-brand.png');
 
 // 데드맨 스위치: 포그라운드에서는 1초 단위로 정확히 카운트다운한다.
 // 앱이 백그라운드에 있는 동안은 deadmanBackgroundTask.js에 등록된 백그라운드 작업(EAS 개발
@@ -98,7 +100,8 @@ function CaseCard({ entry, navigation, isExpanded, onToggleExpand }) {
             {isDone ? '완료' : '진행 중'}
           </Text>
         </View>
-        <Text style={styles.caseTitle} numberOfLines={1}>{meta.icon} {c.title || '이름 없는 사건'}</Text>
+        <Icon name={meta.icon} size={16} color={C.ink700} />
+        <Text style={styles.caseTitle} numberOfLines={1}>{c.title || '이름 없는 사건'}</Text>
         <Text style={styles.caseDate}>{formatCaseDate(c.createdAt)}</Text>
       </View>
 
@@ -124,7 +127,7 @@ function CaseCard({ entry, navigation, isExpanded, onToggleExpand }) {
               {previewItems.map((item) => (
                 <View key={item.id} style={styles.checkItem}>
                   <View style={[styles.checkDot, item.completed && styles.checkDotDone]}>
-                    {item.completed && <Text style={styles.checkMark}>✓</Text>}
+                    {item.completed && <Icon name="check" size={10} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text style={[styles.checkItemText, item.completed && styles.checkItemTextDone]} numberOfLines={1}>
                     {item.title}
@@ -187,14 +190,6 @@ function ShieldIllustration() {
   );
 }
 
-function SearchIcon({ color }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
-      <Circle cx={11} cy={11} r={7} />
-      <Path d="m21 21-4.3-4.3" />
-    </Svg>
-  );
-}
 function BellIcon({ color }) {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
@@ -261,6 +256,7 @@ export function HomeScreen({ navigation }) {
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [needGuardianHint, setNeedGuardianHint] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0); // 알림함 안 읽은 수 (종 아이콘 빨간 점)
 
   const [savingExpertBadge, setSavingExpertBadge] = useState(false);
   // 전문가 전용 가입으로 만든 계정만 배지를 쓸 수 있다 (일반 계정은 배지 카드 자체가 안 보임)
@@ -580,6 +576,9 @@ export function HomeScreen({ navigation }) {
       getReceivedAlerts(user.uid)
         .then((list) => active && setUnreadAlertCount(list.filter((a) => !a.readAt).length))
         .catch((err) => console.warn('위급 알림 조회 실패:', err?.message));
+      getUnreadNotificationCount(user.uid)
+        .then((n) => active && setUnreadNotificationCount(n))
+        .catch(() => {});
       // 이미 알림을 허용한 기기면 푸시 토큰을 최신으로 등록 (권한 창은 보호자 관리 화면에서만 띄운다)
       registerPushToken(user.uid);
       if (profile?.deadmanSwitch?.enabled) cacheGuardianTokensForBackground(user.uid, displayName);
@@ -657,24 +656,6 @@ export function HomeScreen({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick, deadmanEnabled, lastCheckIn, timeoutMin]);
 
-  const handleLogout = () => {
-    Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '로그아웃',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout();
-          } catch (err) {
-            console.error('로그아웃 오류:', err);
-            Alert.alert('오류', '로그아웃에 실패했습니다.');
-          }
-        },
-      },
-    ]);
-  };
-
   const isCustomTimeout = editingCustomTimeout || !DEADMAN_TIMEOUT_PRESETS_MIN.includes(timeoutMin);
 
   const totalEvidence = Object.values(evidenceByCase).reduce((sum, v) => sum + (v?.total ?? 0), 0);
@@ -682,7 +663,7 @@ export function HomeScreen({ navigation }) {
   // 사건마다 카드에 필요한 값(진행도·체크리스트·증거)을 미리 계산해두고,
   // 진행 중/완료로 나눠 완료된 사건은 기본적으로 접어서 보여준다.
   const casesWithMeta = cases.map((c) => {
-    const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁' };
+    const meta = CASE_TYPE_META[c.caseType] ?? { icon: 'folder' };
     const { items, progress } = buildQuestSteps(c.caseType, c.questSteps ?? [], c.tags ?? []);
     const evidence = evidenceByCase[c.id] ?? { total: 0, byType: {} };
     return { case: c, meta, items, progress, evidence, isDone: progress.percent === 100 };
@@ -705,21 +686,22 @@ export function HomeScreen({ navigation }) {
 
         {/* ===== 히어로 ===== */}
         <LinearGradient colors={[C.sky050, C.sky100, C.surface]} locations={[0, 0.62, 1]} style={styles.hero}>
-          <View style={styles.topBar}>
-            <Image source={THEMIS_LOGO} style={styles.headerBadge} resizeMode="contain" />
-            <Text style={styles.topBarTitle}>홈</Text>
-            <View style={styles.topBarIcons}>
-              <TouchableOpacity hitSlop={8} onPress={() => Alert.alert('준비 중', '검색 기능은 준비 중입니다.')}>
-                <SearchIcon color={C.ink700} />
-              </TouchableOpacity>
-              <TouchableOpacity hitSlop={8} onPress={() => Alert.alert('준비 중', '알림함 기능은 준비 중입니다.')}>
+          <ScreenTopBar
+            title="홈"
+            subtitle="오늘의 안전과 내 사건을 한눈에"
+            style={styles.homeTopBar}
+            right={
+              <>
+              <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.NOTIFICATIONS)}>
                 <BellIcon color={C.ink700} />
+                {unreadNotificationCount > 0 && <View style={styles.bellDot} />}
               </TouchableOpacity>
-              <TouchableOpacity hitSlop={8} onPress={handleLogout}>
+              <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.ACCOUNT)}>
                 <AccountIcon color={C.ink700} />
               </TouchableOpacity>
-            </View>
-          </View>
+              </>
+            }
+          />
 
           <ShieldIllustration />
 
@@ -760,7 +742,7 @@ export function HomeScreen({ navigation }) {
             <Text style={styles.sectionLabel}>오늘의 안전 체크</Text>
             {unreadAlertCount > 0 && (
               <TouchableOpacity style={styles.alertBanner} onPress={() => navigation.navigate(GUARDIAN_ROUTES.MANAGE)}>
-                <Text style={styles.alertBannerText}>🔴 내가 지켜주는 사람의 위급 알림 {unreadAlertCount}건 — 탭해서 확인</Text>
+                <Text style={styles.alertBannerText}>내가 지켜주는 사람의 위급 알림 {unreadAlertCount}건 — 탭해서 확인</Text>
               </TouchableOpacity>
             )}
             <LinearGradient colors={['#FBFDFF', C.sky050]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={styles.safetyCard}>
@@ -790,7 +772,7 @@ export function HomeScreen({ navigation }) {
 
               {deadmanNotice && (
                 <View style={styles.noticeBox}>
-                  <Text style={styles.noticeTitle}>⚠️ {deadmanNotice.title}</Text>
+                  <Text style={styles.noticeTitle}>{deadmanNotice.title}</Text>
                   <Text style={styles.noticeBody}>{deadmanNotice.body}</Text>
                   <Text style={styles.noticeSms} selectable>{deadmanNotice.smsMessage}</Text>
                   <View style={{ flexDirection: 'row', gap: 14, marginTop: 2 }}>
@@ -896,7 +878,7 @@ export function HomeScreen({ navigation }) {
                     </Text>
                   )}
                   <TouchableOpacity style={styles.guardianRow} onPress={() => navigation.navigate(GUARDIAN_ROUTES.MANAGE)}>
-                    <Text style={styles.guardianRowIcon}>👥</Text>
+                    <Icon name="users" size={20} color={C.brand600} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.guardianRowTitle}>
                         보호자 관리{pendingRequestCount > 0 ? ` · 받은 요청 ${pendingRequestCount}건` : ''}
@@ -938,7 +920,7 @@ export function HomeScreen({ navigation }) {
             <View style={styles.plainCard}>
               <View style={styles.safetyTop}>
                 <View style={styles.expertIcon}>
-                  <Text style={{ fontSize: 17 }}>🎓</Text>
+                  <Icon name="graduation" size={20} color={C.brand600} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.safetyTitle}>전문가 답변 배지</Text>
@@ -975,7 +957,7 @@ export function HomeScreen({ navigation }) {
                 style={styles.preventionCard}
               >
                 <View style={styles.preventionIconWrap}>
-                  <Text style={{ fontSize: 20 }}>💬</Text>
+                  <Icon name="message" size={20} color={C.brand600} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.preventionTitle}>이거 해도 될까요?</Text>
@@ -993,7 +975,7 @@ export function HomeScreen({ navigation }) {
             </View>
           ) : cases.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📂</Text>
+              <Icon name="folder" size={36} color={C.ink400} />
               <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
               <TouchableOpacity
                 style={styles.dashedRow}
@@ -1062,10 +1044,12 @@ const styles = StyleSheet.create({
 
   // 히어로
   hero: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 26, gap: 18 },
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerBadge: { width: 24, height: 24 },
-  topBarTitle: { fontSize: 21, fontWeight: '700', color: C.ink900 },
-  topBarIcons: { flexDirection: 'row', gap: 14, marginLeft: 'auto', alignItems: 'center' },
+  // 공용 상단 바(ScreenTopBar)를 히어로 안에 넣으므로 히어로의 좌우·위 여백만큼 되돌려 다른 탭과 위치를 맞춘다
+  homeTopBar: { marginHorizontal: -22, marginTop: -6 },
+  bellDot: {
+    position: 'absolute', top: -1, right: -1, width: 8, height: 8, borderRadius: 4,
+    backgroundColor: C.danger600, borderWidth: 1.5, borderColor: C.sky050,
+  },
   illustrationWrap: { height: 150, alignItems: 'center', justifyContent: 'center' },
   cloud: { position: 'absolute', borderRadius: 999, backgroundColor: '#E7EFFC', opacity: 0.9 },
   cloudA: { width: 92, height: 34, top: 2, left: 6 },

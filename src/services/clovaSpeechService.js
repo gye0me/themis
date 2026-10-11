@@ -14,8 +14,8 @@
 // 데모 전 실제 녹음 포맷(m4a 등)으로 꼭 테스트가 필요하다.
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { clovaRecognize } from './aiClient';
 
-const CLOVA_STT_URL = 'https://naveropenapi.apigw.ntruss.com/recog/v1/stt';
 
 const CLOVA_CHUNK_SECONDS = 60;
 // 음성 녹음(모노, 대화 음질) 평균 비트레이트 추정치. 실제 파일 비트레이트에 따라 오차가 있다.
@@ -38,47 +38,12 @@ const CLOVA_SUPPORTED_MIME_TYPES = new Set([
   'audio/wave',
 ]);
 
-function base64ChunkToBlob(base64Chunk, mimeType) {
-  // RN/expo 환경에는 Buffer가 없어서, base64 문자열을 data URI로 만들어
-  // fetch에 태우는 방식으로 표준 Blob을 얻는다 (firebaseService.js 업로드 로직과 동일한 패턴).
-  const dataUri = `data:${mimeType};base64,${base64Chunk}`;
-  return fetch(dataUri).then((res) => res.blob());
-}
-
-async function callClovaChunk(base64Chunk, mimeType, clientId, clientSecret) {
-  const blob = await base64ChunkToBlob(base64Chunk, mimeType);
-
-  const res = await fetch(`${CLOVA_STT_URL}?lang=Kor`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'X-NCP-APIGW-API-KEY-ID': clientId,
-      'X-NCP-APIGW-API-KEY': clientSecret,
-    },
-    body: blob,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`클로바 STT 오류 (${res.status}) ${errText}`.trim());
-  }
-
-  const data = await res.json();
-  return data?.text ?? '';
-}
-
 /**
  * 클로바 음성인식(CSR)으로 음성 파일을 텍스트로 변환한다.
  * 60초 제한을 우회하기 위해 파일을 1분 단위(근사)로 잘라 순서대로 전송하고,
  * 반환된 텍스트를 순서대로 이어붙인다.
  */
 export async function transcribeAudioClova(fileUri, mimeType = 'audio/m4a') {
-  const clientId = process.env.EXPO_PUBLIC_CLOVA_CLIENT_ID;
-  const clientSecret = process.env.EXPO_PUBLIC_CLOVA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error('클로바 API 키가 설정되지 않았습니다.');
-  }
-
   if (mimeType && !CLOVA_SUPPORTED_MIME_TYPES.has(mimeType.toLowerCase())) {
     console.warn(
       `클로바가 공식 지원하지 않는 포맷일 수 있습니다: ${mimeType} (mp3/aac/ac3/ogg/flac/wav 권장)`
@@ -104,7 +69,7 @@ export async function transcribeAudioClova(fileUri, mimeType = 'audio/m4a') {
 
     try {
       // 조각을 순서대로(await, 병렬 X) 보내야 텍스트 이어붙이기 순서가 보장된다.
-      const text = await callClovaChunk(base64Chunk, mimeType, clientId, clientSecret);
+      const text = await clovaRecognize(base64Chunk, mimeType);
       if (text) transcripts.push(text);
     } catch (e) {
       console.warn(`클로바 STT 조각 ${i + 1}/${chunkCount} 변환 실패:`, e.message);

@@ -9,11 +9,11 @@
 export const CASE_TYPES = ['전세사기', '금전사기', '괴롭힘', '신변위협', '기타'];
 
 export const CASE_TYPE_META = {
-  전세사기: { icon: '🏠', label: '부동산·계약', desc: '전세사기, 보증금, 계약' },
-  금전사기: { icon: '💸', label: '금전·거래 사기', desc: '중고거래, 보이스피싱' },
-  괴롭힘: { icon: '👥', label: '괴롭힘·폭력', desc: '직장, 학교, 따돌림' },
-  신변위협: { icon: '🚨', label: '신변 위협', desc: '스토킹, 협박, 데이트폭력' },
-  기타: { icon: '🗂️', label: '기타', desc: '위에 해당 없는 경우 · 항목 직접 추가 가능' },
+  전세사기: { icon: 'home', label: '부동산·계약', desc: '전세사기, 보증금, 계약' },
+  금전사기: { icon: 'wallet', label: '금전·거래 사기', desc: '중고거래, 보이스피싱' },
+  괴롭힘: { icon: 'users', label: '괴롭힘·폭력', desc: '직장, 학교, 따돌림' },
+  신변위협: { icon: 'siren', label: '신변 위협', desc: '스토킹, 협박, 데이트폭력' },
+  기타: { icon: 'folder', label: '기타', desc: '위에 해당 없는 경우 · 항목 직접 추가 가능' },
 };
 
 // 기록 시작 화면에서 태그 직접 입력 시 참고용으로 보여주는 추천 태그 (유형 공통 풀)

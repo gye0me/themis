@@ -18,6 +18,7 @@ import {
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatRelativeTime(ts) {
   if (!ts) return null;
@@ -167,7 +168,7 @@ export function ChatScreen({ navigation }) {
 
         {/* 검색바 */}
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Icon name="search" size={16} color={C.ink400} />
           <TextInput
             style={styles.searchInput}
             placeholder="채팅방 검색"
@@ -184,7 +185,7 @@ export function ChatScreen({ navigation }) {
           <View key={room.id} style={styles.roomCard}>
             <View style={styles.roomCardTop}>
               <View style={[styles.roomIcon, { backgroundColor: room.color }]}>
-                <Text style={styles.roomIconText}>{room.icon}</Text>
+                <Icon name={room.icon} size={22} color={C.ink700} />
               </View>
               <View style={styles.roomInfo}>
                 <View style={styles.roomTitleRow}>
@@ -205,7 +206,7 @@ export function ChatScreen({ navigation }) {
                 {joining === room.id
                   ? '입장 중...'
                   : (roomMembers[room.id] ?? []).includes(user?.uid)
-                    ? '참여 중 ✓'
+                    ? '참여 중'
                     : '참여하기'}
               </Text>
             </TouchableOpacity>
@@ -257,7 +258,7 @@ export function ChatScreen({ navigation }) {
                 >
                   <Text style={styles.pendingRequestTopic} numberOfLines={1}>{req.topic}</Text>
                   <Text style={styles.pendingRequestCount}>
-                    {req.isJoinedByMe ? '참여 중 ✓' : `${req.interestedCount}/${MIN_PARTICIPANTS_TO_OPEN}명`}
+                    {req.isJoinedByMe ? '참여 중' : `${req.interestedCount}/${MIN_PARTICIPANTS_TO_OPEN}명`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -280,7 +281,7 @@ export function ChatScreen({ navigation }) {
                   onPress={() => navigation.navigate(CHAT_ROUTES.ROOM, { roomId: room.id, roomName: room.name })}
                 >
                   <View style={[styles.chatAvatar, { backgroundColor: room.color }]}>
-                    <Text style={styles.chatAvatarText}>{room.icon}</Text>
+                    <Icon name={room.icon} size={20} color={C.ink700} />
                   </View>
                   <View style={styles.roomInfo}>
                     <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>

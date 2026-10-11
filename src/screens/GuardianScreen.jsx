@@ -24,6 +24,7 @@ import {
   sendGuardianRequest,
 } from '../services/guardianService';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatTime(ts) {
   const d = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : null;
@@ -140,7 +141,10 @@ export function GuardianScreen({ navigation }) {
             <Text style={styles.sectionLabel}>받은 위급 알림</Text>
             {alerts.map((a) => (
               <TouchableOpacity key={a.id} style={[styles.alertCard, a.readAt && styles.alertCardRead]} onPress={() => openAlert(a)}>
-                <Text style={styles.alertTitle}>{a.readAt ? '' : '🔴 '}⚠️ {a.fromName || '보호 대상'}님이 응답이 없어요</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name="alert-triangle" size={16} color={a.readAt ? C.ink500 : C.danger600} />
+                  <Text style={[styles.alertTitle, a.readAt && { color: C.ink700 }]}>{a.fromName || '보호 대상'}님이 응답이 없어요</Text>
+                </View>
                 <Text style={styles.alertBody}>{a.message}</Text>
                 <Text style={styles.alertMeta}>
                   {formatTime(a.createdAt)}{a.locationUrl ? ' · 탭해서 위치 보기' : ' · 위치 정보 없음'}

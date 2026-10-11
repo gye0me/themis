@@ -23,6 +23,7 @@ import { CasePickerModal } from '../components/CasePickerModal';
 import { PreventionGuideModal } from '../components/PreventionGuideModal';
 import { extractPhotoCaptureDate, extractContainerCreationTime } from '../utils/mediaEventTime';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 // 서버 워터마크(versatility.cloud)에 박아 넣을 문구. 사건 유형 + 현재 시각으로 구성해
 // "언제, 어떤 사건 관련 원본인지"가 워터마크 자체에 남도록 한다.
@@ -541,7 +542,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
         {lastSaved && (
           <View style={styles.savedBanner}>
             <Text style={styles.savedBannerText}>
-              ✅ {lastSaved.label}이(가) {lastSaved.caseTitle ? `"${lastSaved.caseTitle}" ` : ''}타임라인에 저장됐어요
+              {lastSaved.label}이(가) {lastSaved.caseTitle ? `"${lastSaved.caseTitle}" ` : ''}타임라인에 저장됐어요
             </Text>
             {lastSaved.caseId && (
               <TouchableOpacity style={styles.savedBannerBtn} onPress={() => goToTimeline(lastSaved.caseId)}>
@@ -553,7 +554,10 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
         {caseId && (
           <TouchableOpacity style={styles.preventionLink} onPress={() => setPreventionVisible(true)}>
-            <Text style={styles.preventionLinkText}>🛡️ 이 사건 예방 가이드 · 체크리스트 보기</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Icon name="shield-check" size={18} color={C.brand600} />
+              <Text style={styles.preventionLinkText}>이 사건 예방 가이드 · 체크리스트 보기</Text>
+            </View>
             <Text style={styles.preventionLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
