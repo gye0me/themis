@@ -9,6 +9,7 @@ import {
   subscribeToRoomMeta,
   subscribeToMembers,
   requestNewRoomTopic,
+  cancelRoomTopicInterest,
   subscribeToPendingRoomRequests,
   subscribeToRoomRequest,
   subscribeToDynamicRooms,
@@ -69,7 +70,14 @@ export function ChatScreen({ navigation }) {
 
   // 아직 안 열린(=모집 중인) 다른 사람들의 요청 목록 — "나 말고도 원하는 사람이 있다"를 보여줌
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [cancelingKey, setCancelingKey] = useState(null); // 참여 취소 처리 중인 요청의 topicKey
   useEffect(() => subscribeToPendingRoomRequests(setPendingRequests, user?.uid), [user?.uid]);
+
+  // 관심자가 0명이 된(=모두 취소한) 요청은 목록에서 숨긴다
+  const visiblePendingRequests = useMemo(
+    () => pendingRequests.filter((req) => req.interestedCount > 0),
+    [pendingRequests],
+  );
 
   const handleJoinPendingRequest = async (topic) => {
     if (!user) {
@@ -89,6 +97,28 @@ export function ChatScreen({ navigation }) {
     } finally {
       setRequesting(false);
     }
+  };
+
+  // "참여 중"인 요청을 눌렀을 때 — 확인 후 내 관심 표시만 취소
+  const handleCancelPendingRequest = (req) => {
+    if (!user) return;
+    Alert.alert('참여를 취소할까요?', `"${req.topic}" 모임 참여를 취소합니다.`, [
+      { text: '닫기', style: 'cancel' },
+      {
+        text: '참여 취소',
+        style: 'destructive',
+        onPress: async () => {
+          setCancelingKey(req.topicKey);
+          try {
+            await cancelRoomTopicInterest(req.topicKey, user.uid);
+          } catch (err) {
+            Alert.alert('오류', err.message ?? '참여를 취소하지 못했습니다.');
+          } finally {
+            setCancelingKey(null);
+          }
+        },
+      },
+    ]);
   };
 
   const handleRequestRoom = async () => {
@@ -245,23 +275,37 @@ export function ChatScreen({ navigation }) {
             </Text>
           )}
 
-          {/* 나 말고 다른 사람들이 이미 모으고 있는 주제들 — 눌러서 바로 합류 가능 */}
-          {pendingRequests.length > 0 && (
+          {/* 나 말고 다른 사람들이 이미 모으고 있는 주제들 — 눌러서 합류하고, 참여 중이면 눌러서 취소 */}
+          {visiblePendingRequests.length > 0 && (
             <View style={styles.pendingRequestsList}>
               <Text style={styles.pendingRequestsTitle}>다른 사람들도 이런 방을 원해요</Text>
-              {pendingRequests.map((req) => (
-                <TouchableOpacity
-                  key={req.topicKey}
-                  style={styles.pendingRequestRow}
-                  onPress={() => handleJoinPendingRequest(req.topic)}
-                  disabled={requesting || req.isJoinedByMe}
-                >
-                  <Text style={styles.pendingRequestTopic} numberOfLines={1}>{req.topic}</Text>
-                  <Text style={styles.pendingRequestCount}>
-                    {req.isJoinedByMe ? '참여 중' : `${req.interestedCount}/${MIN_PARTICIPANTS_TO_OPEN}명`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {visiblePendingRequests.map((req) => {
+                const canceling = cancelingKey === req.topicKey;
+                return (
+                  <TouchableOpacity
+                    key={req.topicKey}
+                    style={[styles.pendingRequestRow, canceling && { opacity: 0.6 }]}
+                    onPress={() =>
+                      req.isJoinedByMe
+                        ? handleCancelPendingRequest(req)
+                        : handleJoinPendingRequest(req.topic)
+                    }
+                    disabled={requesting || canceling}
+                  >
+                    <Text style={styles.pendingRequestTopic} numberOfLines={1}>{req.topic}</Text>
+                    <View style={styles.pendingRequestRight}>
+                      <Text style={styles.pendingRequestCount}>
+                        {req.interestedCount}/{MIN_PARTICIPANTS_TO_OPEN}명
+                      </Text>
+                      <View style={[styles.pendingBadge, req.isJoinedByMe && styles.pendingBadgeJoined]}>
+                        <Text style={[styles.pendingBadgeText, req.isJoinedByMe && styles.pendingBadgeTextJoined]}>
+                          {canceling ? '취소 중...' : req.isJoinedByMe ? '참여 중 · 취소' : '참여하기'}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </View>
@@ -411,7 +455,15 @@ const styles = StyleSheet.create({
     backgroundColor: C.sky050, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
   },
   pendingRequestTopic: { flex: 1, fontSize: 12, color: C.ink900, fontWeight: '600', marginRight: 8 },
-  pendingRequestCount: { fontSize: 11, color: C.brand600, fontWeight: '700' },
+  pendingRequestRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pendingRequestCount: { fontSize: 11, color: C.ink500, fontWeight: '600' },
+  pendingBadge: {
+    backgroundColor: C.brand600, borderRadius: 999,
+    paddingHorizontal: 9, paddingVertical: 4,
+  },
+  pendingBadgeJoined: { backgroundColor: C.sky100 },
+  pendingBadgeText: { fontSize: 10.5, color: '#FFFFFF', fontWeight: '700' },
+  pendingBadgeTextJoined: { color: C.brand600 },
 
   rowGroup: { backgroundColor: C.surface },
   row: {

@@ -7,8 +7,6 @@ import {
   push,
   set,
   update,
-  onValue,
-  off,
   get,
   query,
   orderByChild,
@@ -17,6 +15,8 @@ import {
 } from 'firebase/database';
 import * as Print from 'expo-print';
 import { realtimeDb } from '../config/firebase';
+// 로그인(복원) 완료 후에 구독을 붙이는 onValue 래퍼. 반환값은 "구독 해제 함수".
+import { onValueWhenAuthed as onValue } from './authedOnValue';
 import { buildQuestSteps } from './responseGuideSteps';
 import { buildCaseReportHtml } from './reportHtml';
 import { getCaseById, getEvidenceRecords, uploadBoardAttachmentPdf } from './firebaseService';
@@ -118,7 +118,7 @@ export function subscribeToMessages(roomId, callback, limit = 200) {
       console.error('채팅 메시지 구독 오류:', error);
     },
   );
-  return () => off(messagesRef, 'value', handler);
+  return handler;
 }
 
 /**
@@ -159,7 +159,7 @@ export function subscribeToRoomMeta(roomId, callback) {
     (snapshot) => callback(snapshot.val() ?? null),
     (error) => console.error('채팅방 메타 구독 오류:', error),
   );
-  return () => off(metaRef, 'value', handler);
+  return handler;
 }
 
 /**
@@ -176,7 +176,7 @@ export function subscribeToMembers(roomId, callback) {
     },
     (error) => console.error('채팅방 참여자 구독 오류:', error),
   );
-  return () => off(membersRef, 'value', handler);
+  return handler;
 }
 
 /**
@@ -263,6 +263,28 @@ export async function requestNewRoomTopic(topic, uid, displayName) {
 }
 
 /**
+ * 다른 사람이 요청한 피해자 모임(채팅방 개설 요청)에 눌렀던 "참여하기"를 취소한다.
+ * 내 관심 표시(interested/{uid})만 지우며, 요청 자체와 다른 사람의 관심 표시는 그대로 둔다.
+ * 이미 방이 개설된 요청이면 그 방에서 나가기(leaveRoom)까지 같이 처리한다.
+ * @param {string} topicKey subscribeToPendingRoomRequests가 돌려주는 topicKey
+ * @returns {Promise<{ topicKey: string, interestedCount: number }>}
+ */
+export async function cancelRoomTopicInterest(topicKey, uid) {
+  assertRtdb();
+  if (!topicKey || !uid) throw new Error('취소할 채팅방 요청 정보를 찾을 수 없습니다.');
+
+  const requestRef = ref(realtimeDb, `roomRequests/${topicKey}`);
+  await update(requestRef, { [`interested/${uid}`]: null });
+
+  const snap = await get(requestRef);
+  const data = snap.val() ?? {};
+  if (data.openedRoomId) {
+    await leaveRoom(data.openedRoomId, uid);
+  }
+  return { topicKey, interestedCount: Object.keys(data.interested ?? {}).length };
+}
+
+/**
  * 특정 주제 요청의 관심자 수 + 개설 여부를 실시간 구독.
  * callback({ interestedCount, opened, roomId })
  */
@@ -279,7 +301,7 @@ export function subscribeToRoomRequest(topic, callback) {
     },
     (error) => console.error('채팅방 개설 요청 구독 오류:', error),
   );
-  return () => off(requestRef, 'value', handler);
+  return handler;
 }
 
 /**
@@ -308,7 +330,7 @@ export function subscribeToPendingRoomRequests(callback, myUid) {
     },
     (error) => console.error('채팅방 요청 목록 구독 오류:', error),
   );
-  return () => off(requestsRef, 'value', handler);
+  return handler;
 }
 
 /**
@@ -336,7 +358,7 @@ export function subscribeToDynamicRooms(callback) {
     },
     (error) => console.error('개설된 채팅방 목록 구독 오류:', error),
   );
-  return () => off(indexRef, 'value', handler);
+  return handler;
 }
 
 // ─── 1:1 DM (전문가 게시판 답변자에게 직접 쪽지 보내기) ──────────────────────
@@ -409,7 +431,7 @@ export function subscribeToMyDirectRooms(uid, callback) {
       callback([]);
     },
   );
-  return () => off(indexRef, 'value', handler);
+  return handler;
 }
 
 /**
