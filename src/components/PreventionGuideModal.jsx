@@ -1,86 +1,41 @@
 // src/components/PreventionGuideModal.jsx
 //
-// 사건 유형별 "예방 가이드" 모달 — 사례(탭)별 예방 방법 + 체크리스트.
+// 사건 유형별 "예방 가이드" 모달 — 사례(탭)별 요약 + 예방 방법 설명.
 // - 증거 업로드 화면에 사건별로 처음 들어올 때 자동으로 한 번 뜨고
-// - 타임라인 화면의 "예방" 버튼으로 언제든 다시 열 수 있다.
-// 체크 상태는 사건 문서(cases.preventionChecklist)에 저장돼 두 화면에서 같이 보인다.
-// caseId가 없으면(일반 기록) 체크 상태는 이 모달이 열려있는 동안만 유지된다.
+// - 타임라인 화면의 "예방 가이드" 버튼으로 언제든 다시 열 수 있다.
 
-import { useEffect, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { getCaseById, saveCasePreventionChecklist } from '../services/firebaseService';
-import { getPreventionGuide, getScenarioProgress } from '../services/preventionGuides';
+import { useState } from 'react';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { getPreventionGuide } from '../services/preventionGuides';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { C } from '../theme/tokens';
 import { Icon } from './Icon';
 
-export function PreventionGuideModal({ visible, caseId = null, caseType, onClose }) {
-  // 내용은 열려 있을 때만 마운트해서, 열 때마다 저장된 상태를 새로 불러온다
+export function PreventionGuideModal({ visible, caseType, onClose }) {
+  // 내용은 열려 있을 때만 마운트해서, 열 때마다 첫 번째 사례 탭부터 보여준다
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {visible && <PreventionGuideSheet caseId={caseId} caseType={caseType} onClose={onClose} />}
+      {visible && <PreventionGuideSheet caseType={caseType} onClose={onClose} />}
     </Modal>
   );
 }
 
-function PreventionGuideSheet({ caseId, caseType, onClose }) {
+function PreventionGuideSheet({ caseType, onClose }) {
   const guide = getPreventionGuide(caseType);
   const meta = CASE_TYPE_META[caseType] ?? CASE_TYPE_META['기타'];
-  const hasCase = !!caseId && caseId !== 'general';
   const [scenarioId, setScenarioId] = useState(guide.scenarios[0].id);
-  const [checked, setChecked] = useState({});
-  const [loading, setLoading] = useState(hasCase);
-
-  // 저장된 체크 상태와 마지막으로 본 사례 탭을 불러온다
-  useEffect(() => {
-    if (!hasCase) return;
-    let active = true;
-    getCaseById(caseId)
-      .then((c) => {
-        if (!active || !c) return;
-        setChecked(c.preventionChecklist ?? {});
-        if (guide.scenarios.some((sc) => sc.id === c.preventionScenario)) setScenarioId(c.preventionScenario);
-      })
-      .catch((err) => console.warn('예방 체크리스트 불러오기 실패:', err.message))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [hasCase, caseId, guide]);
-
-  const scenario = guide.scenarios.find((s) => s.id === scenarioId) ?? guide.scenarios[0];
-  const progress = getScenarioProgress(scenario, checked);
-
-  const persist = (nextChecked, nextScenarioId) => {
-    if (!hasCase) return;
-    saveCasePreventionChecklist(caseId, { checklist: nextChecked, scenarioId: nextScenarioId }).catch((err) =>
-      console.warn('예방 체크리스트 저장 실패:', err.message)
-    );
-  };
-
-  const toggleItem = (itemId) => {
-    const next = { ...checked };
-    if (next[itemId]) delete next[itemId];
-    else next[itemId] = true;
-    setChecked(next);
-    persist(next, scenario.id);
-  };
-
-  const selectScenario = (id) => {
-    setScenarioId(id);
-    persist(checked, id);
-  };
+  const scenario = guide.scenarios.find((sc) => sc.id === scenarioId) ?? guide.scenarios[0];
 
   return (
     <View style={styles.backdrop}>
       <View style={styles.sheet}>
         <View style={styles.header}>
           <View style={styles.headerIconWrap}>
-              <Icon name={meta.icon} size={24} color={C.brand600} />
-            </View>
+            <Icon name={meta.icon} size={24} color={C.brand600} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{meta.label} 예방 가이드</Text>
-            <Text style={styles.subtitle}>내 상황에 맞는 사례를 골라 미리 챙겨보세요</Text>
+            <Text style={styles.subtitle}>내 상황에 맞는 사례를 골라 미리 알아두세요</Text>
           </View>
         </View>
 
@@ -91,16 +46,12 @@ function PreventionGuideSheet({ caseId, caseType, onClose }) {
             style={styles.tabsScroll}
             contentContainerStyle={styles.tabs}
           >
-            {guide.scenarios.map((s) => {
-              const active = s.id === scenario.id;
+            {guide.scenarios.map((sc) => {
+              const active = sc.id === scenario.id;
               return (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[styles.tab, active && styles.tabActive]}
-                  onPress={() => selectScenario(s.id)}
-                >
-                  <Icon name={s.icon} size={15} color={active ? '#FFFFFF' : C.ink500} />
-                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{s.label}</Text>
+                <TouchableOpacity key={sc.id} style={[styles.tab, active && styles.tabActive]} onPress={() => setScenarioId(sc.id)}>
+                  <Icon name={sc.icon} size={15} color={active ? '#FFFFFF' : C.ink500} />
+                  <Text style={[styles.tabText, active && styles.tabTextActive]}>{sc.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -120,33 +71,6 @@ function PreventionGuideSheet({ caseId, caseType, onClose }) {
                 <Text style={styles.tipText}>{tip}</Text>
               </View>
             ))}
-          </View>
-
-          <View style={{ gap: 8 }}>
-            <View style={styles.checklistHead}>
-              <Text style={styles.sectionLabel}>체크리스트</Text>
-              {loading ? (
-                <ActivityIndicator size="small" color={C.brand600} />
-              ) : (
-                <Text style={styles.progressText}>{progress.done}/{progress.total} 완료</Text>
-              )}
-            </View>
-            {scenario.checklist.map((item) => {
-              const done = !!checked[item.id];
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.checkRow, done && styles.checkRowDone]}
-                  onPress={() => toggleItem(item.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.checkbox, done && styles.checkboxDone]}>
-                    {done && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
-                  </View>
-                  <Text style={[styles.checkText, done && styles.checkTextDone]}>{item.text}</Text>
-                </TouchableOpacity>
-              );
-            })}
           </View>
           <Text style={styles.disclaimer}>본 안내는 일반적인 예방 정보이며 법률 조언이 아닙니다.</Text>
         </ScrollView>
@@ -193,21 +117,6 @@ const styles = StyleSheet.create({
   },
   tipText: { flex: 1, fontSize: 12.5, color: C.ink700, lineHeight: 19 },
 
-  checklistHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressText: { fontSize: 11.5, fontWeight: '700', color: C.brand600 },
-  checkRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11,
-  },
-  checkRowDone: { backgroundColor: C.safe100, borderColor: C.safe100 },
-  checkbox: {
-    width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: C.ink400,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  checkboxDone: { backgroundColor: C.safe600, borderColor: C.safe600 },
-  checkMark: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  checkText: { flex: 1, fontSize: 12.5, color: C.ink900, lineHeight: 18 },
-  checkTextDone: { color: C.ink500 },
   disclaimer: { fontSize: 10, color: C.ink400, textAlign: 'center' },
 
   closeBtn: { backgroundColor: C.brand600, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
