@@ -1,6 +1,6 @@
 // src/components/LoadingScreen.jsx
 //
-// 앱 시작 로딩 화면 — 로고 카드가 튀어오르며 나타나고, 저울 로고가 좌우로 살짝 기울며 균형을 잡는다.
+// 앱 시작 로딩 화면 — 로고가 튀어오르며 나타나고, 저울 로고가 좌우로 살짝 기울며 균형을 잡는다.
 // 뒤에서는 은은한 빛이 숨 쉬듯 퍼지고, 워드마크·소개 문구가 차례로 떠오른 뒤 아래 점 3개가 순서대로 깜빡인다.
 // (네이티브 스플래시와 같은 하늘색 배경이라 스플래시 → 로딩 화면이 자연스럽게 이어진다)
 
@@ -127,13 +127,9 @@ const styles = StyleSheet.create({
     position: 'absolute', width: 180, height: 180, borderRadius: 90,
     backgroundColor: C.brand400,
   },
-  card: {
-    width: 116, height: 116, borderRadius: 34, backgroundColor: C.surface,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: C.brand700, shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
-  },
-  logo: { width: 70, height: 70 },
+  // 로고 뒤 흰 카드 없이 투명 배경 — 로고만 튀어오르며 등장한다
+  card: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 104, height: 104 },
   textBlock: { alignItems: 'center', gap: 6 },
   wordmark: { fontSize: 32, fontWeight: '800', color: C.ink900, letterSpacing: 0.5 },
   tagline: { fontSize: 13.5, color: C.ink500 },

@@ -17,14 +17,9 @@ export default StyleSheet.create({
 
   // 로고 헤더
   brand: { alignItems: 'center', gap: 6, marginBottom: 4 },
-  logoWrap: {
-    width: 68, height: 68, borderRadius: 22, backgroundColor: C.surface,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: C.line,
-    shadowColor: C.brand700, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  logo: { width: 40, height: 40 },
+  // 로고 뒤 흰 네모 없이 투명 배경
+  logoWrap: { width: 68, height: 68, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 60, height: 60 },
   wordmark: { fontSize: 26, fontWeight: '800', color: C.ink900, letterSpacing: 0.3, marginTop: 6 },
   tagline: { fontSize: 13.5, color: C.ink500, textAlign: 'center' },
   taglineBold: { color: C.brand500, fontWeight: '700' },

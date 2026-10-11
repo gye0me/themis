@@ -148,7 +148,7 @@ export default function PreventionConsultScreen({ navigation }) {
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => setCaseType(type)}
               >
-                <Icon name={meta.icon} size={16} color={active ? C.brand600 : C.ink500} />
+                <Icon name={meta.icon} size={16} color={active ? '#FFFFFF' : C.ink500} />
                 <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{meta.label}</Text>
               </TouchableOpacity>
             );

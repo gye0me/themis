@@ -40,8 +40,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.line,
     backgroundColor: C.surface,
   },
-  backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  badge: { width: 22, height: 22 },
+  backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  // 제목·부제가 길어도 로고가 밀려 줄어들지(폰에서 사라지지) 않게 크기 고정
+  badge: { width: 22, height: 22, flexShrink: 0 },
   textWrap: { flexShrink: 1 },
   title: { fontSize: 15.5, fontWeight: '700', color: C.ink900 },
   subtitle: { fontSize: 10.5, color: C.ink400, marginTop: 1 },

@@ -438,7 +438,8 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 12, fontWeight: '700', color: C.brand600 },
   senderName: { fontSize: 10.5, color: C.ink400, marginBottom: 2 },
-  otherMsgBody: { gap: 3 },
+  // flexShrink가 없으면 긴 메시지가 줄바꿈되지 않고 화면 오른쪽 밖으로 넘어간다
+  otherMsgBody: { gap: 3, flexShrink: 1 },
   otherBubble: {
     backgroundColor: C.sky050,
     borderRadius: 16, borderBottomLeftRadius: 4,
