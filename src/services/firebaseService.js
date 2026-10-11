@@ -409,6 +409,27 @@ function sanitizeFileName(fileName = 'evidence') {
 /**
  * 증거 파일/메모를 Storage + Firestore에 함께 저장
  */
+// ─── 증거 변경 알림 ────────────────────────────────────────────────────────
+// 증거를 저장하면(createEvidenceRecord) 타임라인 화면이 화면 전환/포커스와 상관없이
+// 목록을 다시 불러올 수 있도록 알려주는 아주 작은 구독 장치.
+// (화면 포커스만 믿으면 네비게이터 구조에 따라 돌아와도 갱신이 안 되는 경우가 있었다.)
+const evidenceChangeListeners = new Set();
+
+export function subscribeEvidenceChanged(listener) {
+  evidenceChangeListeners.add(listener);
+  return () => evidenceChangeListeners.delete(listener);
+}
+
+function notifyEvidenceChanged(caseId) {
+  evidenceChangeListeners.forEach((listener) => {
+    try {
+      listener(caseId);
+    } catch (e) {
+      console.warn('증거 변경 알림 처리 오류:', e?.message);
+    }
+  });
+}
+
 export async function createEvidenceRecord({
   userId = null,
   caseId = 'general',
@@ -476,6 +497,8 @@ export async function createEvidenceRecord({
       hidden: false,
       ...extra,
     });
+
+    notifyEvidenceChanged(caseId);
 
     return {
       id: docRef.id,
@@ -720,38 +743,4 @@ export async function savePreContractChecklistState(userId, items) {
     console.error('계약 전 체크리스트 저장 오류:', error);
     throw error;
   }
-}
-
-// ==================== 전문가 인증 심사 (관리자) ====================
-
-/**
- * 심사 대기 중인 전문가 인증 신청 목록 조회.
- * users 문서의 expertVerification.status === 'pending' 인 문서를 반환한다.
- * @returns {Promise<Array<{ id: string, expertVerification: object }>>}
- */
-export async function getPendingExpertVerifications() {
-  const q = query(
-    collection(db, THEMIS_COLLECTIONS.USERS),
-    where('expertVerification.status', '==', 'pending'),
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
-
-/**
- * 전문가 인증 신청 승인/반려 처리.
- * 승인 시 isExpert=true, 반려 시 isExpert=false 로 두고 심사 결과와 서명 ID를 함께 남긴다.
- * @param {string} uid 신청자 uid
- * @param {{ approve: boolean, reviewerUid: string, rejectReason?: string, signatureId?: string }} params
- */
-export async function reviewExpertVerification(uid, { approve, reviewerUid, rejectReason = '', signatureId = null }) {
-  if (!uid) throw new Error('신청자 정보가 없습니다.');
-  await updateDoc(doc(db, THEMIS_COLLECTIONS.USERS, uid), {
-    isExpert: !!approve,
-    'expertVerification.status': approve ? 'approved' : 'rejected',
-    'expertVerification.reviewedAt': serverTimestamp(),
-    'expertVerification.reviewerUid': reviewerUid ?? null,
-    'expertVerification.rejectReason': approve ? '' : rejectReason,
-    'expertVerification.reviewSignatureId': signatureId,
-  });
 }
