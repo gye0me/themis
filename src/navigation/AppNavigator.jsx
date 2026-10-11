@@ -179,14 +179,9 @@ function AuthNavigator() {
       </RootStack.Screen>
       <RootStack.Screen name={AUTH_ROUTES.SIGNUP}>
         {({ navigation }) => (
-          <SignupScreen
-            onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)}
-            onOpenDocument={(doc) => navigation.navigate(ACCOUNT_ROUTES.LEGAL, { doc })}
-          />
+          <SignupScreen onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)} />
         )}
       </RootStack.Screen>
-      {/* 가입 화면에서 약관·방침 전문 보기 */}
-      <RootStack.Screen name={ACCOUNT_ROUTES.LEGAL} component={LegalDocumentScreen} />
     </RootStack.Navigator>
   );
 }
