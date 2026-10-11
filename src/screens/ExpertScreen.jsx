@@ -21,6 +21,7 @@ import { EXPERT_ROUTES, CHAT_ROUTES, APP_ROUTES } from '../navigation/routes';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatRelativeTime(ts) {
   const date = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : null;
@@ -257,9 +258,10 @@ export function ExpertScreen({ navigation }) {
               >
                 <View style={styles.hotCardHeader}>
                   <View style={styles.hotBadge}>
-                    <Text style={styles.hotBadgeText}>🔥 HOT</Text>
+                    <Text style={styles.hotBadgeText}>HOT</Text>
                   </View>
-                  <Text style={styles.hotCardTitle}>{meta.icon} {entry.roomName || `${meta.label} 피해자 연대방`}</Text>
+                  <Icon name={meta.icon} size={16} color={C.ink700} />
+                  <Text style={styles.hotCardTitle}>{entry.roomName || `${meta.label} 피해자 연대방`}</Text>
                   <View style={styles.victimBadgeRed}>
                     <Text style={styles.victimBadgeRedText}>피해자 {entry.memberCount ?? 0}명</Text>
                   </View>
@@ -324,7 +326,7 @@ export function ExpertScreen({ navigation }) {
                     </View>
                     {post.isResolved ? (
                       <View style={styles.resolvedBadge}>
-                        <Text style={styles.resolvedBadgeText}>해결됨 ✓</Text>
+                        <Text style={styles.resolvedBadgeText}>해결됨</Text>
                       </View>
                     ) : null}
                     <View style={styles.answerCountBadge}>
@@ -339,7 +341,7 @@ export function ExpertScreen({ navigation }) {
                   <Text style={styles.postBody}>{post.content}</Text>
                   {post.attachedCaseTitle ? (
                     <View style={styles.fileAttach}>
-                      <Text style={styles.fileIcon}>📎</Text>
+                      <Icon name="paperclip" size={14} color={C.ink500} />
                       <Text style={styles.fileName}>{post.attachedCaseTitle}</Text>
                     </View>
                   ) : null}
@@ -371,7 +373,7 @@ export function ExpertScreen({ navigation }) {
                       {reportingId === post.id ? (
                         <ActivityIndicator size="small" color="#94A3B8" />
                       ) : (
-                        <Text style={styles.reportBtnText}>🚩 신고</Text>
+                        <Text style={styles.reportBtnText}>신고</Text>
                       )}
                     </TouchableOpacity>
                   )}
@@ -380,7 +382,7 @@ export function ExpertScreen({ navigation }) {
                       style={styles.reportBtn}
                       onPress={() => setBlockTarget({ uid: post.userId, name: postAuthorLabel })}
                     >
-                      <Text style={styles.reportBtnText}>🚫 차단</Text>
+                      <Text style={styles.reportBtnText}>차단</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -409,7 +411,7 @@ export function ExpertScreen({ navigation }) {
                           if (c.hidden) {
                             return (
                               <View key={c.id} style={styles.commentRow}>
-                                <Text style={styles.hiddenCommentText}>🚫 신고 누적으로 숨겨진 댓글입니다.</Text>
+                                <Text style={styles.hiddenCommentText}>신고 누적으로 숨겨진 댓글입니다.</Text>
                               </View>
                             );
                           }
@@ -420,7 +422,7 @@ export function ExpertScreen({ navigation }) {
                                 <Text style={styles.commentAuthor}>{commentAuthorLabel}</Text>
                                 {c.isExpertAnswer ? (
                                   <View style={styles.expertBadge}>
-                                    <Text style={styles.expertBadgeIconText}>🎖 전문가 답변</Text>
+                                    <Text style={styles.expertBadgeIconText}>전문가 답변</Text>
                                   </View>
                                 ) : null}
                                 {isAccepted ? (
@@ -455,7 +457,7 @@ export function ExpertScreen({ navigation }) {
                                     {dmStartingId === c.id ? (
                                       <ActivityIndicator size="small" color={C.brand600} />
                                     ) : (
-                                      <Text style={styles.commentDmBtnText}>💬 채팅 보내기</Text>
+                                      <Text style={styles.commentDmBtnText}>채팅 보내기</Text>
                                     )}
                                   </TouchableOpacity>
                                 ) : null}
@@ -470,7 +472,7 @@ export function ExpertScreen({ navigation }) {
                                     {reportingId === c.id ? (
                                       <ActivityIndicator size="small" color="#94A3B8" />
                                     ) : (
-                                      <Text style={styles.commentReportBtnText}>🚩 신고</Text>
+                                      <Text style={styles.commentReportBtnText}>신고</Text>
                                     )}
                                   </TouchableOpacity>
                                 ) : null}
@@ -479,7 +481,7 @@ export function ExpertScreen({ navigation }) {
                                     style={styles.commentBlockBtn}
                                     onPress={() => setBlockTarget({ uid: c.userId, name: commentAuthorLabel })}
                                   >
-                                    <Text style={styles.commentReportBtnText}>🚫 차단</Text>
+                                    <Text style={styles.commentReportBtnText}>차단</Text>
                                   </TouchableOpacity>
                                 ) : null}
                               </View>
@@ -496,7 +498,7 @@ export function ExpertScreen({ navigation }) {
                       activeOpacity={0.7}
                     >
                       <View style={anonDraftByPost[post.id] ? styles.checkboxOnSmall : styles.checkboxOffSmall}>
-                        {anonDraftByPost[post.id] ? <Text style={styles.checkboxCheckSmall}>✓</Text> : null}
+                        {anonDraftByPost[post.id] ? <Icon name="check" size={10} color="#FFFFFF" strokeWidth={3} /> : null}
                       </View>
                       <Text style={styles.anonToggleText}>익명으로 답글 달기</Text>
                     </TouchableOpacity>

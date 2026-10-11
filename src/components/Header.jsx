@@ -7,7 +7,7 @@ export function Header({ title, onMenuClick }) {
         <h1 className="header-title">{title}</h1>
         {onMenuClick && (
           <button className="header-menu-btn" onClick={onMenuClick}>
-            ☰
+            메뉴
           </button>
         )}
       </div>

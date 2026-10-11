@@ -34,6 +34,7 @@ import {
 } from '../services/guardianService';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C, EVIDENCE_TILES } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 // 앱이 백그라운드에 있어도 알림이 뜨도록 설정 (데드맨 스위치 초과 알림용)
 Notifications.setNotificationHandler({
@@ -98,7 +99,8 @@ function CaseCard({ entry, navigation, isExpanded, onToggleExpand }) {
             {isDone ? '완료' : '진행 중'}
           </Text>
         </View>
-        <Text style={styles.caseTitle} numberOfLines={1}>{meta.icon} {c.title || '이름 없는 사건'}</Text>
+        <Icon name={meta.icon} size={16} color={C.ink700} />
+        <Text style={styles.caseTitle} numberOfLines={1}>{c.title || '이름 없는 사건'}</Text>
         <Text style={styles.caseDate}>{formatCaseDate(c.createdAt)}</Text>
       </View>
 
@@ -124,7 +126,7 @@ function CaseCard({ entry, navigation, isExpanded, onToggleExpand }) {
               {previewItems.map((item) => (
                 <View key={item.id} style={styles.checkItem}>
                   <View style={[styles.checkDot, item.completed && styles.checkDotDone]}>
-                    {item.completed && <Text style={styles.checkMark}>✓</Text>}
+                    {item.completed && <Icon name="check" size={10} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text style={[styles.checkItemText, item.completed && styles.checkItemTextDone]} numberOfLines={1}>
                     {item.title}
@@ -664,7 +666,7 @@ export function HomeScreen({ navigation }) {
   // 사건마다 카드에 필요한 값(진행도·체크리스트·증거)을 미리 계산해두고,
   // 진행 중/완료로 나눠 완료된 사건은 기본적으로 접어서 보여준다.
   const casesWithMeta = cases.map((c) => {
-    const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁' };
+    const meta = CASE_TYPE_META[c.caseType] ?? { icon: 'folder' };
     const { items, progress } = buildQuestSteps(c.caseType, c.questSteps ?? [], c.tags ?? []);
     const evidence = evidenceByCase[c.id] ?? { total: 0, byType: {} };
     return { case: c, meta, items, progress, evidence, isDone: progress.percent === 100 };
@@ -742,7 +744,7 @@ export function HomeScreen({ navigation }) {
             <Text style={styles.sectionLabel}>오늘의 안전 체크</Text>
             {unreadAlertCount > 0 && (
               <TouchableOpacity style={styles.alertBanner} onPress={() => navigation.navigate(GUARDIAN_ROUTES.MANAGE)}>
-                <Text style={styles.alertBannerText}>🔴 내가 지켜주는 사람의 위급 알림 {unreadAlertCount}건 — 탭해서 확인</Text>
+                <Text style={styles.alertBannerText}>내가 지켜주는 사람의 위급 알림 {unreadAlertCount}건 — 탭해서 확인</Text>
               </TouchableOpacity>
             )}
             <LinearGradient colors={['#FBFDFF', C.sky050]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={styles.safetyCard}>
@@ -772,7 +774,7 @@ export function HomeScreen({ navigation }) {
 
               {deadmanNotice && (
                 <View style={styles.noticeBox}>
-                  <Text style={styles.noticeTitle}>⚠️ {deadmanNotice.title}</Text>
+                  <Text style={styles.noticeTitle}>{deadmanNotice.title}</Text>
                   <Text style={styles.noticeBody}>{deadmanNotice.body}</Text>
                   <Text style={styles.noticeSms} selectable>{deadmanNotice.smsMessage}</Text>
                   <View style={{ flexDirection: 'row', gap: 14, marginTop: 2 }}>
@@ -878,7 +880,7 @@ export function HomeScreen({ navigation }) {
                     </Text>
                   )}
                   <TouchableOpacity style={styles.guardianRow} onPress={() => navigation.navigate(GUARDIAN_ROUTES.MANAGE)}>
-                    <Text style={styles.guardianRowIcon}>👥</Text>
+                    <Icon name="users" size={20} color={C.brand600} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.guardianRowTitle}>
                         보호자 관리{pendingRequestCount > 0 ? ` · 받은 요청 ${pendingRequestCount}건` : ''}
@@ -920,7 +922,7 @@ export function HomeScreen({ navigation }) {
             <View style={styles.plainCard}>
               <View style={styles.safetyTop}>
                 <View style={styles.expertIcon}>
-                  <Text style={{ fontSize: 17 }}>🎓</Text>
+                  <Icon name="graduation" size={20} color={C.brand600} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.safetyTitle}>전문가 답변 배지</Text>
@@ -957,7 +959,7 @@ export function HomeScreen({ navigation }) {
                 style={styles.preventionCard}
               >
                 <View style={styles.preventionIconWrap}>
-                  <Text style={{ fontSize: 20 }}>💬</Text>
+                  <Icon name="message" size={20} color={C.brand600} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.preventionTitle}>이거 해도 될까요?</Text>
@@ -975,7 +977,7 @@ export function HomeScreen({ navigation }) {
             </View>
           ) : cases.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📂</Text>
+              <Icon name="folder" size={36} color={C.ink400} />
               <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
               <TouchableOpacity
                 style={styles.dashedRow}

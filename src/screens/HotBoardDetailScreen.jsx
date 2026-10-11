@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { DEMO_HOT_BOARD_COMMENTS } from '../services/hotBoardService';
 
@@ -23,9 +24,10 @@ export function HotBoardDetailScreen({ navigation, route }) {
         <View style={styles.postCard}>
           <View style={styles.headerRow}>
             <View style={styles.hotBadge}>
-              <Text style={styles.hotBadgeText}>🔥 HOT</Text>
+              <Text style={styles.hotBadgeText}>HOT</Text>
             </View>
-            <Text style={styles.title}>{meta.icon} {entry.roomName || `${meta.label} 피해자 연대`}</Text>
+            <Icon name={meta.icon} size={18} color={C.ink700} />
+            <Text style={styles.title}>{entry.roomName || `${meta.label} 피해자 연대`}</Text>
           </View>
 
           <View style={styles.badgeRow}>
@@ -84,7 +86,7 @@ export function HotBoardDetailScreen({ navigation, route }) {
                 <View style={styles.commentHeaderRow}>
                   <Text style={styles.commentAuthor}>{c.authorName}</Text>
                   <View style={styles.expertBadge}>
-                    <Text style={styles.expertBadgeText}>🎖 {c.expertType}</Text>
+                    <Text style={styles.expertBadgeText}>{c.expertType}</Text>
                   </View>
                   <Text style={styles.commentTime}>{c.relativeTime}</Text>
                 </View>

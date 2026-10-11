@@ -14,6 +14,7 @@ import { BackHeader } from '../components/BackHeader';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { blockUser, getBlockedUserIds } from '../services/blockService';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatTime(ts) {
   if (!ts) return '';
@@ -190,7 +191,7 @@ export function ChatRoomScreen({ navigation, route }) {
           <View style={styles.headerRightRow}>
             {isDirect && (
               <TouchableOpacity onPress={openReportPicker} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={styles.reportSendBtnText}>📄 보고서 보내기</Text>
+                <Text style={styles.reportSendBtnText}>보고서 보내기</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={handleLeaveRoom} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -238,7 +239,10 @@ export function ChatRoomScreen({ navigation, route }) {
                     Alert.alert('오류', '파일을 열지 못했습니다.');
                   })}
                 >
-                  <Text style={styles.fileBubbleText}>📄 {msg.file.name || '보고서.pdf'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Icon name="file" size={16} color={C.brand600} />
+                    <Text style={styles.fileBubbleText}>{msg.file.name || '보고서.pdf'}</Text>
+                  </View>
                   <Text style={styles.fileBubbleHint}>탭해서 열기</Text>
                 </TouchableOpacity>
               ) : null;

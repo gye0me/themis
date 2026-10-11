@@ -12,6 +12,7 @@ import { getCaseById, saveCasePreventionChecklist } from '../services/firebaseSe
 import { getPreventionGuide, getScenarioProgress } from '../services/preventionGuides';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { C } from '../theme/tokens';
+import { Icon } from './Icon';
 
 export function PreventionGuideModal({ visible, caseId = null, caseType, onClose }) {
   // 내용은 열려 있을 때만 마운트해서, 열 때마다 저장된 상태를 새로 불러온다
@@ -74,7 +75,9 @@ function PreventionGuideSheet({ caseId, caseType, onClose }) {
     <View style={styles.backdrop}>
       <View style={styles.sheet}>
         <View style={styles.header}>
-          <Text style={styles.headerIcon}>{meta.icon}</Text>
+          <View style={styles.headerIconWrap}>
+              <Icon name={meta.icon} size={24} color={C.brand600} />
+            </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{meta.label} 예방 가이드</Text>
             <Text style={styles.subtitle}>내 상황에 맞는 사례를 골라 미리 챙겨보세요</Text>
@@ -96,7 +99,8 @@ function PreventionGuideSheet({ caseId, caseType, onClose }) {
                   style={[styles.tab, active && styles.tabActive]}
                   onPress={() => selectScenario(s.id)}
                 >
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>{s.icon} {s.label}</Text>
+                  <Icon name={s.icon} size={15} color={active ? '#FFFFFF' : C.ink500} />
+                    <Text style={[styles.tabText, active && styles.tabTextActive]}>{s.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -137,7 +141,7 @@ function PreventionGuideSheet({ caseId, caseType, onClose }) {
                   activeOpacity={0.8}
                 >
                   <View style={[styles.checkbox, done && styles.checkboxDone]}>
-                    {done && <Text style={styles.checkMark}>✓</Text>}
+                    {done && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text style={[styles.checkText, done && styles.checkTextDone]}>{item.text}</Text>
                 </TouchableOpacity>
@@ -162,7 +166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 22, gap: 14, maxHeight: '90%',
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerIcon: { fontSize: 28 },
+  headerIconWrap: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.sky100, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 16.5, fontWeight: '700', color: C.ink900 },
   subtitle: { fontSize: 12, color: C.ink500, marginTop: 2 },
 
@@ -172,7 +176,7 @@ const styles = StyleSheet.create({
   tab: {
     flexShrink: 0,
     borderWidth: 1, borderColor: C.line, borderRadius: 999, backgroundColor: C.surface,
-    paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6,
   },
   tabActive: { backgroundColor: C.brand600, borderColor: C.brand600 },
   tabText: { fontSize: 12.5, fontWeight: '600', color: C.ink500 },

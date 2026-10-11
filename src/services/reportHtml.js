@@ -10,8 +10,7 @@ import {
   REPORT_LEGAL_NOTICE_ACK,
 } from './reportLegalNotice';
 
-const TYPE_LABEL = { image: '📷 사진', audio: '🎵 음성', video: '🎬 영상', text: '📝 메모', contract: '📑 계약분석' };
-const CASE_TYPE_ICON = { 전세사기: '🏠', 금전사기: '💸', 괴롭힘: '👥', 신변위협: '🚨' };
+const TYPE_LABEL = { image: '사진', audio: '음성', video: '영상', text: '메모', contract: '계약분석' };
 
 function escapeHtml(str = '') {
   return String(str)
@@ -67,7 +66,7 @@ function resolveEventDate(record) {
 // forPrint: PDF 인쇄용 — <video>/<audio>는 PDF에 그려지지 않아 빈칸이 되므로
 // 영상은 썸네일 이미지(5초 스탬프)로, 음성은 원본 링크 문구로 대신 보여준다.
 function buildEvidenceCard(record, { forPrint = false } = {}) {
-  const typeLabel = TYPE_LABEL[record.evidenceType] ?? '📄 기타';
+  const typeLabel = TYPE_LABEL[record.evidenceType] ?? '기타';
   const eventDate = resolveEventDate(record);
   const uploadDate = toDate(record.capturedAt);
   const dateStr = formatDateTime(eventDate);
@@ -77,7 +76,7 @@ function buildEvidenceCard(record, { forPrint = false } = {}) {
   const uploadStr = uploadDiffers ? formatDateTime(uploadDate) : '';
   const contractDateStr = record.contractDate ? escapeHtml(String(record.contractDate)) : '';
   const gpsStr = record.location
-    ? `📍 위도 ${record.location.latitude?.toFixed(5)}, 경도 ${record.location.longitude?.toFixed(5)}`
+    ? `위도 ${record.location.latitude?.toFixed(5)}, 경도 ${record.location.longitude?.toFixed(5)}`
     : '';
 
   let mediaHtml = '';
@@ -87,15 +86,15 @@ function buildEvidenceCard(record, { forPrint = false } = {}) {
     mediaHtml = `<a href="${escapeHtml(record.downloadURL)}" target="_blank"><img class="thumb" src="${escapeHtml(record.downloadURL)}" alt="증거 사진" /></a>`;
   } else if (record.evidenceType === 'audio' && record.downloadURL) {
     mediaHtml = forPrint
-      ? `<div class="media-link">🎵 음성 파일 — <a href="${escapeHtml(record.downloadURL)}">원본 듣기</a></div>`
+      ? `<div class="media-link">음성 파일 — <a href="${escapeHtml(record.downloadURL)}">원본 듣기</a></div>`
       : `<audio controls src="${escapeHtml(record.downloadURL)}"></audio>`;
   } else if (record.evidenceType === 'video' && record.downloadURL) {
     const poster = record.thumbnailURL ? escapeHtml(record.thumbnailURL) : '';
     if (forPrint) {
       mediaHtml = poster
         ? `<a href="${escapeHtml(record.downloadURL)}"><img class="thumb" src="${poster}" alt="영상 ${record.thumbnailStampSec ?? 5}초 지점" /></a>
-        <div class="media-link">🎬 영상 ${record.thumbnailStampSec ?? 5}초 지점 화면 — <a href="${escapeHtml(record.downloadURL)}">원본 영상 보기</a></div>`
-        : `<div class="media-link">🎬 영상 파일 — <a href="${escapeHtml(record.downloadURL)}">원본 영상 보기</a></div>`;
+        <div class="media-link">영상 ${record.thumbnailStampSec ?? 5}초 지점 화면 — <a href="${escapeHtml(record.downloadURL)}">원본 영상 보기</a></div>`
+        : `<div class="media-link">영상 파일 — <a href="${escapeHtml(record.downloadURL)}">원본 영상 보기</a></div>`;
     } else {
       mediaHtml = `<video controls class="thumb" src="${escapeHtml(record.downloadURL)}"${poster ? ` poster="${poster}"` : ''}></video>`;
     }
@@ -106,22 +105,22 @@ function buildEvidenceCard(record, { forPrint = false } = {}) {
 
   return `
   <div class="card evidence-card">
-    <div class="card-meta">📅 사건 발생: ${escapeHtml(dateStr)}${uploadStr ? ` &nbsp;·&nbsp; 업로드: ${escapeHtml(uploadStr)}` : ''} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
-    ${contractDateStr ? `<div class="card-meta">📑 계약서상 날짜: ${contractDateStr}</div>` : ''}
+    <div class="card-meta">사건 발생: ${escapeHtml(dateStr)}${uploadStr ? ` &nbsp;·&nbsp; 업로드: ${escapeHtml(uploadStr)}` : ''} ${gpsStr ? `&nbsp;&nbsp;${escapeHtml(gpsStr)}` : ''}</div>
+    ${contractDateStr ? `<div class="card-meta">계약서상 날짜: ${contractDateStr}</div>` : ''}
     <div class="card-type">${typeLabel}${record.title ? ` — ${escapeHtml(record.title)}` : ''}</div>
-    ${record.linkedEvidenceId ? `<div class="card-meta">🔗 "${escapeHtml(record.linkedEvidenceTitle || '다른 증거')}"에 덧붙인 기록</div>` : ''}
+    ${record.linkedEvidenceId ? `<div class="card-meta">"${escapeHtml(record.linkedEvidenceTitle || '다른 증거')}"에 덧붙인 기록</div>` : ''}
     ${mediaHtml ? `<div class="media">${mediaHtml}</div>` : ''}
-    ${transcript ? `<div class="transcript">📝 음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
-    ${aiSummary ? `<div class="summary">🤖 AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
-    ${!aiSummary && record.note ? `<div class="summary">📝 메모: ${escapeHtml(record.note)}</div>` : ''}
+    ${transcript ? `<div class="transcript">음성 인식 텍스트: ${escapeHtml(transcript)}</div>` : ''}
+    ${aiSummary ? `<div class="summary">AI 요약: ${escapeHtml(aiSummary)}</div>` : ''}
+    ${!aiSummary && record.note ? `<div class="summary">메모: ${escapeHtml(record.note)}</div>` : ''}
   </div>`;
 }
 
 function buildQuestCard(step) {
   return `
   <div class="card quest-card">
-    <div class="card-meta">📅 ${escapeHtml(formatDateTime(step.completedAt) || '완료일 미기록')}</div>
-    <div class="card-type">✅ ${escapeHtml(step.title)} 완료</div>
+    <div class="card-meta">${escapeHtml(formatDateTime(step.completedAt) || '완료일 미기록')}</div>
+    <div class="card-type">${escapeHtml(step.title)} 완료</div>
   </div>`;
 }
 
@@ -183,7 +182,6 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     .filter((e) => e.date)
     .sort((a, b) => a.date - b.date);
 
-  const caseTypeIcon = CASE_TYPE_ICON[caseData.caseType] ?? '📁';
   const now = new Date();
 
   // 반복 타일 워터마크 — SVG를 data URI 배경으로 깔아서 내용 길이와 무관하게 전체 페이지에 반복된다.
@@ -271,7 +269,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 <div class="container">
 
   <div class="report-summary">
-    <span class="report-eyebrow">${caseTypeIcon} 사건 보고서</span>
+    <span class="report-eyebrow">사건 보고서</span>
     <span class="report-name">${escapeHtml(caseData.title || '이름 없는 사건')}</span>
     <div class="report-meta">사건 유형: ${escapeHtml(caseData.caseType || '미지정')}</div>
     <div class="report-meta">기록 시작일: ${escapeHtml(formatDateOnly(caseData.createdAt) || '-')} · 보고서 생성일: ${formatDateOnly(now)}</div>
@@ -291,7 +289,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
 
   <div class="notice-section">
     <div class="notice-box">
-      <div class="notice-title">⚠️ ${escapeHtml(REPORT_LEGAL_NOTICE_TITLE)}</div>
+      <div class="notice-title">${escapeHtml(REPORT_LEGAL_NOTICE_TITLE)}</div>
       <ul class="notice-list">
         ${REPORT_LEGAL_NOTICE_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('\n        ')}
       </ul>
@@ -300,8 +298,8 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     <div class="confirm-box">
       ${finalization?.hash
         ? `
-      <div class="confirm-ack">☑ ${escapeHtml(REPORT_LEGAL_NOTICE_ACK)}</div>
-      <div class="finalize-badge">✅ 안내 확인 후 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
+      <div class="confirm-ack">${escapeHtml(REPORT_LEGAL_NOTICE_ACK)}</div>
+      <div class="finalize-badge">안내 확인 후 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
       <div class="hash-label">확정 시점 내용 해시 (SHA-256)</div>
       <div class="hash-value">${escapeHtml(finalization.hash)}</div>
       <p class="hash-note">이 해시는 확정 시점의 증거 내용으로 계산됩니다. 이후 내용이 바뀌면 같은 방식으로 다시 계산한 값이 이 값과 달라져, 위변조 여부를 확인할 수 있습니다.</p>`

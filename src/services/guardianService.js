@@ -257,7 +257,7 @@ export async function sendDeadmanAlertToGuardians({ uid, myName, message, locati
     : await sendExpoPush(
         targets.map((t) => t.token),
         {
-          title: `⚠️ ${myName || 'Themis 사용자'}님이 응답이 없어요`,
+          title: `${myName || 'Themis 사용자'}님이 응답이 없어요`,
           body: locationUrl ? `${message}\n위치를 확인하려면 탭하세요.` : message,
           data: { type: 'guardian-alert', fromUid: uid },
         }

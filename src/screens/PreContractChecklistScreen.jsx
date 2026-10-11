@@ -12,6 +12,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 import { AuthContext } from '../context/AuthContext';
 import { getPreContractChecklistState, savePreContractChecklistState } from '../services/firebaseService';
 import {
@@ -110,7 +111,7 @@ export default function PreContractChecklistScreen({ navigation }) {
             </View>
             {progress.hasUncheckedCritical && (
               <Text style={styles.criticalWarning}>
-                ⚠️ 아직 확인하지 않은 필수 항목이 있어요. 계약 전 반드시 확인하세요.
+                아직 확인하지 않은 필수 항목이 있어요. 계약 전 반드시 확인하세요.
               </Text>
             )}
           </View>
@@ -123,7 +124,7 @@ export default function PreContractChecklistScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <View style={[styles.checkbox, item.completed && styles.checkboxDone]}>
-                {item.completed && <Text style={styles.checkboxMark}>✓</Text>}
+                {item.completed && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
               </View>
               <View style={styles.itemBody}>
                 <View style={styles.itemTitleRow}>

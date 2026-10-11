@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { useContext, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,25 +31,15 @@ import {
   getPreviousYearMonth,
 } from "../services/realEstateService";
 import { BackHeader } from "../components/BackHeader";
-import { C } from "../theme/tokens";
+import { RECORD_ROUTES } from "../navigation/routes";
+import { C, SIGNAL } from "../theme/tokens";
 
 const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
 
-const levelColor = {
-  danger: C.danger600,
-  warning: C.warn600,
-  safe: C.safe600,
-};
-const levelBg = {
-  danger: C.danger100,
-  warning: C.warn100,
-  safe: C.safe100,
-};
-const levelIcon = {
-  danger: "🔴",
-  warning: "🟡",
-  safe: "🟢",
-};
+// 신호등 색: 동그라미·테두리(levelColor) / 글자(levelTextColor) / 배경(levelBg)
+const levelColor = SIGNAL.dot;
+const levelTextColor = SIGNAL.text;
+const levelBg = SIGNAL.bg;
 
 function buildAnalysisNote(result) {
   const counts = { danger: 0, warning: 0, safe: 0 };
@@ -108,6 +99,12 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const [rentTrades, setRentTrades] = useState([]);
   const [rentLoading, setRentLoading] = useState(false);
   const [buildingQuery, setBuildingQuery] = useState("");
+  // 분석 결과는 다른 증거처럼 자동으로 타임라인에 저장된다 (지우고 싶으면 타임라인에서 숨기기).
+  // 저장 상태를 보여주고, 실패하면 다시 저장할 수 있게 마지막 분석 결과를 들고 있는다.
+  const [lastAnalysis, setLastAnalysis] = useState(null); // { result, geminiRawResults, contractType, image }
+  const [savedTo, setSavedTo] = useState(null); // { caseId } — 저장 완료 후 "타임라인 보기"용
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // 조회된 건물이 많아 칩만으로는 찾기 어려워서, 건물명/동 이름으로 걸러볼 수 있게 한다.
   const trimmedQuery = buildingQuery.trim().toLowerCase();
@@ -237,23 +234,39 @@ export default function ContractAnalysisScreen({ navigation, route }) {
 
       const checklist = buildChecklist(selectedType, geminiRawResults);
       setResults({ ...nextResult, checklistItems: checklist.items });
+      const analysis = { result: nextResult, geminiRawResults, contractType: selectedType, image };
+      setLastAnalysis(analysis);
+      setSavedTo(null);
+      setSaveError("");
+      // 분석 결과를 타임라인에 자동 기록 (실패해도 화면 결과 표시는 그대로 진행, 아래에서 다시 저장 가능)
+      saveToCase(analysis);
       if (!nextResult.items.length) {
         const alertMessage = nextResult.documentSummary || '위험 조항을 찾지 못했습니다.';
         Alert.alert('알림', alertMessage);
       }
 
-      // 분석 결과를 타임라인에 자동 기록 (실패해도 화면 결과 표시는 그대로 진행)
-      try {
-        await saveAnalysisToTimeline({ userId: user?.uid ?? null, caseId, contractType: selectedType, image, result: nextResult, geminiRawResults });
-      } catch (saveErr) {
-        console.warn('타임라인 저장 실패:', saveErr.message);
-      }
     } catch (err) {
       Alert.alert('오류', err.message ?? '분석 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   };
+
+  // 분석 결과를 타임라인에 저장 (사건에서 들어왔으면 그 사건, 아니면 일반 기록)
+  async function saveToCase(analysis) {
+    if (!analysis) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await saveAnalysisToTimeline({ userId: user?.uid ?? null, caseId, ...analysis });
+      setSavedTo({ caseId });
+    } catch (err) {
+      console.error('타임라인 저장 실패:', err);
+      setSaveError('타임라인에 저장하지 못했어요.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const missingClauses = (results?.checklistItems ?? []).filter((i) => !i.completed);
 
@@ -286,7 +299,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             style={[styles.chip, preprocessEnabled && styles.chipActive]}
           >
             <Text style={[styles.chipText, preprocessEnabled && styles.chipTextActive]}>
-              🔄 {preprocessEnabled ? "회전·크기 보정 ON" : "보정 OFF"}
+              {preprocessEnabled ? "회전·크기 보정 ON" : "보정 OFF"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -433,12 +446,12 @@ export default function ContractAnalysisScreen({ navigation, route }) {
 
                 {jeonseRatio != null && jeonseRisk && (
                   <View style={[styles.warningBanner, { backgroundColor: levelBg[jeonseRisk], borderLeftColor: levelColor[jeonseRisk] }]}>
-                    <Text style={styles.warningIcon}>{levelIcon[jeonseRisk]}</Text>
+                    <Icon name="dot" size={16} color={levelColor[jeonseRisk]} style={{ marginTop: 2 }} />
                     <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={[styles.warningTitle, { color: levelColor[jeonseRisk] }]}>
+                      <Text style={[styles.warningTitle, { color: levelTextColor[jeonseRisk] }]}>
                         전세가율 {jeonseRatio}% — {jeonseRiskLabel[jeonseRisk]}
                       </Text>
-                      <Text style={[styles.warningDesc, { color: levelColor[jeonseRisk] }]}>
+                      <Text style={[styles.warningDesc, { color: levelTextColor[jeonseRisk] }]}>
                         보증금이 이 건물 실거래 매매가 대비 {jeonseRatio}% 수준입니다. 80% 이상이면 집값 하락 시 보증금을
                         돌려받지 못하는 깡통전세 위험이 커지니, 전세보증보험 가입 여부를 꼭 확인하세요.
                       </Text>
@@ -484,7 +497,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
           <Image source={{ uri: image.uri }} style={styles.preview} />
         ) : (
           <View style={styles.uploadBox}>
-            <Text style={styles.uploadIcon}>📄</Text>
+            <Icon name="contract" size={36} color={C.brand600} />
             <Text style={styles.uploadText}>계약서를 촬영하거나 불러오세요</Text>
           </View>
         )}
@@ -494,10 +507,10 @@ export default function ContractAnalysisScreen({ navigation, route }) {
         {/* 버튼 2개 */}
         <View style={styles.btnRow}>
           <TouchableOpacity style={styles.halfBtn} onPress={handleCamera}>
-            <Text style={styles.halfBtnText}>📷 카메라 촬영</Text>
+            <Text style={styles.halfBtnText}>카메라 촬영</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.halfBtn} onPress={handleGallery}>
-            <Text style={styles.halfBtnText}>🖼️ 갤러리 선택</Text>
+            <Text style={styles.halfBtnText}>갤러리 선택</Text>
           </TouchableOpacity>
         </View>
 
@@ -517,7 +530,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
           <View>
             {results.documentSummary ? (
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>📄 인식된 문서</Text>
+                <Text style={styles.summaryCardTitle}>인식된 문서</Text>
                 <Text style={styles.summaryCardText}>{results.documentSummary}</Text>
               </View>
             ) : null}
@@ -528,7 +541,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
 
             {missingClauses.length > 0 && (
               <View style={[styles.warningBanner, { backgroundColor: C.warn100, borderLeftColor: C.warn600 }]}>
-                <Text style={styles.warningIcon}>⚠️</Text>
+                <Icon name="alert-triangle" size={18} color={C.warn600} style={{ marginTop: 1 }} />
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={[styles.warningTitle, { color: C.warn600 }]}>특약 누락 경고</Text>
                   <Text style={[styles.warningDesc, { color: C.warn600 }]}>
@@ -544,9 +557,9 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             {results.items.map((item, i) => (
               <View key={i} style={[styles.resultCard, { borderLeftColor: levelColor[item.level] }]}>
                 <View style={styles.resultCardTop}>
-                  <Text style={styles.levelIcon}>{levelIcon[item.level]}</Text>
+                  <Icon name="dot" size={16} color={levelColor[item.level]} />
                   <View style={[styles.scoreBadge, { backgroundColor: levelBg[item.level] }]}>
-                    <Text style={[styles.scoreBadgeText, { color: levelColor[item.level] }]}>{item.score}점</Text>
+                    <Text style={[styles.scoreBadgeText, { color: levelTextColor[item.level] }]}>{item.score}점</Text>
                   </View>
                   <Text style={styles.resultCardTitle}>{item.title}</Text>
                 </View>
@@ -556,7 +569,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                 )}
                 {item.negotiationPhrase && (
                   <View style={styles.negotiationBox}>
-                    <Text style={styles.negotiationLabel}>💬 협상할 때 이렇게 말해보세요</Text>
+                    <Text style={styles.negotiationLabel}>협상할 때 이렇게 말해보세요</Text>
                     <Text style={styles.negotiationPhrase}>"{item.negotiationPhrase}"</Text>
                     {item.legalBasis && <Text style={styles.negotiationLegal}>근거: {item.legalBasis}</Text>}
                   </View>
@@ -568,12 +581,34 @@ export default function ContractAnalysisScreen({ navigation, route }) {
               본 분석은 법률 정보 제공이며 법률 조언이 아닙니다. 정확한 판단은 전문가와 상담하세요.
             </Text>
 
-            <TouchableOpacity
-              style={styles.cta}
-              onPress={() => navigation.navigate('ExpertQuestion')}
-            >
-              <Text style={styles.ctaText}>전문가에게 계약서 검토 요청하기</Text>
-            </TouchableOpacity>
+            {saving ? (
+              <View style={styles.savedRow}>
+                <ActivityIndicator size="small" color={C.brand600} />
+                <Text style={styles.savingText}>타임라인에 저장하는 중...</Text>
+              </View>
+            ) : saveError ? (
+              <>
+                <Text style={styles.saveError}>{saveError}</Text>
+                <TouchableOpacity style={styles.cta} onPress={() => saveToCase(lastAnalysis)}>
+                  <Text style={styles.ctaText}>다시 저장하기</Text>
+                </TouchableOpacity>
+              </>
+            ) : savedTo ? (
+              <>
+                <View style={styles.savedRow}>
+                  <Icon name="check-circle" size={16} color={C.safe600} />
+                  <Text style={styles.savedText}>타임라인에 자동으로 저장됐어요</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.cta}
+                  onPress={() =>
+                    navigation.navigate(RECORD_ROUTES.EVIDENCE_TIMELINE, { caseId: savedTo.caseId }, { pop: true })
+                  }
+                >
+                  <Text style={styles.ctaText}>타임라인 보기</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         )}
 
@@ -645,6 +680,10 @@ const styles = StyleSheet.create({
   cta: { backgroundColor: C.brand600, borderRadius: 999, padding: 16, alignItems: 'center', marginBottom: 16 },
   ctaDisabled: { backgroundColor: C.line },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  savedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10 },
+  savedText: { color: C.safe600, fontSize: 12.5, fontWeight: '700' },
+  savingText: { color: C.ink500, fontSize: 12.5 },
+  saveError: { color: C.danger600, fontSize: 12, textAlign: 'center', marginBottom: 8 },
 
   summaryCard: { backgroundColor: C.sky050, borderRadius: 14, padding: 12, marginBottom: 12 },
   summaryCardTitle: { color: C.ink900, fontSize: 13, fontWeight: '700' },

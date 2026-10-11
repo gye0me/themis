@@ -15,6 +15,7 @@ import { unblockUser } from '../services/blockService';
 import { LEGAL_DOCUMENTS } from '../services/legalDocuments';
 import { ACCOUNT_ROUTES, GUARDIAN_ROUTES } from '../navigation/routes';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 export function AccountScreen({ navigation }) {
   const { user, profile, refreshProfile } = useContext(AuthContext);
@@ -65,7 +66,7 @@ export function AccountScreen({ navigation }) {
             <Text style={styles.name}>{displayName}님</Text>
             <Text style={styles.meta}>{user?.email}</Text>
             <Text style={styles.meta}>
-              {isExpert ? `🎓 전문가 계정${profile?.expertProfile?.job ? ` · ${profile.expertProfile.job}` : ''}` : '일반 계정'}
+              {isExpert ? `전문가 계정${profile?.expertProfile?.job ? ` · ${profile.expertProfile.job}` : ''}` : '일반 계정'}
               {profile?.themisId ? ` · ${profile.themisId}` : ''}
             </Text>
           </View>
@@ -128,7 +129,7 @@ export function AccountScreen({ navigation }) {
 
               <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreeDelete((v) => !v)}>
                 <View style={[styles.checkbox, agreeDelete && styles.checkboxOn]}>
-                  {agreeDelete && <Text style={styles.checkMark}>✓</Text>}
+                  {agreeDelete && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
                 </View>
                 <Text style={styles.agreeText}>위 내용을 확인했고 탈퇴에 동의합니다</Text>
               </TouchableOpacity>
