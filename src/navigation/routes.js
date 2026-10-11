@@ -38,6 +38,7 @@ export const EXPERT_ROUTES = {
 export const ACCOUNT_ROUTES = {
   ACCOUNT: 'Account',
   LEGAL: 'LegalDocument',
+  NOTIFICATIONS: 'Notifications',
 };
 
 export const GUARDIAN_ROUTES = {

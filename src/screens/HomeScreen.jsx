@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState, Image, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,7 +32,9 @@ import {
   registerPushToken,
   sendDeadmanAlertToGuardians,
 } from '../services/guardianService';
+import { getUnreadNotificationCount } from '../services/notificationService';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { ScreenTopBar } from '../components/ScreenTopBar';
 import { C, EVIDENCE_TILES } from '../theme/tokens';
 import { Icon } from '../components/Icon';
 
@@ -47,7 +49,6 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const THEMIS_LOGO = require('../assets/themis-logo-brand.png');
 
 // 데드맨 스위치: 포그라운드에서는 1초 단위로 정확히 카운트다운한다.
 // 앱이 백그라운드에 있는 동안은 deadmanBackgroundTask.js에 등록된 백그라운드 작업(EAS 개발
@@ -189,14 +190,6 @@ function ShieldIllustration() {
   );
 }
 
-function SearchIcon({ color }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
-      <Circle cx={11} cy={11} r={7} />
-      <Path d="m21 21-4.3-4.3" />
-    </Svg>
-  );
-}
 function BellIcon({ color }) {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
@@ -263,6 +256,7 @@ export function HomeScreen({ navigation }) {
   const [unreadAlertCount, setUnreadAlertCount] = useState(0);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [needGuardianHint, setNeedGuardianHint] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0); // 알림함 안 읽은 수 (종 아이콘 빨간 점)
 
   const [savingExpertBadge, setSavingExpertBadge] = useState(false);
   // 전문가 전용 가입으로 만든 계정만 배지를 쓸 수 있다 (일반 계정은 배지 카드 자체가 안 보임)
@@ -582,6 +576,9 @@ export function HomeScreen({ navigation }) {
       getReceivedAlerts(user.uid)
         .then((list) => active && setUnreadAlertCount(list.filter((a) => !a.readAt).length))
         .catch((err) => console.warn('위급 알림 조회 실패:', err?.message));
+      getUnreadNotificationCount(user.uid)
+        .then((n) => active && setUnreadNotificationCount(n))
+        .catch(() => {});
       // 이미 알림을 허용한 기기면 푸시 토큰을 최신으로 등록 (권한 창은 보호자 관리 화면에서만 띄운다)
       registerPushToken(user.uid);
       if (profile?.deadmanSwitch?.enabled) cacheGuardianTokensForBackground(user.uid, displayName);
@@ -689,21 +686,22 @@ export function HomeScreen({ navigation }) {
 
         {/* ===== 히어로 ===== */}
         <LinearGradient colors={[C.sky050, C.sky100, C.surface]} locations={[0, 0.62, 1]} style={styles.hero}>
-          <View style={styles.topBar}>
-            <Image source={THEMIS_LOGO} style={styles.headerBadge} resizeMode="contain" />
-            <Text style={styles.topBarTitle}>홈</Text>
-            <View style={styles.topBarIcons}>
-              <TouchableOpacity hitSlop={8} onPress={() => Alert.alert('준비 중', '검색 기능은 준비 중입니다.')}>
-                <SearchIcon color={C.ink700} />
-              </TouchableOpacity>
-              <TouchableOpacity hitSlop={8} onPress={() => Alert.alert('준비 중', '알림함 기능은 준비 중입니다.')}>
+          <ScreenTopBar
+            title="홈"
+            subtitle="오늘의 안전과 내 사건을 한눈에"
+            style={styles.homeTopBar}
+            right={
+              <>
+              <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.NOTIFICATIONS)}>
                 <BellIcon color={C.ink700} />
+                {unreadNotificationCount > 0 && <View style={styles.bellDot} />}
               </TouchableOpacity>
               <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.ACCOUNT)}>
                 <AccountIcon color={C.ink700} />
               </TouchableOpacity>
-            </View>
-          </View>
+              </>
+            }
+          />
 
           <ShieldIllustration />
 
@@ -1046,10 +1044,12 @@ const styles = StyleSheet.create({
 
   // 히어로
   hero: { paddingHorizontal: 22, paddingTop: 6, paddingBottom: 26, gap: 18 },
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerBadge: { width: 24, height: 24 },
-  topBarTitle: { fontSize: 21, fontWeight: '700', color: C.ink900 },
-  topBarIcons: { flexDirection: 'row', gap: 14, marginLeft: 'auto', alignItems: 'center' },
+  // 공용 상단 바(ScreenTopBar)를 히어로 안에 넣으므로 히어로의 좌우·위 여백만큼 되돌려 다른 탭과 위치를 맞춘다
+  homeTopBar: { marginHorizontal: -22, marginTop: -6 },
+  bellDot: {
+    position: 'absolute', top: -1, right: -1, width: 8, height: 8, borderRadius: 4,
+    backgroundColor: C.danger600, borderWidth: 1.5, borderColor: C.sky050,
+  },
   illustrationWrap: { height: 150, alignItems: 'center', justifyContent: 'center' },
   cloud: { position: 'absolute', borderRadius: 999, backgroundColor: '#E7EFFC', opacity: 0.9 },
   cloudA: { width: 92, height: 34, top: 2, left: 6 },

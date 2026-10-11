@@ -403,7 +403,11 @@ export function subscribeToMyDirectRooms(uid, callback) {
       }));
       callback(rooms);
     },
-    (error) => console.error('내 1:1 채팅방 목록 구독 오류:', error),
+    (error) => {
+      // database.rules.json의 userDmRooms 규칙이 서버에 배포되지 않으면 permission_denied가 난다
+      console.warn('내 1:1 채팅방 목록 구독 오류 (Realtime DB 규칙 배포 확인 필요):', error?.message);
+      callback([]);
+    },
   );
   return () => off(indexRef, 'value', handler);
 }
