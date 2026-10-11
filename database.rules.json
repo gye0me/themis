@@ -4,7 +4,9 @@
       "$roomId": {
         "messages": {
           ".read": "auth != null",
+          ".indexOn": ["createdAt"],
           "$messageId": {
+            ".read": "auth != null",
             ".write": "auth != null && (!data.exists() || data.child('senderId').val() === auth.uid) && (newData.child('senderId').val() === auth.uid)"
           }
         },

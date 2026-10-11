@@ -58,7 +58,8 @@ const TABS = [
  * @param {object} navigation - react-navigation의 navigation prop
  */
 export function BottomNavBar({ active, navigation }) {
-  // 폰 아래쪽 홈 인디케이터(안전 영역)만큼 띄워서 바가 너무 낮게 붙지 않게 한다
+  // 폰 아래쪽 홈 인디케이터(iOS)·시스템 바(안드로이드 제스처/3버튼)에 가려지거나 너무 낮게 붙지 않도록
+  // 하단 안전 영역만큼 띄우고 여백을 더한다.
   const insets = useSafeAreaInsets();
   const goTab = (key) => {
     if (key === active) return;

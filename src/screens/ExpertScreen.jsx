@@ -530,7 +530,7 @@ export function ExpertScreen({ navigation }) {
           })
         )}
 
-        <View style={{ height: 130 }} />
+        <View style={{ height: 16 }} />
       </ScrollView>
 
       {/* 하단 고정 버튼 */}
@@ -703,12 +703,12 @@ const styles = StyleSheet.create({
   },
   acceptedTagText: { fontSize: 9.5, color: '#FFFFFF', fontWeight: '700' },
   commentBody: { fontSize: 11.5, color: C.ink700, marginTop: 2, lineHeight: 16 },
-  commentFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  commentFooterRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 4 },
   acceptBtn: { paddingVertical: 2 },
   acceptBtnText: { color: C.safe600, fontSize: 11, fontWeight: '700' },
   acceptBtnTextCancel: { color: C.ink500, fontSize: 11, fontWeight: '600' },
   commentReportBtn: { paddingVertical: 2, marginLeft: 'auto' },
-  commentBlockBtn: { paddingVertical: 2, marginLeft: 8 },
+  commentBlockBtn: { paddingVertical: 2 },
   commentReportBtnText: { color: C.ink400, fontSize: 10.5, fontWeight: '600' },
   commentDmBtn: { paddingVertical: 2 },
   commentDmBtnText: { color: C.brand600, fontSize: 10.5, fontWeight: '700' },
@@ -738,11 +738,12 @@ const styles = StyleSheet.create({
   },
   commentSendText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '600' },
 
+  // 화면 하단에 떠 있던(absolute) 버튼이 하단 바/시스템 바에 가려져서, 바 바로 위 일반 레이아웃으로 배치한다.
   bottomButtonArea: {
-    position: 'absolute',
-    bottom: 90,
-    left: 20,
-    right: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: C.surface,
   },
   bottomButton: {
     backgroundColor: C.brand600,

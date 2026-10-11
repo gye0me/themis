@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -11,7 +11,7 @@ import { useAudioRecorder, useAudioRecorderState, RecordingPresets, requestRecor
 import { AuthContext } from '../context/AuthContext';
 import { createEvidenceRecord, uploadEvidenceThumbnail } from '../services/firebaseService';
 import { transcribeAudioClova } from '../services/clovaSpeechService';
-import { transcribeVideoAudio } from '../services/videoTranscriptService';
+import { transcribeVideoAudio, transcribeAudioFile } from '../services/videoTranscriptService';
 import { getVideoThumbnail } from '../utils/videoThumbnail';
 import { extractTextFromImage } from '../services/ocrService';
 import { PhotoWatermarkStamper } from '../components/PhotoWatermarkStamper';
@@ -195,12 +195,23 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
       let note = '';
       let sttError = null;
+      let ocrError = null;
       if (evidenceType === 'audio') {
         try {
-          note = await transcribeAudioClova(file.uri, file.mimeType);
+          // m4a는 바이트 분할이 안 돼 클로바로는 뒷부분이 깨지므로, Gemini로 파일째 변환한다
+          note = await transcribeAudioFile(file);
         } catch (e) {
-          console.warn('클로바 변환 실패:', e.message);
+          console.warn('Gemini 음성 변환 실패:', e.message);
           sttError = e.message;
+          // 앱에서는 기존 클로바 방식을 보조 수단으로 한 번 더 시도
+          if (Platform.OS !== 'web') {
+            try {
+              note = await transcribeAudioClova(file.uri, file.mimeType);
+              if (note) sttError = null;
+            } catch (e2) {
+              console.warn('클로바 변환 실패:', e2.message);
+            }
+          }
         }
       } else if (evidenceType === 'video') {
         try {
@@ -217,6 +228,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
           console.log('OCR 완료:', note);
         } catch (e) {
           console.warn('OCR 변환 실패:', e.message);
+          ocrError = e.message;
         }
       }
       // 영상 증거: 5초 지점 프레임을 캡처해 "5초 스탬프"로 함께 저장 (변조 여부 확인용 미리보기)
@@ -259,6 +271,10 @@ export function EvidenceUploadScreen({ navigation, route }) {
       } else if (evidenceType === 'video' && sttError) {
         msg = `영상은 저장됐지만 음성 텍스트 변환에 실패했습니다.
 (${sttError})`;
+      } else if (evidenceType === 'image' && note) {
+        msg = `사진이 기록되었습니다.\n\n추출된 텍스트:\n"${note.slice(0, 80)}${note.length > 80 ? '...' : ''}"`;
+      } else if (evidenceType === 'image' && ocrError) {
+        msg = `사진은 저장됐지만 텍스트 추출에 실패했습니다.\n(${ocrError})`;
       } else {
         msg = `${cfg.label}과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`;
       }

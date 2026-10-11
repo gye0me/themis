@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, Modal, FlatList, Linking,
   TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
@@ -10,6 +10,7 @@ import {
   shareCaseReportInRoom,
 } from '../services/chatService';
 import { getCasesByUser } from '../services/firebaseService';
+import { getDemoMessages } from '../services/demoChatMessages';
 import { BackHeader } from '../components/BackHeader';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { blockUser, getBlockedUserIds } from '../services/blockService';
@@ -46,6 +47,9 @@ export function ChatRoomScreen({ navigation, route }) {
   const isDirect = roomId?.startsWith('dm-') ?? false;
 
   const [messages, setMessages] = useState([]);
+  // 시연용 더미 대화(피해자 연대방만) — 실제 메시지 앞에 붙여서 보여준다
+  const demoMessages = useMemo(() => getDemoMessages(roomId), [roomId]);
+  const visibleMessages = useMemo(() => [...demoMessages, ...messages], [demoMessages, messages]);
   const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -119,12 +123,17 @@ export function ChatRoomScreen({ navigation, route }) {
 
   const openReportPicker = async () => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
+      // RN Web은 Alert.alert가 제대로 안 떠서(채팅방 나가기 때 겪은 문제와 동일), 웹은 window.alert로 대체.
+      if (Platform.OS === 'web') {
+        window.alert('보고서를 보내려면 먼저 로그인해주세요.');
+      } else {
+        Alert.alert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
+      }
       return;
     }
     // 웹은 PDF 생성이 브라우저 인쇄 대화상자를 거쳐야 해서 자동 업로드가 안 됨 — 폰(네이티브)에서만 지원.
     if (Platform.OS === 'web') {
-      Alert.alert('모바일 앱에서 지원', '보고서 보내기는 아직 모바일 앱에서만 사용할 수 있어요.');
+      window.alert('보고서 보내기는 아직 모바일 앱에서만 사용할 수 있어요.');
       return;
     }
     setReportPickerVisible(true);
@@ -221,16 +230,22 @@ export function ChatRoomScreen({ navigation, route }) {
           {/* 날짜 구분선 */}
           <View style={styles.dateDivider}>
             <View style={styles.dateLine} />
-            <Text style={styles.dateText}>{formatDateLabel(messages[0]?.createdAt)}</Text>
+            <Text style={styles.dateText}>{formatDateLabel(visibleMessages[0]?.createdAt)}</Text>
             <View style={styles.dateLine} />
           </View>
 
-          {messages.length === 0 ? (
+          {demoMessages.length > 0 && (
+            <View style={styles.demoNotice}>
+              <Text style={styles.demoNoticeText}>아래 익명 대화는 시연용 예시예요. 실제 참여자의 대화가 아니에요.</Text>
+            </View>
+          )}
+
+          {visibleMessages.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyText}>아직 메시지가 없어요. 첫 메시지를 보내보세요!</Text>
             </View>
           ) : (
-            messages.filter((msg) => !blockedIds.has(msg.senderId)).map((msg) => {
+            visibleMessages.filter((msg) => !blockedIds.has(msg.senderId)).map((msg) => {
               const isMine = msg.senderId === user?.uid;
               const fileCard = msg.file ? (
                 <TouchableOpacity
@@ -259,16 +274,22 @@ export function ChatRoomScreen({ navigation, route }) {
                   </View>
                 );
               }
-              const initial = (msg.senderName || '?').trim().charAt(0) || '?';
+              // 익명1, 익명2처럼 번호가 붙은 이름은 번호를 아바타에 보여줘서 구분되게 한다
+              const anonNum = /^익명(\d+)$/.exec((msg.senderName || '').trim());
+              const initial = anonNum ? anonNum[1] : (msg.senderName || '?').trim().charAt(0) || '?';
               return (
                 <View key={msg.id} style={styles.otherMsgRow}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{initial}</Text>
                   </View>
                   <View style={styles.otherMsgBody}>
-                    <TouchableOpacity onPress={() => setBlockTarget({ uid: msg.senderId, name: msg.senderName })} hitSlop={6}>
-                      <Text style={styles.senderName}>{msg.senderName} ›</Text>
-                    </TouchableOpacity>
+                    {msg.isDemo ? (
+                      <Text style={styles.senderName}>{msg.senderName}</Text>
+                    ) : (
+                      <TouchableOpacity onPress={() => setBlockTarget({ uid: msg.senderId, name: msg.senderName })} hitSlop={6}>
+                        <Text style={styles.senderName}>{msg.senderName} ›</Text>
+                      </TouchableOpacity>
+                    )}
                     {fileCard ?? (
                       <View style={styles.otherBubble}>
                         <Text style={styles.otherBubbleText}>{msg.text}</Text>
@@ -395,6 +416,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: C.ink400, fontSize: 13 },
   errorText: { color: C.danger600, fontSize: 13, paddingHorizontal: 24, textAlign: 'center' },
+  demoNotice: { alignSelf: 'center', backgroundColor: C.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 10 },
+  demoNoticeText: { fontSize: 11, color: C.ink500, textAlign: 'center' },
   emptyBox: { alignItems: 'center', paddingVertical: 32 },
   emptyText: { color: C.ink400, fontSize: 12 },
 

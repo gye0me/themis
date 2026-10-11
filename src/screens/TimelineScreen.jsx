@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -6,7 +6,7 @@ import { useAudioPlayer } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
-import { getEvidenceRecords, getCaseById, deleteCase, setEvidenceHidden } from '../services/firebaseService';
+import { getEvidenceRecords, getCaseById, deleteCase, setEvidenceHidden, subscribeEvidenceChanged } from '../services/firebaseService';
 import { BackHeader } from '../components/BackHeader';
 import { PreventionGuideModal } from '../components/PreventionGuideModal';
 import { ConfirmSheet } from '../components/ConfirmSheet';
@@ -75,12 +75,13 @@ function buildSummary(records) {
 
 // 카드가 펼쳐졌을 때만 마운트되는 독립된 영상 재생기 (카드마다 따로 가짐 → 여러 개 동시에 펼쳐도 서로 안 건드림)
 // 실제 원본 영상은 "재생" 눌렀을 때만 불러옴 — 펼치자마자 스트리밍을 시작하면 그게 느려 보이는 원인이라 그 전까진 5초 스탬프 썸네일만 보여줌
-function InlineVideoPlayer({ uri, thumbnailURL }) {
+function InlineVideoPlayer({ uri, thumbnailURL, onOpen }) {
   const [started, setStarted] = useState(false);
 
   if (!started) {
     return (
-      <TouchableOpacity style={styles.videoPoster} onPress={() => setStarted(true)} activeOpacity={0.85}>
+      // onOpen이 있으면 사진처럼 전체화면 뷰어로 열고, 없으면 카드 안에서 바로 재생한다
+      <TouchableOpacity style={styles.videoPoster} onPress={() => (onOpen ? onOpen() : setStarted(true))} activeOpacity={0.85}>
         {thumbnailURL ? (
           <Image source={{ uri: thumbnailURL }} style={styles.videoPosterImage} resizeMode="cover" />
         ) : (
@@ -104,6 +105,15 @@ function ActualVideoPlayer({ uri }) {
     p.play();
   });
   return <VideoView player={player} style={styles.inlineVideo} nativeControls allowsFullscreen />;
+}
+
+// 전체화면 뷰어 안에서만 마운트되는 재생기 — 열릴 때 만들어지고 닫히면 같이 해제된다
+function FullScreenVideoPlayer({ uri }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.play();
+  });
+  return <VideoView player={player} style={styles.viewerVideo} nativeControls contentFit="contain" />;
 }
 
 // 카드가 펼쳐졌을 때만 마운트되는 독립된 음성 재생기
@@ -145,6 +155,7 @@ export function TimelineScreen({ navigation, route }) {
   const [hiding, setHiding] = useState(false);
   const [preventionVisible, setPreventionVisible] = useState(false);
   const [viewerUri, setViewerUri] = useState(null); // 증거 사진 전체화면 보기 (null이면 닫힘)
+  const [videoViewerUri, setVideoViewerUri] = useState(null); // 증거 영상 전체화면 보기 (null이면 닫힘)
   function toggleExpand(id) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -165,21 +176,38 @@ export function TimelineScreen({ navigation, route }) {
     }, [user, caseId])
   );
 
-  async function fetchRecords() {
-    setLoading(true);
+  // 증거가 새로 저장되면(업로드 화면이 위에 떠 있어도) 바로 목록을 조용히 다시 불러온다.
+  // 포커스 이벤트가 안 오는 화면 구조에서도 돌아왔을 때 새 증거가 이미 보이게 하기 위함.
+  useEffect(() => {
+    if (!user) return undefined;
+    return subscribeEvidenceChanged((changedCaseId) => {
+      if (caseId && changedCaseId && changedCaseId !== caseId) return;
+      fetchRecords({ silent: true });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, caseId]);
+
+  // 응답이 엇갈려 도착해도 가장 최근에 요청한 결과만 반영한다
+  const fetchSeqRef = useRef(0);
+
+  // silent: true면 로딩 스피너 없이(펼쳐둔 카드·스크롤 유지) 목록만 갱신한다
+  async function fetchRecords({ silent = false } = {}) {
+    const seq = ++fetchSeqRef.current;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [data, caseDoc] = await Promise.all([
         getEvidenceRecords(user.uid, caseId),
         caseId ? getCaseById(caseId) : Promise.resolve(null),
       ]);
+      if (seq !== fetchSeqRef.current) return;
       setRecords(data);
       setCaseData(caseDoc);
     } catch (err) {
       console.error(err);
-      setError('증거를 불러오지 못했습니다.');
+      if (seq === fetchSeqRef.current && !silent) setError('증거를 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   }
 
@@ -531,7 +559,11 @@ export function TimelineScreen({ navigation, route }) {
                       {/* 영상 상세 */}
                       {item.evidenceType === 'video' && isExpanded && item.downloadURL && (
                         <View style={styles.contractDetail}>
-                          <InlineVideoPlayer uri={item.downloadURL} thumbnailURL={item.thumbnailURL} />
+                          <InlineVideoPlayer
+                            uri={item.downloadURL}
+                            thumbnailURL={item.thumbnailURL}
+                            onOpen={() => setVideoViewerUri(item.downloadURL)}
+                          />
                           {item.note ? (
                             <TouchableOpacity
                               style={styles.hashCard}
@@ -638,6 +670,15 @@ export function TimelineScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
       </Modal>
+      {/* 증거 영상 전체화면 보기 */}
+      <Modal visible={!!videoViewerUri} transparent animationType="fade" onRequestClose={() => setVideoViewerUri(null)}>
+        <View style={[styles.viewerBackdrop, { backgroundColor: '#000000' }]}>
+          <TouchableOpacity style={styles.viewerCloseBtn} onPress={() => setVideoViewerUri(null)}>
+            <Icon name="x" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          {videoViewerUri ? <FullScreenVideoPlayer uri={videoViewerUri} /> : null}
+        </View>
+      </Modal>
       <ConfirmSheet
         visible={confirmDelete}
         title="사건을 삭제할까요?"
@@ -675,6 +716,7 @@ const styles = StyleSheet.create({
   viewerCloseText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   viewerImageWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   viewerImage: { width: '100%', height: '100%' },
+  viewerVideo: { flex: 1, width: '100%' },
   shareBtn: { padding: 4 },
   shareBtnText: { color: C.ink500, fontSize: 18 },
   deleteBtn: { padding: 4 },
