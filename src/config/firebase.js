@@ -12,9 +12,14 @@ const storageBucket = process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
 const messagingSenderId = process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
 const appId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
 const measurementId = process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
-// 채팅방(Realtime Database) 전용 — Firebase 콘솔에서 Realtime Database를 만들면 발급되는 URL.
-// 예: https://themis-e96f4-default-rtdb.asia-southeast1.firebasedatabase.app
-const databaseURL = process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL;
+
+// 채팅방(Realtime Database) 전용 URL.
+// .env의 EXPO_PUBLIC_FIREBASE_DATABASE_URL을 우선 쓰고, 없으면 아래 기본값 사용.
+// 콘솔 > Realtime Database > 데이터 탭 맨 위 주소와 반드시 같아야 함.
+// (리전이 미국이 아니면 ...-default-rtdb.<리전>.firebasedatabase.app 형태)
+const databaseURL =
+  process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL ||
+  'https://themis-e96f4-default-rtdb.firebaseio.com';
 
 const firebaseConfig = {
   apiKey,
@@ -40,11 +45,12 @@ try {
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-// databaseURL이 설정 안 돼있으면(.env 미설정) getDatabase가 바로 예외를 던지므로,
+
+// databaseURL이 없거나 잘못되면 getDatabase가 예외를 던지므로,
 // 채팅 기능만 비활성화되고 앱 나머지는 정상 동작하도록 방어.
 let rtdb = null;
 try {
-  rtdb = databaseURL ? getDatabase(app) : null;
+  rtdb = databaseURL ? getDatabase(app, databaseURL) : null;
 } catch (err) {
   console.error('Realtime Database 초기화 오류 (EXPO_PUBLIC_FIREBASE_DATABASE_URL 확인):', err);
 }

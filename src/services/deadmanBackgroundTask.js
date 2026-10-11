@@ -26,7 +26,6 @@ async function ensureAndroidChannel() {
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: '위급 상황 자동 알림',
     importance: Notifications.AndroidImportance.MAX,
-    sound: 'default',
     vibrationPattern: [0, 250, 250, 250],
   });
 }

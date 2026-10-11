@@ -1,6 +1,6 @@
 // src/services/videoTranscriptService.js
 //
-// 영상 증거의 음성(대화)을 텍스트로 변환한다.
+// 영상·음성 증거의 말소리(대화)를 텍스트로 변환한다. (음성 파일은 transcribeAudioFile)
 //
 // 클로바 CSR은 영상 컨테이너(mp4/mov)를 받지 않고, 프로젝트에 ffmpeg 같은 재인코딩
 // 라이브러리도 없어서 플랫폼별로 다르게 처리한다.
@@ -37,18 +37,39 @@ function normalizeVideoMime(mimeType) {
   return m;
 }
 
+// 음성 파일 MIME을 Gemini가 받는 값으로 맞춘다 (앱 녹음 m4a는 audio/mp4 컨테이너).
+function normalizeAudioMime(mimeType, name = '') {
+  const m = (mimeType || '').toLowerCase();
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (m === 'audio/m4a' || m === 'audio/x-m4a' || m === 'audio/mp4a-latm' || ext === 'm4a') return 'audio/mp4';
+  if (m === 'audio/mpeg' || ext === 'mp3') return 'audio/mp3';
+  if (m === 'audio/x-wav' || m === 'audio/wave' || ext === 'wav') return 'audio/wav';
+  if (m === 'audio/x-flac' || ext === 'flac') return 'audio/flac';
+  if (!m || m === 'audio/*') return 'audio/mp4';
+  return m;
+}
+
 async function generateTranscript(mediaPart) {
   const res = await geminiFetch({
     contents: [{ parts: [{ text: TRANSCRIBE_PROMPT }, mediaPart] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 8192 },
+    // thinkingBudget: 0 — 생각 토큰이 출력 한도를 먹어 본문이 비는 것을 막는다
+    generationConfig: { temperature: 0, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } },
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini 음성 변환 오류 (${res.status}) ${errText}`.trim());
+    throw new Error(`Gemini 음성 변환 오류 (${res.status}) ${errText.slice(0, 200)}`.trim());
   }
   const data = await res.json();
-  const parts = data?.candidates?.[0]?.content?.parts ?? [];
-  return parts.map((p) => p.text ?? '').join('').trim();
+  const candidate = data?.candidates?.[0];
+  if (!candidate) {
+    const blockReason = data?.promptFeedback?.blockReason;
+    throw new Error(blockReason ? `음성 변환이 차단됐어요 (${blockReason})` : '음성 변환 응답이 비어 있어요.');
+  }
+  return (candidate.content?.parts ?? [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? '')
+    .join('')
+    .trim();
 }
 
 function blobToBase64(blob) {
@@ -180,21 +201,22 @@ async function uploadToGeminiFiles(fileUri, mimeType, size, apiKey) {
   return info.uri;
 }
 
-async function transcribeVideoNative(file) {
+async function transcribeNative(file, kind) {
   const FileSystem = require('expo-file-system/legacy');
-  const mimeType = normalizeVideoMime(file.mimeType);
+  const mimeType = kind === 'audio' ? normalizeAudioMime(file.mimeType, file.name) : normalizeVideoMime(file.mimeType);
+  const label = kind === 'audio' ? '음성' : '영상';
   const size = file.size ?? (await FileSystem.getInfoAsync(file.uri, { size: true })).size;
-  if (!size) throw new Error('영상 파일 크기를 확인할 수 없습니다.');
+  if (!size) throw new Error(`${label} 파일 크기를 확인할 수 없습니다.`);
 
   if (size <= INLINE_MAX_BYTES) {
     const data = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
     return generateTranscript({ inline_data: { mime_type: mimeType, data } });
   }
-  // 큰 영상은 Gemini Files API로 올려야 하는데, 이 경로는 아직 서버 경유를 지원하지 않는다
-  // (서버 모드에선 키가 앱에 없음). 출시 버전에서는 7MB 이하 영상만 변환하고 나머지는 안내한다.
+  // 큰 파일은 Gemini Files API로 올려야 하는데, 이 경로는 아직 서버 경유를 지원하지 않는다
+  // (서버 모드에선 키가 앱에 없음). 출시 버전에서는 7MB 이하만 변환하고 나머지는 안내한다.
   const apiKey = getDirectGeminiKey();
   if (!apiKey) {
-    throw new Error('영상이 커서(7MB 초과) 음성 변환을 건너뛰었어요. 짧게 나눠서 올리면 변환돼요.');
+    throw new Error(`${label} 파일이 커서(7MB 초과) 음성 변환을 건너뛰었어요. 짧게 나눠서 올리면 변환돼요.`);
   }
   const fileUri = await uploadToGeminiFiles(file.uri, mimeType, size, apiKey);
   return generateTranscript({ file_data: { mime_type: mimeType, file_uri: fileUri } });
@@ -206,5 +228,14 @@ async function transcribeVideoNative(file) {
  */
 export async function transcribeVideoAudio(file) {
   if (Platform.OS === 'web') return transcribeVideoWeb(file);
-  return transcribeVideoNative(file);
+  return transcribeNative(file, 'video');
+}
+
+/**
+ * 음성 증거 파일({ uri, name?, mimeType, size?, file? })을 텍스트로 변환한다.
+ * (m4a 같은 컨테이너 포맷은 클로바로 바이트 분할이 안 되므로 Gemini로 파일째 변환한다.)
+ */
+export async function transcribeAudioFile(file) {
+  if (Platform.OS === 'web') return transcribeVideoWeb(file);
+  return transcribeNative(file, 'audio');
 }

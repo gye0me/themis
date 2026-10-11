@@ -112,7 +112,7 @@ export async function startVideoFrameExtraction({ uri, name, mimeType, fpsOption
   if (!uri) throw new Error('프레임을 추출할 영상 파일이 없습니다.');
 
   const formData = new FormData();
-  formData.append('file', toFormDataFilePart(uri), name ?? 'video.mp4');
+  formData.append('file', toFormDataFilePart(uri, name ?? 'video.mp4', 'video/mp4'));
   formData.append('fps_option', String(fpsOption));
   formData.append('keep_original', String(keepOriginal));
 

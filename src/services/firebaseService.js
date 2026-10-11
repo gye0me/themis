@@ -409,6 +409,27 @@ function sanitizeFileName(fileName = 'evidence') {
 /**
  * 증거 파일/메모를 Storage + Firestore에 함께 저장
  */
+// ─── 증거 변경 알림 ────────────────────────────────────────────────────────
+// 증거를 저장하면(createEvidenceRecord) 타임라인 화면이 화면 전환/포커스와 상관없이
+// 목록을 다시 불러올 수 있도록 알려주는 아주 작은 구독 장치.
+// (화면 포커스만 믿으면 네비게이터 구조에 따라 돌아와도 갱신이 안 되는 경우가 있었다.)
+const evidenceChangeListeners = new Set();
+
+export function subscribeEvidenceChanged(listener) {
+  evidenceChangeListeners.add(listener);
+  return () => evidenceChangeListeners.delete(listener);
+}
+
+function notifyEvidenceChanged(caseId) {
+  evidenceChangeListeners.forEach((listener) => {
+    try {
+      listener(caseId);
+    } catch (e) {
+      console.warn('증거 변경 알림 처리 오류:', e?.message);
+    }
+  });
+}
+
 export async function createEvidenceRecord({
   userId = null,
   caseId = 'general',
@@ -476,6 +497,8 @@ export async function createEvidenceRecord({
       hidden: false,
       ...extra,
     });
+
+    notifyEvidenceChanged(caseId);
 
     return {
       id: docRef.id,

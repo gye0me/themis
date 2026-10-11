@@ -530,7 +530,7 @@ export function ExpertScreen({ navigation }) {
           })
         )}
 
-        <View style={{ height: 130 }} />
+        <View style={{ height: 16 }} />
       </ScrollView>
 
       {/* 하단 고정 버튼 */}
@@ -738,11 +738,12 @@ const styles = StyleSheet.create({
   },
   commentSendText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '600' },
 
+  // 화면 하단에 떠 있던(absolute) 버튼이 하단 바/시스템 바에 가려져서, 바 바로 위 일반 레이아웃으로 배치한다.
   bottomButtonArea: {
-    position: 'absolute',
-    bottom: 90,
-    left: 20,
-    right: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: C.surface,
   },
   bottomButton: {
     backgroundColor: C.brand600,
