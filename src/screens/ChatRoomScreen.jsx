@@ -123,12 +123,17 @@ export function ChatRoomScreen({ navigation, route }) {
 
   const openReportPicker = async () => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
+      // RN Web은 Alert.alert가 제대로 안 떠서(채팅방 나가기 때 겪은 문제와 동일), 웹은 window.alert로 대체.
+      if (Platform.OS === 'web') {
+        window.alert('보고서를 보내려면 먼저 로그인해주세요.');
+      } else {
+        Alert.alert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
+      }
       return;
     }
     // 웹은 PDF 생성이 브라우저 인쇄 대화상자를 거쳐야 해서 자동 업로드가 안 됨 — 폰(네이티브)에서만 지원.
     if (Platform.OS === 'web') {
-      Alert.alert('모바일 앱에서 지원', '보고서 보내기는 아직 모바일 앱에서만 사용할 수 있어요.');
+      window.alert('보고서 보내기는 아직 모바일 앱에서만 사용할 수 있어요.');
       return;
     }
     setReportPickerVisible(true);
