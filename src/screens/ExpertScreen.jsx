@@ -13,10 +13,15 @@ import {
 } from '../services/expertBoardService';
 import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
+import { blockUser, getBlockedUserIds } from '../services/blockService';
+import { ConfirmSheet } from '../components/ConfirmSheet';
+import { getOrCreateDirectRoom } from '../services/chatService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
+import { EXPERT_ROUTES, CHAT_ROUTES, APP_ROUTES } from '../navigation/routes';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatRelativeTime(ts) {
   const date = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : null;
@@ -30,7 +35,11 @@ function formatRelativeTime(ts) {
 }
 
 export function ExpertScreen({ navigation }) {
-  const { user, profile } = useContext(AuthContext);
+  const { user, profile, refreshProfile } = useContext(AuthContext);
+  // 차단한 사용자의 글·댓글은 내 화면에서 숨긴다 (앱스토어 심사 요건: 신고 + 차단)
+  const blockedIds = getBlockedUserIds(profile);
+  const [blockTarget, setBlockTarget] = useState(null); // { uid, name }
+  const [blocking, setBlocking] = useState(false);
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
   const isExpertUser = profile?.accountType === 'expert' && !!profile?.isExpert;
 
@@ -48,6 +57,7 @@ export function ExpertScreen({ navigation }) {
   const [acceptingId, setAcceptingId] = useState(null);
   const [anonDraftByPost, setAnonDraftByPost] = useState({});
   const [reportingId, setReportingId] = useState(null);
+  const [dmStartingId, setDmStartingId] = useState(null);
 
   const loadPosts = useCallback(() => {
     setLoadingPosts(true);
@@ -79,19 +89,9 @@ export function ExpertScreen({ navigation }) {
 
   // "지금 주목받는 사건"은 채팅방 입장 버튼이 아니라, 기자·변호사 등 전문가와 다른
   // 사용자들에게 사건을 알리는 게시글 성격이다. 그래서 눌렀을 때도 채팅방으로 이동시키지
-  // 않고, 어떤 사건인지 요약해서 보여준다. real(비데모) 항목은 curated description/
-  // watchingExperts가 없을 수 있어 일반적인 문구로 대체한다 — 동일 가해자 여부 등
-  // 실데이터에 없는 내용은 지어내지 않는다.
+  // 않고, 일반 게시판 글과 같은 톤의 상세 페이지(HotBoardDetailScreen)로 이동한다.
   const showHotEntryDetail = (entry) => {
-    const meta = CASE_TYPE_META[entry.caseType] ?? CASE_TYPE_META['기타'];
-    const description = entry.description || `${meta.label} 피해를 입은 분들이 ${entry.memberCount ?? 0}명 모였습니다.`;
-    const expertsLine = entry.watchingExperts?.length
-      ? `\n\n${entry.watchingExperts.join(', ')}가 이 사건을 주목하고 있어요.`
-      : '';
-    Alert.alert(
-      entry.roomName || `${meta.label} 피해자 연대`,
-      `${description}${expertsLine}\n\n상세 페이지는 준비 중이에요.`
-    );
+    navigation.navigate(EXPERT_ROUTES.HOT_BOARD_DETAIL, { entry });
   };
 
   const loadComments = (postId) => {
@@ -179,6 +179,32 @@ export function ExpertScreen({ navigation }) {
     }
   };
 
+  // 댓글 작성자에게 1:1로 "채팅 보내기" — 익명 댓글은 실명이 드러나면 안 되니 DM 자체를 막는다.
+  const startDmWithComment = async (comment) => {
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '채팅을 보내려면 먼저 로그인해주세요.');
+      return;
+    }
+    setDmStartingId(comment.id);
+    try {
+      const roomId = await getOrCreateDirectRoom({
+        myUid: user.uid,
+        myName: displayName,
+        otherUid: comment.userId,
+        otherName: comment.authorName ?? '익명',
+      });
+      navigation.navigate(APP_ROUTES.CHATS_STACK, {
+        screen: CHAT_ROUTES.ROOM,
+        params: { roomId, roomName: comment.authorName ?? '익명' },
+      });
+    } catch (err) {
+      console.error('1:1 채팅방 생성 오류:', err);
+      Alert.alert('오류', err?.message ?? '채팅방을 열지 못했습니다.');
+    } finally {
+      setDmStartingId(null);
+    }
+  };
+
   const reportTarget = (targetType, targetId, onHidden) => {
     if (!user) {
       Alert.alert('로그인이 필요해요', '신고하려면 먼저 로그인해주세요.');
@@ -232,9 +258,10 @@ export function ExpertScreen({ navigation }) {
               >
                 <View style={styles.hotCardHeader}>
                   <View style={styles.hotBadge}>
-                    <Text style={styles.hotBadgeText}>🔥 HOT</Text>
+                    <Text style={styles.hotBadgeText}>HOT</Text>
                   </View>
-                  <Text style={styles.hotCardTitle}>{meta.icon} {entry.roomName || `${meta.label} 피해자 연대방`}</Text>
+                  <Icon name={meta.icon} size={16} color={C.ink700} />
+                  <Text style={styles.hotCardTitle}>{entry.roomName || `${meta.label} 피해자 연대방`}</Text>
                   <View style={styles.victimBadgeRed}>
                     <Text style={styles.victimBadgeRedText}>피해자 {entry.memberCount ?? 0}명</Text>
                   </View>
@@ -268,10 +295,10 @@ export function ExpertScreen({ navigation }) {
             <Text style={styles.emptyText}>아직 등록된 질문이 없어요. 첫 질문을 남겨보세요!</Text>
           </View>
         ) : (
-          posts.map((post) => {
+          posts.filter((post) => !blockedIds.has(post.userId)).map((post) => {
             const isMine = post.userId === user?.uid;
             const isExpanded = expandedId === post.id;
-            const comments = commentsByPost[post.id] ?? [];
+            const comments = (commentsByPost[post.id] ?? []).filter((c) => !blockedIds.has(c.userId));
 
             // 익명 댓글 작성자를 "익명 참여자 N"으로 일관되게 표시하기 위해,
             // 오래된 순(채택 정렬 전) 기준으로 사용자별 번호를 미리 매겨둔다.
@@ -299,7 +326,7 @@ export function ExpertScreen({ navigation }) {
                     </View>
                     {post.isResolved ? (
                       <View style={styles.resolvedBadge}>
-                        <Text style={styles.resolvedBadgeText}>해결됨 ✓</Text>
+                        <Text style={styles.resolvedBadgeText}>해결됨</Text>
                       </View>
                     ) : null}
                     <View style={styles.answerCountBadge}>
@@ -314,7 +341,7 @@ export function ExpertScreen({ navigation }) {
                   <Text style={styles.postBody}>{post.content}</Text>
                   {post.attachedCaseTitle ? (
                     <View style={styles.fileAttach}>
-                      <Text style={styles.fileIcon}>📎</Text>
+                      <Icon name="paperclip" size={14} color={C.ink500} />
                       <Text style={styles.fileName}>{post.attachedCaseTitle}</Text>
                     </View>
                   ) : null}
@@ -346,8 +373,16 @@ export function ExpertScreen({ navigation }) {
                       {reportingId === post.id ? (
                         <ActivityIndicator size="small" color="#94A3B8" />
                       ) : (
-                        <Text style={styles.reportBtnText}>🚩 신고</Text>
+                        <Text style={styles.reportBtnText}>신고</Text>
                       )}
+                    </TouchableOpacity>
+                  )}
+                  {!isMine && (
+                    <TouchableOpacity
+                      style={styles.reportBtn}
+                      onPress={() => setBlockTarget({ uid: post.userId, name: postAuthorLabel })}
+                    >
+                      <Text style={styles.reportBtnText}>차단</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -376,7 +411,7 @@ export function ExpertScreen({ navigation }) {
                           if (c.hidden) {
                             return (
                               <View key={c.id} style={styles.commentRow}>
-                                <Text style={styles.hiddenCommentText}>🚫 신고 누적으로 숨겨진 댓글입니다.</Text>
+                                <Text style={styles.hiddenCommentText}>신고 누적으로 숨겨진 댓글입니다.</Text>
                               </View>
                             );
                           }
@@ -387,7 +422,7 @@ export function ExpertScreen({ navigation }) {
                                 <Text style={styles.commentAuthor}>{commentAuthorLabel}</Text>
                                 {c.isExpertAnswer ? (
                                   <View style={styles.expertBadge}>
-                                    <Text style={styles.expertBadgeIconText}>🎖 전문가 답변</Text>
+                                    <Text style={styles.expertBadgeIconText}>전문가 답변</Text>
                                   </View>
                                 ) : null}
                                 {isAccepted ? (
@@ -413,6 +448,19 @@ export function ExpertScreen({ navigation }) {
                                     )}
                                   </TouchableOpacity>
                                 ) : null}
+                                {!isCommentMine && !c.isAnonymous ? (
+                                  <TouchableOpacity
+                                    style={styles.commentDmBtn}
+                                    onPress={() => startDmWithComment(c)}
+                                    disabled={dmStartingId === c.id}
+                                  >
+                                    {dmStartingId === c.id ? (
+                                      <ActivityIndicator size="small" color={C.brand600} />
+                                    ) : (
+                                      <Text style={styles.commentDmBtnText}>채팅 보내기</Text>
+                                    )}
+                                  </TouchableOpacity>
+                                ) : null}
                                 {!isCommentMine ? (
                                   <TouchableOpacity
                                     style={styles.commentReportBtn}
@@ -424,8 +472,16 @@ export function ExpertScreen({ navigation }) {
                                     {reportingId === c.id ? (
                                       <ActivityIndicator size="small" color="#94A3B8" />
                                     ) : (
-                                      <Text style={styles.commentReportBtnText}>🚩 신고</Text>
+                                      <Text style={styles.commentReportBtnText}>신고</Text>
                                     )}
+                                  </TouchableOpacity>
+                                ) : null}
+                                {!isCommentMine ? (
+                                  <TouchableOpacity
+                                    style={styles.commentBlockBtn}
+                                    onPress={() => setBlockTarget({ uid: c.userId, name: commentAuthorLabel })}
+                                  >
+                                    <Text style={styles.commentReportBtnText}>차단</Text>
                                   </TouchableOpacity>
                                 ) : null}
                               </View>
@@ -442,7 +498,7 @@ export function ExpertScreen({ navigation }) {
                       activeOpacity={0.7}
                     >
                       <View style={anonDraftByPost[post.id] ? styles.checkboxOnSmall : styles.checkboxOffSmall}>
-                        {anonDraftByPost[post.id] ? <Text style={styles.checkboxCheckSmall}>✓</Text> : null}
+                        {anonDraftByPost[post.id] ? <Icon name="check" size={10} color="#FFFFFF" strokeWidth={3} /> : null}
                       </View>
                       <Text style={styles.anonToggleText}>익명으로 답글 달기</Text>
                     </TouchableOpacity>
@@ -488,6 +544,28 @@ export function ExpertScreen({ navigation }) {
       </View>
 
       <BottomNavBar active="experts" navigation={navigation} />
+      <ConfirmSheet
+        visible={!!blockTarget}
+        title={`${blockTarget?.name ?? '이 사용자'}님을 차단할까요?`}
+        message="차단하면 이 사용자의 글과 댓글이 내 화면에 더 이상 보이지 않아요. 계정 화면에서 언제든 해제할 수 있어요."
+        confirmLabel="차단하기"
+        destructive
+        loading={blocking}
+        onCancel={() => setBlockTarget(null)}
+        onConfirm={async () => {
+          if (!user || !blockTarget) return;
+          setBlocking(true);
+          try {
+            await blockUser(user.uid, blockTarget.uid, blockTarget.name);
+            await refreshProfile?.();
+          } catch (err) {
+            console.error('사용자 차단 오류:', err);
+          } finally {
+            setBlocking(false);
+            setBlockTarget(null);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -630,7 +708,10 @@ const styles = StyleSheet.create({
   acceptBtnText: { color: C.safe600, fontSize: 11, fontWeight: '700' },
   acceptBtnTextCancel: { color: C.ink500, fontSize: 11, fontWeight: '600' },
   commentReportBtn: { paddingVertical: 2, marginLeft: 'auto' },
+  commentBlockBtn: { paddingVertical: 2, marginLeft: 8 },
   commentReportBtnText: { color: C.ink400, fontSize: 10.5, fontWeight: '600' },
+  commentDmBtn: { paddingVertical: 2 },
+  commentDmBtnText: { color: C.brand600, fontSize: 10.5, fontWeight: '700' },
 
   anonToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 4 },
   anonToggleText: { fontSize: 11.5, color: C.ink500 },

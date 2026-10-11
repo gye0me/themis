@@ -18,6 +18,7 @@ import {
 } from '../services/reportLegalNotice';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 // HTML 안의 원격 <img src="https://...">를 data URI로 바꾼다 (실패한 이미지는 원래 주소 유지)
 async function inlineRemoteImages(html) {
@@ -306,12 +307,12 @@ export default function ReportPreviewScreen({ navigation, route }) {
       {/* 확정 상태 배너 — 법적 효력 안내 확인 + 해시 = "확정 이후 안 바뀌었다"는 근거 */}
       {finalizationHash ? (
         <View style={styles.finalizedBanner}>
-          <Text style={styles.finalizedBannerTitle}>✅ 보고서 확정됨 · {finalizedAt ? finalizedAt.toLocaleString('ko-KR') : ''}</Text>
+          <Text style={styles.finalizedBannerTitle}>보고서 확정됨 · {finalizedAt ? finalizedAt.toLocaleString('ko-KR') : ''}</Text>
           <Text style={styles.finalizedBannerHash} numberOfLines={1}>해시 {finalizationHash}</Text>
         </View>
       ) : (
         <TouchableOpacity style={styles.finalizeRow} onPress={() => { setAcknowledged(false); setNoticeModal(true); }}>
-          <Text style={styles.finalizeRowText}>⚖️ 법적 효력 안내 확인 후 보고서 확정하기</Text>
+          <Text style={styles.finalizeRowText}>법적 효력 안내 확인 후 보고서 확정하기</Text>
         </TouchableOpacity>
       )}
 
@@ -340,7 +341,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
       >
         <View style={noticeStyles.backdrop}>
           <View style={noticeStyles.card}>
-            <Text style={noticeStyles.title}>⚠️ {REPORT_LEGAL_NOTICE_TITLE}</Text>
+            <Text style={noticeStyles.title}>{REPORT_LEGAL_NOTICE_TITLE}</Text>
             <Text style={noticeStyles.desc}>보고서를 확정하기 전에 아래 내용을 꼭 확인해주세요.</Text>
 
             <ScrollView style={noticeStyles.noticeBox} contentContainerStyle={{ gap: 8 }}>
@@ -355,7 +356,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
 
             <TouchableOpacity style={noticeStyles.ackRow} onPress={() => setAcknowledged((v) => !v)} activeOpacity={0.8}>
               <View style={[noticeStyles.checkbox, acknowledged && noticeStyles.checkboxChecked]}>
-                {acknowledged && <Text style={noticeStyles.checkboxMark}>✓</Text>}
+                {acknowledged && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
               </View>
               <Text style={noticeStyles.ackText}>{REPORT_LEGAL_NOTICE_ACK}</Text>
             </TouchableOpacity>

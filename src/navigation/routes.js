@@ -32,6 +32,17 @@ export const RECORD_ROUTES = {
 
 export const EXPERT_ROUTES = {
   GUIDE: 'ResponseGuide',
+  HOT_BOARD_DETAIL: 'HotBoardDetail',
+};
+
+export const ACCOUNT_ROUTES = {
+  ACCOUNT: 'Account',
+  LEGAL: 'LegalDocument',
+  NOTIFICATIONS: 'Notifications',
+};
+
+export const GUARDIAN_ROUTES = {
+  MANAGE: 'GuardianManage',
 };
 
 export const PREVENTION_ROUTES = {

@@ -1,13 +1,20 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet, Text, View, ScrollView,
+  StyleSheet, Text, View, ScrollView, Modal, FlatList, Linking,
   TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
-import { getChatRoomMeta, subscribeToMessages, subscribeToMembers, sendMessage, leaveRoom } from '../services/chatService';
+import {
+  getChatRoomMeta, subscribeToMessages, subscribeToMembers, sendMessage, leaveRoom,
+  shareCaseReportInRoom,
+} from '../services/chatService';
+import { getCasesByUser } from '../services/firebaseService';
 import { BackHeader } from '../components/BackHeader';
+import { ConfirmSheet } from '../components/ConfirmSheet';
+import { blockUser, getBlockedUserIds } from '../services/blockService';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatTime(ts) {
   if (!ts) return '';
@@ -24,12 +31,19 @@ function formatDateLabel(ts) {
 }
 
 export function ChatRoomScreen({ navigation, route }) {
-  const { user, profile } = useContext(AuthContext);
+  const { user, profile, refreshProfile } = useContext(AuthContext);
+  // 차단한 사용자의 메시지는 내 화면에서 숨긴다 — 상대 이름을 누르면 차단할 수 있다
+  const blockedIds = getBlockedUserIds(profile);
+  const [blockTarget, setBlockTarget] = useState(null); // { uid, name }
+  const [blocking, setBlocking] = useState(false);
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
 
   const roomId = route?.params?.roomId ?? null;
   const roomMeta = getChatRoomMeta(roomId);
   const roomName = route?.params?.roomName ?? roomMeta?.name ?? '채팅방';
+  // 1:1 DM방인지 — getOrCreateDirectRoom이 만드는 roomId는 항상 "dm-" 접두사를 쓴다.
+  // DM방에서만 "보고서 보내기"를 노출한다(법학 교수님 피드백: 1:1은 파일 전송 가능).
+  const isDirect = roomId?.startsWith('dm-') ?? false;
 
   const [messages, setMessages] = useState([]);
   const [memberCount, setMemberCount] = useState(0);
@@ -38,6 +52,11 @@ export function ChatRoomScreen({ navigation, route }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
+
+  const [reportPickerVisible, setReportPickerVisible] = useState(false);
+  const [myCases, setMyCases] = useState([]);
+  const [loadingCases, setLoadingCases] = useState(false);
+  const [sendingReportCaseId, setSendingReportCaseId] = useState(null);
 
   useEffect(() => {
     if (!roomId) {
@@ -98,6 +117,44 @@ export function ChatRoomScreen({ navigation, route }) {
     );
   };
 
+  const openReportPicker = async () => {
+    if (!user) {
+      Alert.alert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
+      return;
+    }
+    // 웹은 PDF 생성이 브라우저 인쇄 대화상자를 거쳐야 해서 자동 업로드가 안 됨 — 폰(네이티브)에서만 지원.
+    if (Platform.OS === 'web') {
+      Alert.alert('모바일 앱에서 지원', '보고서 보내기는 아직 모바일 앱에서만 사용할 수 있어요.');
+      return;
+    }
+    setReportPickerVisible(true);
+    setLoadingCases(true);
+    try {
+      const cases = await getCasesByUser(user.uid);
+      setMyCases(cases);
+    } catch (err) {
+      console.error('사건 목록 조회 오류:', err);
+      Alert.alert('오류', '사건 목록을 불러오지 못했습니다.');
+    } finally {
+      setLoadingCases(false);
+    }
+  };
+
+  const handleSendReport = async (caseId) => {
+    if (!roomId || !user) return;
+    setSendingReportCaseId(caseId);
+    try {
+      await shareCaseReportInRoom({ roomId, userId: user.uid, userName: displayName, caseId });
+      setReportPickerVisible(false);
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    } catch (err) {
+      console.error('보고서 전송 오류:', err);
+      Alert.alert('전송 실패', err?.message ?? '보고서를 보내지 못했습니다.');
+    } finally {
+      setSendingReportCaseId(null);
+    }
+  };
+
   const sendCurrentDraft = async () => {
     const text = draft.trim();
     if (!text || !roomId) return;
@@ -131,9 +188,16 @@ export function ChatRoomScreen({ navigation, route }) {
         subtitle={`참여 ${memberCount}명`}
         onBack={() => navigation.goBack()}
         right={
-          <TouchableOpacity onPress={handleLeaveRoom} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.leaveBtnText}>나가기</Text>
-          </TouchableOpacity>
+          <View style={styles.headerRightRow}>
+            {isDirect && (
+              <TouchableOpacity onPress={openReportPicker} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.reportSendBtnText}>보고서 보내기</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={handleLeaveRoom} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.leaveBtnText}>나가기</Text>
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -166,15 +230,32 @@ export function ChatRoomScreen({ navigation, route }) {
               <Text style={styles.emptyText}>아직 메시지가 없어요. 첫 메시지를 보내보세요!</Text>
             </View>
           ) : (
-            messages.map((msg) => {
+            messages.filter((msg) => !blockedIds.has(msg.senderId)).map((msg) => {
               const isMine = msg.senderId === user?.uid;
+              const fileCard = msg.file ? (
+                <TouchableOpacity
+                  style={styles.fileBubble}
+                  onPress={() => Linking.openURL(msg.file.url).catch(() => {
+                    Alert.alert('오류', '파일을 열지 못했습니다.');
+                  })}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Icon name="file" size={16} color={C.brand600} />
+                    <Text style={styles.fileBubbleText}>{msg.file.name || '보고서.pdf'}</Text>
+                  </View>
+                  <Text style={styles.fileBubbleHint}>탭해서 열기</Text>
+                </TouchableOpacity>
+              ) : null;
+
               if (isMine) {
                 return (
                   <View key={msg.id} style={styles.myMsgRow}>
                     <Text style={styles.msgTime}>{formatTime(msg.createdAt)}</Text>
-                    <View style={styles.myBubble}>
-                      <Text style={styles.myBubbleText}>{msg.text}</Text>
-                    </View>
+                    {fileCard ?? (
+                      <View style={styles.myBubble}>
+                        <Text style={styles.myBubbleText}>{msg.text}</Text>
+                      </View>
+                    )}
                   </View>
                 );
               }
@@ -185,10 +266,14 @@ export function ChatRoomScreen({ navigation, route }) {
                     <Text style={styles.avatarText}>{initial}</Text>
                   </View>
                   <View style={styles.otherMsgBody}>
-                    <Text style={styles.senderName}>{msg.senderName}</Text>
-                    <View style={styles.otherBubble}>
-                      <Text style={styles.otherBubbleText}>{msg.text}</Text>
-                    </View>
+                    <TouchableOpacity onPress={() => setBlockTarget({ uid: msg.senderId, name: msg.senderName })} hitSlop={6}>
+                      <Text style={styles.senderName}>{msg.senderName} ›</Text>
+                    </TouchableOpacity>
+                    {fileCard ?? (
+                      <View style={styles.otherBubble}>
+                        <Text style={styles.otherBubbleText}>{msg.text}</Text>
+                      </View>
+                    )}
                     <Text style={styles.msgTime}>{formatTime(msg.createdAt)}</Text>
                   </View>
                 </View>
@@ -217,13 +302,95 @@ export function ChatRoomScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+
+      <Modal visible={reportPickerVisible} animationType="slide" transparent onRequestClose={() => setReportPickerVisible(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <Text style={styles.pickerTitle}>어느 사건의 보고서를 보낼까요?</Text>
+            {loadingCases ? (
+              <ActivityIndicator color={C.brand600} style={{ marginVertical: 20 }} />
+            ) : myCases.length === 0 ? (
+              <Text style={styles.pickerEmptyText}>아직 등록된 사건이 없어요.</Text>
+            ) : (
+              <FlatList
+                data={myCases}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.pickerRow}
+                    onPress={() => handleSendReport(item.id)}
+                    disabled={sendingReportCaseId === item.id}
+                  >
+                    <Text style={styles.pickerRowText}>{item.title || '이름 없는 사건'}</Text>
+                    {sendingReportCaseId === item.id ? (
+                      <ActivityIndicator size="small" color={C.brand600} />
+                    ) : (
+                      <Text style={styles.pickerRowArrow}>›</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+            <TouchableOpacity style={styles.pickerCancelBtn} onPress={() => setReportPickerVisible(false)}>
+              <Text style={styles.pickerCancelText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <ConfirmSheet
+        visible={!!blockTarget}
+        title={`${blockTarget?.name ?? '이 사용자'}님을 차단할까요?`}
+        message="차단하면 이 사용자의 메시지가 내 화면에 더 이상 보이지 않아요. 계정 화면에서 언제든 해제할 수 있어요."
+        confirmLabel="차단하기"
+        destructive
+        loading={blocking}
+        onCancel={() => setBlockTarget(null)}
+        onConfirm={async () => {
+          if (!user || !blockTarget) return;
+          setBlocking(true);
+          try {
+            await blockUser(user.uid, blockTarget.uid, blockTarget.name);
+            await refreshProfile?.();
+          } catch (err) {
+            console.error('사용자 차단 오류:', err);
+          } finally {
+            setBlocking(false);
+            setBlockTarget(null);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: C.surface },
+  headerRightRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   leaveBtnText: { color: C.danger600, fontSize: 12.5, fontWeight: '600' },
+  reportSendBtnText: { color: C.brand600, fontSize: 12.5, fontWeight: '600' },
+
+  fileBubble: {
+    backgroundColor: C.sky050, borderRadius: 14, borderWidth: 1, borderColor: C.line,
+    paddingHorizontal: 14, paddingVertical: 10, gap: 2, maxWidth: 220,
+  },
+  fileBubbleText: { fontSize: 12.5, color: C.ink900, fontWeight: '700' },
+  fileBubbleHint: { fontSize: 10, color: C.ink400 },
+
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  pickerSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, maxHeight: '70%',
+  },
+  pickerTitle: { fontSize: 14.5, fontWeight: '700', color: C.ink900, marginBottom: 12 },
+  pickerEmptyText: { fontSize: 12.5, color: C.ink400, paddingVertical: 20, textAlign: 'center' },
+  pickerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.line,
+  },
+  pickerRowText: { fontSize: 13.5, color: C.ink900, flex: 1 },
+  pickerRowArrow: { fontSize: 16, color: C.ink400 },
+  pickerCancelBtn: { marginTop: 14, alignItems: 'center', paddingVertical: 10 },
+  pickerCancelText: { fontSize: 13, color: C.ink500, fontWeight: '600' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: C.ink400, fontSize: 13 },

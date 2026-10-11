@@ -9,6 +9,7 @@ import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIn
 import { getCasesByUser } from '../services/firebaseService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { C } from '../theme/tokens';
+import { Icon } from './Icon';
 
 export function CasePickerModal({
   visible,
@@ -56,11 +57,11 @@ export function CasePickerModal({
           ) : (
             <ScrollView style={styles.list} contentContainerStyle={{ gap: 8 }}>
               {cases.map((c) => {
-                const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁', label: c.caseType ?? '기타' };
+                const meta = CASE_TYPE_META[c.caseType] ?? { icon: 'folder', label: c.caseType ?? '기타' };
                 return (
                   <TouchableOpacity key={c.id} style={styles.row} onPress={() => onSelect(c)} activeOpacity={0.8}>
                     <View style={styles.rowIcon}>
-                      <Text style={{ fontSize: 18 }}>{meta.icon}</Text>
+                      <Icon name={meta.icon} size={20} color={C.brand600} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{c.title || '이름 없는 사건'}</Text>

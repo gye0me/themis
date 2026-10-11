@@ -12,11 +12,13 @@ import {
   subscribeToPendingRoomRequests,
   subscribeToRoomRequest,
   subscribeToDynamicRooms,
+  subscribeToMyDirectRooms,
   MIN_PARTICIPANTS_TO_OPEN,
 } from '../services/chatService';
 import { ScreenTopBar } from '../components/ScreenTopBar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 function formatRelativeTime(ts) {
   if (!ts) return null;
@@ -45,7 +47,11 @@ export function ChatScreen({ navigation }) {
   const [requesting, setRequesting] = useState(false);
   const [requestStatus, setRequestStatus] = useState(null); // { interestedCount, opened, roomId }
 
-  const allRooms = useMemo(() => [...CHAT_ROOMS, ...dynamicRooms], [dynamicRooms]);
+  // 전문가 질문 게시판에서 "채팅 보내기"로 만들어진 1:1 DM 방들 (비공개 — 나만 보임)
+  const [directRooms, setDirectRooms] = useState([]);
+  useEffect(() => subscribeToMyDirectRooms(user?.uid, setDirectRooms), [user?.uid]);
+
+  const allRooms = useMemo(() => [...CHAT_ROOMS, ...dynamicRooms, ...directRooms], [dynamicRooms, directRooms]);
 
   useEffect(() => {
     const unsubscribers = allRooms.flatMap((room) => [
@@ -122,10 +128,6 @@ export function ChatScreen({ navigation }) {
     () => allRooms.filter((r) => r.type === 'victim' && matchesSearch(r, search)),
     [allRooms, search],
   );
-  const expertRooms = useMemo(
-    () => allRooms.filter((r) => r.type === 'expert' && matchesSearch(r, search)),
-    [allRooms, search],
-  );
   const joinedRooms = useMemo(
     () => allRooms.filter((r) => (roomMembers[r.id] ?? []).includes(user?.uid)),
     [allRooms, roomMembers, user],
@@ -166,7 +168,7 @@ export function ChatScreen({ navigation }) {
 
         {/* 검색바 */}
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Icon name="search" size={16} color={C.ink400} />
           <TextInput
             style={styles.searchInput}
             placeholder="채팅방 검색"
@@ -183,7 +185,7 @@ export function ChatScreen({ navigation }) {
           <View key={room.id} style={styles.roomCard}>
             <View style={styles.roomCardTop}>
               <View style={[styles.roomIcon, { backgroundColor: room.color }]}>
-                <Text style={styles.roomIconText}>{room.icon}</Text>
+                <Icon name={room.icon} size={22} color={C.ink700} />
               </View>
               <View style={styles.roomInfo}>
                 <View style={styles.roomTitleRow}>
@@ -204,7 +206,7 @@ export function ChatScreen({ navigation }) {
                 {joining === room.id
                   ? '입장 중...'
                   : (roomMembers[room.id] ?? []).includes(user?.uid)
-                    ? '참여 중 ✓'
+                    ? '참여 중'
                     : '참여하기'}
               </Text>
             </TouchableOpacity>
@@ -216,6 +218,10 @@ export function ChatScreen({ navigation }) {
           <Text style={styles.createRoomText}>+ 새 피해자 모임 요청하기</Text>
           <Text style={styles.requestRoomHint}>
             원하는 주제를 입력하면 관심자를 모읍니다. {MIN_PARTICIPANTS_TO_OPEN}명이 모이면 자동으로 채팅방이 열려요.
+          </Text>
+          <Text style={styles.requestRoomNotice}>
+            채팅방 이름은 사람 이름 대신 "OO 사건"처럼 적어주세요. 특정인이 드러나면 법적 책임이 따를 수 있고,
+            그 책임은 작성자 본인에게 있어요.
           </Text>
           <View style={styles.requestRoomRow}>
             <TextInput
@@ -252,7 +258,7 @@ export function ChatScreen({ navigation }) {
                 >
                   <Text style={styles.pendingRequestTopic} numberOfLines={1}>{req.topic}</Text>
                   <Text style={styles.pendingRequestCount}>
-                    {req.isJoinedByMe ? '참여 중 ✓' : `${req.interestedCount}/${MIN_PARTICIPANTS_TO_OPEN}명`}
+                    {req.isJoinedByMe ? '참여 중' : `${req.interestedCount}/${MIN_PARTICIPANTS_TO_OPEN}명`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -260,28 +266,7 @@ export function ChatScreen({ navigation }) {
           )}
         </View>
 
-        {/* 전문가 채널 */}
-        <Text style={[styles.sectionTitle, { marginTop: 22 }]}>전문가 채널</Text>
-        <View style={styles.rowGroup}>
-          {expertRooms.map((room, i) => (
-            <TouchableOpacity
-              key={room.id}
-              style={[styles.row, i === 0 && styles.rowFirst]}
-              onPress={() => enterRoom(room)}
-            >
-              <View style={[styles.roomIcon, { backgroundColor: room.color }]}>
-                <Text style={styles.roomIconText}>{room.icon}</Text>
-              </View>
-              <View style={styles.roomInfo}>
-                <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
-                <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
-              </View>
-              <Text style={styles.expertArrow}>›</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* 참여 중인 방 */}
+        {/* 참여 중인 방 — 피해자 연대방 + 모집으로 열린 방 + 전문가 질문 게시판에서 시작한 1:1 DM */}
         <Text style={[styles.sectionTitle, { marginTop: 22 }]}>참여 중인 방</Text>
         {joinedRooms.length === 0 ? (
           <Text style={styles.noJoinedText}>아직 참여한 방이 없어요. 위에서 방을 선택해 참여해보세요.</Text>
@@ -296,7 +281,7 @@ export function ChatScreen({ navigation }) {
                   onPress={() => navigation.navigate(CHAT_ROUTES.ROOM, { roomId: room.id, roomName: room.name })}
                 >
                   <View style={[styles.chatAvatar, { backgroundColor: room.color }]}>
-                    <Text style={styles.chatAvatarText}>{room.icon}</Text>
+                    <Icon name={room.icon} size={20} color={C.ink700} />
                   </View>
                   <View style={styles.roomInfo}>
                     <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
@@ -409,6 +394,7 @@ const styles = StyleSheet.create({
     padding: 14, marginTop: 8, gap: 8,
   },
   requestRoomHint: { fontSize: 11, color: C.ink400, lineHeight: 15 },
+  requestRoomNotice: { fontSize: 10.5, color: C.warn600, lineHeight: 15, marginTop: 4 },
   requestRoomRow: { flexDirection: 'row', gap: 8 },
   requestRoomInput: {
     flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 10,

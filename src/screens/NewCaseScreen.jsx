@@ -14,6 +14,7 @@ import { BottomNavBar } from '../components/BottomNavBar';
 import { CasePickerModal } from '../components/CasePickerModal';
 import { getRequiredEvidence } from '../services/preventionGuides';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 const VISIBILITY_OPTIONS = [
   { key: '나만보기', label: '나만 보기' },
@@ -258,7 +259,7 @@ export function NewCaseScreen({ navigation, route }) {
                   onPress={() => setSelectedType(type)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.typeIcon}>{meta.icon}</Text>
+                  <Icon name={meta.icon} size={22} color={isSelected ? C.brand600 : C.ink700} />
                   <Text style={[styles.typeLabel, isSelected && styles.typeLabelActive]}>{meta.label}</Text>
                   <Text style={styles.typeDesc}>{meta.desc}</Text>
                 </TouchableOpacity>
@@ -269,12 +270,14 @@ export function NewCaseScreen({ navigation, route }) {
           {selectedType && (
             <View style={styles.evidenceGuide}>
               <Text style={styles.evidenceGuideTitle}>
-                📌 {CASE_TYPE_META[selectedType]?.label ?? selectedType} 사건에 필요한 증거
+                {CASE_TYPE_META[selectedType]?.label ?? selectedType} 사건에 필요한 증거
               </Text>
               <Text style={styles.evidenceGuideDesc}>미리 알고 있으면 놓치지 않고 모을 수 있어요.</Text>
               {getRequiredEvidence(selectedType).map((item) => (
                 <View key={item.title} style={styles.evidenceGuideRow}>
-                  <Text style={styles.evidenceGuideIcon}>{item.icon}</Text>
+                  <View style={styles.evidenceGuideIcon}>
+                    <Icon name={item.icon} size={18} color={C.brand600} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.evidenceGuideItem}>{item.title}</Text>
                     <Text style={styles.evidenceGuideItemDesc}>{item.desc}</Text>
@@ -399,12 +402,12 @@ export function NewCaseScreen({ navigation, route }) {
           </View>
         ) : cases.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>📂</Text>
+            <Icon name="folder" size={32} color={C.ink400} />
             <Text style={styles.emptyText}>아직 등록된 사건이 없습니다.</Text>
           </View>
         ) : (
           cases.map((c) => {
-            const meta = CASE_TYPE_META[c.caseType] ?? { icon: '📁', label: c.caseType ?? '기타' };
+            const meta = CASE_TYPE_META[c.caseType] ?? { icon: 'folder', label: c.caseType ?? '기타' };
             return (
               <TouchableOpacity
                 key={c.id}
@@ -413,7 +416,7 @@ export function NewCaseScreen({ navigation, route }) {
                 activeOpacity={0.8}
               >
                 <View style={styles.caseRowIcon}>
-                  <Text style={{ fontSize: 18 }}>{meta.icon}</Text>
+                  <Icon name={meta.icon} size={20} color={C.brand600} />
                 </View>
                 <View style={styles.caseRowBody}>
                   <Text style={styles.caseRowTitle} numberOfLines={1}>{c.title || '이름 없는 사건'}</Text>
@@ -522,7 +525,7 @@ const styles = StyleSheet.create({
   evidenceGuideTitle: { fontSize: 13, fontWeight: '700', color: C.brand700 },
   evidenceGuideDesc: { fontSize: 11.5, color: C.ink500, marginTop: -6 },
   evidenceGuideRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  evidenceGuideIcon: { fontSize: 18, width: 24, textAlign: 'center' },
+  evidenceGuideIcon: { width: 24, alignItems: 'center' },
   evidenceGuideItem: { fontSize: 12.5, fontWeight: '700', color: C.ink900 },
   evidenceGuideItemDesc: { fontSize: 11, color: C.ink500, marginTop: 1 },
 

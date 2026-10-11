@@ -1,9 +1,8 @@
-import { useContext } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { useContext, useEffect, useState } from 'react';
+import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { C } from '../theme/tokens';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { SignupScreen } from '../screens/auth/SignupScreen';
 import ContractAnalysisScreen from '../screens/ContractAnalysisScreen';
@@ -16,11 +15,17 @@ import { ExpertScreen } from '../screens/ExpertScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { ChatRoomScreen } from '../screens/ChatRoomScreen';
 import { AuthContext } from '../context/AuthContext';
+import { LoadingScreen } from '../components/LoadingScreen';
 import ResponseGuideScreen from '../screens/ResponseGuideScreen';
 import ReportPreviewScreen from '../screens/ReportPreviewScreen';
 import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
 import PreventionConsultScreen from '../screens/PreventionConsultScreen';
 import PreContractChecklistScreen from '../screens/PreContractChecklistScreen';
+import { GuardianScreen } from '../screens/GuardianScreen';
+import { AccountScreen } from '../screens/AccountScreen';
+import { LegalDocumentScreen } from '../screens/LegalDocumentScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { HotBoardDetailScreen } from '../screens/HotBoardDetailScreen';
 import {
   APP_ROUTES,
   AUTH_ROUTES,
@@ -29,6 +34,8 @@ import {
   EXPERT_ROUTES,
   CHAT_ROUTES,
   PREVENTION_ROUTES,
+  GUARDIAN_ROUTES,
+  ACCOUNT_ROUTES,
 } from './routes';
 
 // 같은 사건(caseId)의 증거 업로드/타임라인 화면은 스택에 하나만 두기 위한 id.
@@ -190,8 +197,13 @@ function AppStack() {
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
       <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
       <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={EXPERT_ROUTES.HOT_BOARD_DETAIL} component={HotBoardDetailScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={GUARDIAN_ROUTES.MANAGE} component={GuardianScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.ACCOUNT} component={AccountScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.LEGAL} component={LegalDocumentScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.NOTIFICATIONS} component={NotificationsScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );
@@ -200,13 +212,15 @@ function AppStack() {
 export function AppNavigator() {
   const { user, loading } = useContext(AuthContext);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color={C.brand600} />
-        <Text style={{ color: C.ink500, marginTop: 12, fontSize: 13 }}>로딩 중...</Text>
-      </View>
-    );
+  // 로그인 정보를 빨리 불러와도 로딩 애니메이션이 순간적으로 지나가지 않게 최소 1.6초는 보여준다
+  const [minSplashDone, setMinSplashDone] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setMinSplashDone(true), 1600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading || !minSplashDone) {
+    return <LoadingScreen />;
   }
 
   return (

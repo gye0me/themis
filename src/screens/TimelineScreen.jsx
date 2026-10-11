@@ -9,17 +9,19 @@ import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
 import { getEvidenceRecords, getCaseById, deleteCase, setEvidenceHidden } from '../services/firebaseService';
 import { BackHeader } from '../components/BackHeader';
 import { PreventionGuideModal } from '../components/PreventionGuideModal';
+import { ConfirmSheet } from '../components/ConfirmSheet';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
-import { C } from '../theme/tokens';
+import { C, SIGNAL } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 // color: 타입 식별용 포인트 컬러(타임라인 점, 필터 칩) / badgeBg·badgeColor: 카드 아이콘 뱃지(리디자인)
 const TYPE_CONFIG = {
-  image:    { icon: '📷', color: '#EA580C', badgeBg: '#FFF3E8', badgeColor: '#E07B30', label: '사진' },
-  audio:    { icon: '🎙️', color: '#7C3AED', badgeBg: '#F1EBFC', badgeColor: '#7C4FD8', label: '음성' },
-  video:    { icon: '🎥', color: '#16A34A', badgeBg: '#E8F4EF', badgeColor: '#2E8B68', label: '영상' },
-  text:     { icon: '📝', color: '#3B82F6', badgeBg: '#EEF2FB', badgeColor: '#4A6FA5', label: '메모' },
-  contract: { icon: '📑', color: '#0EA5E9', badgeBg: '#E6F6FD', badgeColor: '#0E92C4', label: '계약분석' },
-  default:  { icon: '📄', color: '#94A3B8', badgeBg: '#F0F1F6', badgeColor: '#6B7A9A', label: '기타' },
+  image:    { icon: 'camera', color: '#EA580C', badgeBg: '#FFF3E8', badgeColor: '#E07B30', label: '사진' },
+  audio:    { icon: 'mic', color: '#7C3AED', badgeBg: '#F1EBFC', badgeColor: '#7C4FD8', label: '음성' },
+  video:    { icon: 'video', color: '#16A34A', badgeBg: '#E8F4EF', badgeColor: '#2E8B68', label: '영상' },
+  text:     { icon: 'edit', color: '#3B82F6', badgeBg: '#EEF2FB', badgeColor: '#4A6FA5', label: '메모' },
+  contract: { icon: 'contract', color: '#0EA5E9', badgeBg: '#E6F6FD', badgeColor: '#0E92C4', label: '계약분석' },
+  default:  { icon: 'file', color: '#94A3B8', badgeBg: '#F0F1F6', badgeColor: '#6B7A9A', label: '기타' },
 };
 
 const FILTER_OPTIONS = [
@@ -32,8 +34,8 @@ const FILTER_OPTIONS = [
 ];
 
 // 계약서 분석기(ContractAnalysisScreen)와 동일한 신호등 스타일
-const LEVEL_COLOR = { danger: '#EF4444', warning: '#F59E0B', safe: '#10B981' };
-const LEVEL_ICON = { danger: '🔴', warning: '🟡', safe: '🟢' };
+// 신호등 색 (계약서 분석 화면과 같은 토큰)
+const LEVEL_COLOR = SIGNAL.dot;
 
 function formatDate(value) {
   if (!value) return '';
@@ -119,7 +121,8 @@ function InlineAudioPlayer({ uri }) {
   }
   return (
     <TouchableOpacity style={styles.audioPlayBtn} onPress={toggle}>
-      <Text style={styles.audioPlayBtnText}>{isPlaying ? '⏸ 일시정지' : '▶ 재생'}</Text>
+      <Icon name={isPlaying ? 'pause' : 'play'} size={14} color="#FFFFFF" />
+      <Text style={styles.audioPlayBtnText}>{isPlaying ? '일시정지' : '재생'}</Text>
     </TouchableOpacity>
   );
 }
@@ -135,6 +138,11 @@ export function TimelineScreen({ navigation, route }) {
   const [activeFilter, setActiveFilter] = useState('all');
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [deleting, setDeleting] = useState(false);
+  // 버튼이 있는 Alert.alert는 웹에서 뜨지 않아서(휴지통·숨기기가 무반응이던 원인) 확인 창으로 묻는다
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [hideTarget, setHideTarget] = useState(null); // 숨기기/복원할 증거
+  const [hiding, setHiding] = useState(false);
   const [preventionVisible, setPreventionVisible] = useState(false);
   const [viewerUri, setViewerUri] = useState(null); // 증거 사진 전체화면 보기 (null이면 닫힘)
   function toggleExpand(id) {
@@ -190,32 +198,41 @@ export function TimelineScreen({ navigation, route }) {
 
   function handleDeleteCase() {
     if (!caseId || !user || deleting) return;
-    Alert.alert(
-      '사건 삭제',
-      `"${caseData?.title || '이 사건'}"을(를) 삭제하시겠습니까?\n포함된 증거 ${records.length}건도 함께 영구 삭제되며, 되돌릴 수 없습니다.`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setDeleting(true);
-              await deleteCase(caseId, user.uid);
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK);
-              }
-            } catch (err) {
-              console.error('사건 삭제 오류:', err);
-              Alert.alert('삭제 실패', '사건을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
-              setDeleting(false);
-            }
-          },
-        },
-      ],
-    );
+    setDeleteError('');
+    setConfirmDelete(true);
+  }
+
+  async function performDeleteCase() {
+    try {
+      setDeleting(true);
+      await deleteCase(caseId, user.uid);
+      setConfirmDelete(false);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.getParent()?.navigate(APP_ROUTES.HOME_STACK);
+      }
+    } catch (err) {
+      console.error('사건 삭제 오류:', err);
+      setDeleteError('사건을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
+      setDeleting(false);
+    }
+  }
+
+  // 증거 숨기기/복원 — 삭제는 무결성을 해칠 수 있어 숨김 플래그만 바꾼다
+  async function performToggleHidden() {
+    if (!hideTarget) return;
+    const target = hideTarget;
+    try {
+      setHiding(true);
+      await setEvidenceHidden(target.id, !target.hidden);
+      setRecords((prev) => prev.map((r) => (r.id === target.id ? { ...r, hidden: !target.hidden } : r)));
+    } catch (err) {
+      console.error('증거 숨김 처리 오류:', err);
+    } finally {
+      setHiding(false);
+      setHideTarget(null);
+    }
   }
 
   // "올린 증거에 이어서 기록"한 메모는 원래 증거 카드 밑에 붙여서 보여준다 (메모 필터에서는 따로도 보임)
@@ -261,7 +278,7 @@ export function TimelineScreen({ navigation, route }) {
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               onPress={handleOpenReport}
             >
-              <Text style={styles.shareBtnText}>↗</Text>
+              <Icon name="external" size={18} color={C.ink700} />
             </TouchableOpacity>
             {caseId && (
               <TouchableOpacity
@@ -273,7 +290,7 @@ export function TimelineScreen({ navigation, route }) {
                 {deleting ? (
                   <ActivityIndicator size="small" color={C.danger600} />
                 ) : (
-                  <Text style={styles.deleteBtnText}>🗑</Text>
+                  <Icon name="trash" size={18} color={C.danger600} />
                 )}
               </TouchableOpacity>
             )}
@@ -283,7 +300,7 @@ export function TimelineScreen({ navigation, route }) {
 
       {!user && !loading ? (
         <View style={styles.center}>
-          <Text style={styles.emptyIcon}>🔐</Text>
+          <Icon name="lock" size={36} color={C.ink400} />
           <Text style={styles.emptyText}>로그인 후 증거 타임라인을 확인할 수 있습니다.</Text>
           <TouchableOpacity
             style={styles.uploadBtn}
@@ -318,7 +335,7 @@ export function TimelineScreen({ navigation, route }) {
           {/* 예방 가이드 — 사건 유형별 사례·체크리스트 (사건에 연결된 타임라인에서만) */}
           {caseId && (
             <TouchableOpacity style={styles.preventionCard} onPress={() => setPreventionVisible(true)} activeOpacity={0.85}>
-              <Text style={styles.preventionIcon}>🛡️</Text>
+              <Icon name="shield-check" size={22} color={C.safe600} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.preventionTitle}>예방 가이드 · 체크리스트</Text>
                 <Text style={styles.preventionDesc}>
@@ -356,7 +373,7 @@ export function TimelineScreen({ navigation, route }) {
                   style={[styles.filterChip, isActive && styles.filterChipActive]}
                   onPress={() => setActiveFilter(opt.key)}
                 >
-                  {cfg && <Text style={styles.filterChipIcon}>{cfg.icon}</Text>}
+                  {cfg && <Icon name={cfg.icon} size={14} color={isActive ? '#FFFFFF' : cfg.color} />}
                   <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                     {opt.label}
                   </Text>
@@ -372,7 +389,7 @@ export function TimelineScreen({ navigation, route }) {
 
           {filteredRecords.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📂</Text>
+              <Icon name="folder" size={36} color={C.ink400} />
               <Text style={styles.emptyText}>
                 {activeFilter === 'all'
                   ? '아직 업로드된 증거가 없습니다.'
@@ -411,26 +428,12 @@ export function TimelineScreen({ navigation, route }) {
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => toggleExpand(item.id)}
-                      onLongPress={() => {
-                        Alert.alert(
-                          item.hidden ? '증거 복원' : '증거 숨기기',
-                          item.hidden
-                            ? '이 증거를 다시 표시할까요?'
-                            : '이 증거를 숨길까요? 보고서에서도 제외됩니다.',
-                          [
-                            { text: '취소', style: 'cancel' },
-                            {
-                              text: item.hidden ? '복원' : '숨기기',
-                              onPress: () => setEvidenceHidden(item.id, !item.hidden),
-                            },
-                          ]
-                        );
-                      }}
+                      onLongPress={() => setHideTarget(item)}
                       style={[styles.timelineCard, item.hidden && styles.timelineCardHidden]}
                     >
                       {item.hidden && (
                         <View style={styles.hiddenBanner}>
-                          <Text style={styles.hiddenBannerText}>🚫 숨겨진 증거 (길게 눌러서 복원)</Text>
+                          <Text style={styles.hiddenBannerText}>숨겨진 증거 (길게 눌러서 복원)</Text>
                         </View>
                       )}
                       <View style={styles.cardHeader}>
@@ -444,13 +447,13 @@ export function TimelineScreen({ navigation, route }) {
                         </View>
                         {item.location && (
                           <View style={styles.gpsBadge}>
-                            <Text style={styles.gpsBadgeText}>📍 GPS 확인됨</Text>
+                            <Text style={styles.gpsBadgeText}>GPS 확인됨</Text>
                           </View>
                         )}
                       </View>
                       <View style={styles.typeRow}>
                         <View style={[styles.typeBadge, { backgroundColor: cfg.badgeBg }]}>
-                          <Text style={[styles.typeIcon, { color: cfg.badgeColor }]}>{cfg.icon}</Text>
+                          <Icon name={cfg.icon} size={18} color={cfg.badgeColor} />
                         </View>
                         <Text style={styles.cardTitle}>{item.title || cfg.label}</Text>
                         <Text style={styles.expandHint}>{isExpanded ? '접기 ▲' : '자세히 ▼'}</Text>
@@ -464,13 +467,13 @@ export function TimelineScreen({ navigation, route }) {
                         <Text style={styles.fileName}>{item.originalFileName}</Text>
                       ) : null}
                       {item.linkedEvidenceId && activeFilter === 'text' ? (
-                        <Text style={styles.linkedFrom}>🔗 {item.linkedEvidenceTitle || '다른 증거'}에 덧붙인 기록</Text>
+                        <Text style={styles.linkedFrom}>{item.linkedEvidenceTitle || '다른 증거'}에 덧붙인 기록</Text>
                       ) : null}
 
                       {/* 이 증거에 이어서 남긴 기록들 */}
                       {(linkedByParent[item.id] ?? []).map((memo) => (
                         <View key={memo.id} style={[styles.linkedMemo, memo.hidden && { opacity: 0.4 }]}>
-                          <Text style={styles.linkedMemoMeta}>↳ 📝 {formatDate(getEventTime(memo))}</Text>
+                          <Text style={styles.linkedMemoMeta}>덧붙인 기록 · {formatDate(getEventTime(memo))}</Text>
                           <Text style={styles.linkedMemoText} numberOfLines={isExpanded ? undefined : 2}>
                             {memo.note}
                           </Text>
@@ -496,10 +499,10 @@ export function TimelineScreen({ navigation, route }) {
                               style={[styles.detailCard, { borderLeftColor: LEVEL_COLOR[detail.level] ?? '#94A3B8' }]}
                             >
                               <View style={styles.detailTop}>
-                                <Text style={styles.detailLevelIcon}>{LEVEL_ICON[detail.level] ?? '⚪'}</Text>
+                                <Icon name="dot" size={14} color={LEVEL_COLOR[detail.level] ?? '#94A3B8'} />
                                 {detail.score ? (
-                                  <View style={[styles.detailBadge, { backgroundColor: LEVEL_COLOR[detail.level] ?? '#94A3B8' }]}>
-                                    <Text style={styles.detailBadgeText}>{detail.score}</Text>
+                                  <View style={[styles.detailBadge, { backgroundColor: SIGNAL.bg[detail.level] ?? '#F0F1F6' }]}>
+                                    <Text style={[styles.detailBadgeText, { color: SIGNAL.text[detail.level] ?? C.ink500 }]}>{detail.score}</Text>
                                   </View>
                                 ) : null}
                                 <Text style={styles.detailTitle}>{detail.title}</Text>
@@ -507,7 +510,7 @@ export function TimelineScreen({ navigation, route }) {
                               <Text style={styles.detailDesc}>{detail.desc}</Text>
                               {detail.negotiationPhrase && (
                                 <View style={styles.negotiationBox}>
-                                  <Text style={styles.negotiationLabel}>💬 협상할 때 이렇게 말해보세요</Text>
+                                  <Text style={styles.negotiationLabel}>협상할 때 이렇게 말해보세요</Text>
                                   <Text style={styles.negotiationPhrase}>"{detail.negotiationPhrase}"</Text>
                                   {detail.legalBasis && <Text style={styles.negotiationLegal}>근거: {detail.legalBasis}</Text>}
                                 </View>
@@ -532,7 +535,7 @@ export function TimelineScreen({ navigation, route }) {
                               style={styles.hashCard}
                               onPress={() => Alert.alert('OCR 추출 텍스트', item.note)}
                             >
-                              <Text style={styles.hashLabel}>📝 OCR 추출 텍스트 (탭하면 전체 보기)</Text>
+                              <Text style={styles.hashLabel}>OCR 추출 텍스트 (탭하면 전체 보기)</Text>
                               <Text style={styles.memoDetailText} numberOfLines={3}>{item.note}</Text>
                             </TouchableOpacity>
                           ) : null}
@@ -548,7 +551,7 @@ export function TimelineScreen({ navigation, route }) {
                               style={styles.hashCard}
                               onPress={() => Alert.alert('영상 음성 텍스트', item.note)}
                             >
-                              <Text style={styles.hashLabel}>🎙️ 영상 음성 텍스트 (탭하면 전체 보기)</Text>
+                              <Text style={styles.hashLabel}>영상 음성 텍스트 (탭하면 전체 보기)</Text>
                               <Text style={styles.memoDetailText} numberOfLines={3}>{item.note}</Text>
                             </TouchableOpacity>
                           ) : null}
@@ -591,7 +594,7 @@ export function TimelineScreen({ navigation, route }) {
 
               {/* 보고서 미리보기 + 다운로드 화면으로 이동 */}
               <TouchableOpacity style={styles.pdfBtn} onPress={handleOpenReport}>
-                <Text style={styles.pdfBtnText}>📄 증거정리 보고서 보기 · 다운로드</Text>
+                <Text style={styles.pdfBtnText}>증거정리 보고서 보기 · 다운로드</Text>
               </TouchableOpacity>
             </>
           )}
@@ -637,7 +640,7 @@ export function TimelineScreen({ navigation, route }) {
       <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
         <View style={styles.viewerBackdrop}>
           <TouchableOpacity style={styles.viewerCloseBtn} onPress={() => setViewerUri(null)}>
-            <Text style={styles.viewerCloseText}>✕</Text>
+            <Icon name="x" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.viewerImageWrap}
@@ -650,6 +653,28 @@ export function TimelineScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
       </Modal>
+      <ConfirmSheet
+        visible={confirmDelete}
+        title="사건을 삭제할까요?"
+        message={
+          deleteError ||
+          `"${caseData?.title || '이 사건'}"과(와) 포함된 증거 ${records.length}건이 함께 영구 삭제되며, 되돌릴 수 없습니다.`
+        }
+        confirmLabel="삭제"
+        destructive
+        loading={deleting}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={performDeleteCase}
+      />
+      <ConfirmSheet
+        visible={!!hideTarget}
+        title={hideTarget?.hidden ? '이 증거를 다시 표시할까요?' : '이 증거를 숨길까요?'}
+        message={hideTarget?.hidden ? '타임라인과 보고서에 다시 포함돼요.' : '타임라인에 흐리게 남고, 보고서에서는 제외돼요. 언제든 다시 길게 눌러 복원할 수 있어요.'}
+        confirmLabel={hideTarget?.hidden ? '복원' : '숨기기'}
+        loading={hiding}
+        onCancel={() => setHideTarget(null)}
+        onConfirm={performToggleHidden}
+      />
     </SafeAreaView>
   );
 }
@@ -810,7 +835,7 @@ const styles = StyleSheet.create({
   },
   audioPlayBtn: {
     backgroundColor: C.brand600, borderRadius: 10, padding: 14,
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   audioPlayBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   memoDetailText: { color: C.ink700, fontSize: 13, lineHeight: 20 },

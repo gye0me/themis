@@ -37,7 +37,7 @@ import {
  * accountType: 'user'(일반) | 'expert'(전문가 전용 가입) — 전문가 배지는 전문가 계정에만 노출된다.
  * expertProfile: 전문가 가입 시 { job, organization, licenseNumber }
  */
-export async function signUp(email, password, displayName = '', { accountType = 'user', expertProfile = null } = {}) {
+export async function signUp(email, password, displayName = '', { accountType = 'user', expertProfile = null, agreements = null } = {}) {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const isExpertAccount = accountType === 'expert';
@@ -49,6 +49,8 @@ export async function signUp(email, password, displayName = '', { accountType = 
       // 전문가 계정은 가입하면서 배지가 켜진 상태로 시작한다 (홈에서 표시 여부만 끌 수 있음)
       isExpert: isExpertAccount,
       expertProfile: isExpertAccount ? expertProfile : null,
+      // 가입 시 동의한 약관 (항목별 true + 문서 버전 + 동의 시각) — 개인정보·위치정보 동의 증빙
+      agreements: agreements ? { ...agreements, agreedAt: serverTimestamp() } : null,
     });
 
     return userCredential.user;

@@ -1,0 +1,17 @@
+{
+  "name": "themis-functions",
+  "private": true,
+  "description": "Themis 서버 함수 — AI(Gemini·CLOVA) 키를 앱 대신 보관하고 대리 호출",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.0"
+  }
+}

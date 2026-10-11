@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 // 법적으로 의미 있는 행위(전문가 인증 신청/승인, 공론화 SOS 발동 등) 전에
 // "본인 확인 + 내용 고지 + 동의 의사표시"를 명시적으로 받기 위한 공용 전자서명 모달.
 //
@@ -44,7 +45,7 @@ export function ElectronicSignatureModal({
 
           <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed((v) => !v)}>
             <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-              {agreed && <Text style={styles.checkboxMark}>✓</Text>}
+              {agreed && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
             </View>
             <Text style={styles.agreeText}>위 내용을 확인했고 이에 동의합니다.</Text>
           </TouchableOpacity>

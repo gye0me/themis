@@ -1,19 +1,35 @@
 // src/services/clovaSpeechService.js
 //
-// 음성 증거 → 텍스트 변환.
-//  1) 클로바가 읽을 수 있는 포맷(mp3/aac/ogg/flac/wav)은 클로바 CSR로 먼저 시도한다.
-//  2) m4a/mp4 등 클로바가 못 읽는 포맷이거나, 클로바가 실패/빈 결과면 Gemini로 받아쓴다.
-// 클로바 CSR은 1회 최대 60초/10MB. 파일을 자르지 않고 통째로 보낸다.
+// 네이버 클로바 음성인식(CSR, CLOVA Speech Recognition) 서비스.
+// firebaseService.js에 있던 Whisper(OpenAI) 기반 transcribeAudio()를 대체한다.
+//
+// CSR의 짧은 음성인식 API(recog/v1/stt)는 1회 호출당 최대 60초까지만 인식할 수 있다.
+// 그래서 원본 음성 파일을 60초 분량 바이트로 잘라 순서대로 전송하고,
+// 각 조각에서 돌아온 텍스트를 순서대로 이어붙이는 방식으로 구현했다.
+//
+// 주의: 파일을 오디오 프레임 단위가 아니라 "예상 비트레이트 기준 바이트 위치"로
+// 근사 분할한다. WAV(비압축 PCM)는 이 방식으로도 정확히 잘리지만, m4a/AAC처럼
+// 컨테이너로 감싸진 압축 포맷은 조각 경계에서 헤더가 깨져 뒤 조각이 인식되지 않을 수
+// 있다. 프로젝트에 오디오 재인코딩(ffmpeg 등) 라이브러리가 없어 우선 이 방식으로 구현했고,
+// 데모 전 실제 녹음 포맷(m4a 등)으로 꼭 테스트가 필요하다.
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { clovaRecognize } from './aiClient';
 
-const CLOVA_STT_URL = 'https://naveropenapi.apigw.ntruss.com/recog/v1/stt';
 
-// 클로바가 공식 지원하는 포맷만 (m4a/mp4는 제외 → 바로 Gemini로)
-const CLOVA_OK_MIME = new Set([
+const CLOVA_CHUNK_SECONDS = 60;
+// 음성 녹음(모노, 대화 음질) 평균 비트레이트 추정치. 실제 파일 비트레이트에 따라 오차가 있다.
+const ESTIMATED_BITRATE_BPS = 64 * 1000;
+const CLOVA_CHUNK_BYTES = Math.floor((ESTIMATED_BITRATE_BPS / 8) * CLOVA_CHUNK_SECONDS);
+
+// 클로바 CSR이 공식 지원하는 포맷 (mp3, aac, ac3, ogg, flac, wav).
+const CLOVA_SUPPORTED_MIME_TYPES = new Set([
   'audio/mpeg',
   'audio/mp3',
   'audio/aac',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/mp4',
   'audio/ogg',
   'audio/flac',
   'audio/x-flac',
@@ -22,128 +38,44 @@ const CLOVA_OK_MIME = new Set([
   'audio/wave',
 ]);
 
-// videoTranscriptService.js의 GEMINI_MODEL과 같은 값으로 맞춰 쓰세요.
-const GEMINI_MODEL = 'gemini-3.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-const GEMINI_INLINE_MAX_BYTES = 14 * 1024 * 1024;
-
-const TRANSCRIBE_PROMPT =
-  '이 파일에 녹음된 사람의 말소리를 들리는 그대로 한국어 텍스트로 받아써 주세요. ' +
-  '요약하거나 설명을 덧붙이지 말고, 말한 내용만 순서대로 적어주세요. ' +
-  '화자가 바뀌면 줄을 바꿔 구분해주세요. 말소리가 전혀 없으면 빈 문자열만 반환하세요.';
-
-// Gemini가 받는 MIME으로 정리
-function toGeminiMime(mimeType) {
-  const m = (mimeType || '').toLowerCase();
-  if (m === 'audio/m4a' || m === 'audio/x-m4a' || m === 'audio/mp4') return 'audio/mp4';
-  if (m === 'audio/x-wav' || m === 'audio/wave') return 'audio/wav';
-  if (m === 'audio/mp3') return 'audio/mpeg';
-  if (!m || m === 'audio/*') return 'audio/mp4';
-  return m;
-}
-
-// ─── 클로바 ───────────────────────────────────────────────────────────────
-async function callClova(fileUri, clientId, clientSecret) {
-  const response = await FileSystem.uploadAsync(`${CLOVA_STT_URL}?lang=Kor`, fileUri, {
-    httpMethod: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream', // 클로바는 이 값만 허용 (STT002 방지)
-      'X-NCP-APIGW-API-KEY-ID': clientId,
-      'X-NCP-APIGW-API-KEY': clientSecret,
-    },
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-  });
-
-  console.log('[CLOVA]', response.status, response.body);
-
-  if (response.status < 200 || response.status >= 300) {
-    throw new Error(`클로바 STT 오류 (${response.status}) ${response.body}`);
-  }
-  try {
-    return (JSON.parse(response.body)?.text ?? '').trim();
-  } catch (e) {
-    throw new Error('클로바 STT 응답 파싱 실패');
-  }
-}
-
-// ─── Gemini ───────────────────────────────────────────────────────────────
-async function callGemini(fileUri, mimeType, size) {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'null') throw new Error('Gemini API 키가 설정되지 않았습니다.');
-  if (size > GEMINI_INLINE_MAX_BYTES) {
-    throw new Error('음성 파일이 너무 커서 변환할 수 없습니다. (14MB 이하만 지원)');
-  }
-
-  const base64 = await FileSystem.readAsStringAsync(fileUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: TRANSCRIBE_PROMPT },
-            { inline_data: { mime_type: toGeminiMime(mimeType), data: base64 } },
-          ],
-        },
-      ],
-      generationConfig: { temperature: 0, maxOutputTokens: 8192 },
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Gemini 음성 변환 오류 (${res.status}) ${errText}`.trim());
-  }
-
-  const data = await res.json();
-  const parts = data?.candidates?.[0]?.content?.parts ?? [];
-  const text = parts.map((p) => p.text ?? '').join('').trim();
-  console.log('[GEMINI-STT] length:', text.length);
-  return text;
-}
-
-// ─── 공개 함수 ────────────────────────────────────────────────────────────
+/**
+ * 클로바 음성인식(CSR)으로 음성 파일을 텍스트로 변환한다.
+ * 60초 제한을 우회하기 위해 파일을 1분 단위(근사)로 잘라 순서대로 전송하고,
+ * 반환된 텍스트를 순서대로 이어붙인다.
+ */
 export async function transcribeAudioClova(fileUri, mimeType = 'audio/m4a') {
-  const fileInfo = await FileSystem.getInfoAsync(fileUri, { size: true });
-  if (!fileInfo.exists || !fileInfo.size) {
-    throw new Error('음성 파일을 찾을 수 없거나 크기가 0입니다.');
+  if (mimeType && !CLOVA_SUPPORTED_MIME_TYPES.has(mimeType.toLowerCase())) {
+    console.warn(
+      `클로바가 공식 지원하지 않는 포맷일 수 있습니다: ${mimeType} (mp3/aac/ac3/ogg/flac/wav 권장)`
+    );
   }
 
-  const clientId = process.env.EXPO_PUBLIC_CLOVA_CLIENT_ID;
-  const clientSecret = process.env.EXPO_PUBLIC_CLOVA_CLIENT_SECRET;
-  const mime = (mimeType || '').toLowerCase();
+  const { size } = await FileSystem.getInfoAsync(fileUri, { size: true });
+  if (!size) throw new Error('음성 파일 크기를 확인할 수 없습니다.');
 
-  const clovaPossible =
-    !!clientId &&
-    !!clientSecret &&
-    CLOVA_OK_MIME.has(mime) &&
-    fileInfo.size <= 10 * 1024 * 1024;
+  const chunkCount = Math.max(1, Math.ceil(size / CLOVA_CHUNK_BYTES));
+  const transcripts = [];
 
-  let clovaError = null;
+  for (let i = 0; i < chunkCount; i++) {
+    const position = i * CLOVA_CHUNK_BYTES;
+    const length = Math.min(CLOVA_CHUNK_BYTES, size - position);
+    if (length <= 0) break;
 
-  // 1) 클로바 (지원 포맷일 때만 — 못 읽는 포맷은 호출 자체를 건너뛰어 크레딧을 아낀다)
-  if (clovaPossible) {
+    const base64Chunk = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+      position,
+      length,
+    });
+
     try {
-      const text = await callClova(fileUri, clientId, clientSecret);
-      if (text) return text;
-      clovaError = new Error('클로바가 빈 텍스트를 반환했습니다.');
+      // 조각을 순서대로(await, 병렬 X) 보내야 텍스트 이어붙이기 순서가 보장된다.
+      const text = await clovaRecognize(base64Chunk, mimeType);
+      if (text) transcripts.push(text);
     } catch (e) {
-      console.warn('클로바 변환 실패:', e.message);
-      clovaError = e;
+      console.warn(`클로바 STT 조각 ${i + 1}/${chunkCount} 변환 실패:`, e.message);
+      // 한 조각이 실패해도 나머지 조각은 이어서 시도한다.
     }
-  } else {
-    console.log('[STT] 클로바 건너뜀 (포맷/키/크기):', mime, fileInfo.size);
   }
 
-  // 2) Gemini 대체
-  try {
-    return await callGemini(fileUri, mimeType, fileInfo.size);
-  } catch (e) {
-    console.warn('Gemini 음성 변환 실패:', e.message);
-    throw new Error(clovaError ? `${clovaError.message} / ${e.message}` : e.message);
-  }
+  return transcripts.join(' ').trim();
 }

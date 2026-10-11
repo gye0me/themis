@@ -8,10 +8,9 @@
 // lawApiService.js(법제처 Open API)에서 사건 유형별 핵심 법령의 최신 정보를 조회해
 // 답변 근거로 함께 붙인다.
 
+import { geminiFetch } from './aiClient';
 import { searchLaw, formatLawContext } from './lawApiService';
 
-const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
 
 // ─── 1. 공통 답변 규칙 ───────────────────────────────────────────────────────
 
@@ -302,11 +301,6 @@ export async function askCaseAssistant({ caseType, questStep = null, question, m
     throw new Error('질문 내용을 입력해주세요.');
   }
 
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
-  }
-
   const lawContext = await getLawContext(caseType);
   const prompt = buildCaseAssistantPrompt(caseType, questStep, trimmed, lawContext, mode);
 
@@ -328,14 +322,7 @@ export async function askCaseAssistant({ caseType, questStep = null, question, m
 
   let response;
   try {
-    response = await fetch(GEMINI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey.trim(),
-      },
-      body: JSON.stringify(body),
-    });
+    response = await geminiFetch(body);
   } catch (err) {
     throw new Error('AI 서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.', { cause: err });
   }

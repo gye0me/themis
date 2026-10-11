@@ -20,20 +20,21 @@ import { buildStampedImageFile } from '../utils/buildStampedImageFile';
 import { BackHeader } from '../components/BackHeader';
 import { EventTimeInputModal } from '../components/EventTimeInputModal';
 import { C } from '../theme/tokens';
+import { Icon } from '../components/Icon';
 
 const evidenceTypes = [
-  { key: 'image', label: '이미지', icon: '📷' },
-  { key: 'video', label: '동영상', icon: '🎥' },
-  { key: 'audio', label: '음성', icon: '🎙️' },
-  { key: 'text', label: '텍스트', icon: '📝' },
+  { key: 'image', label: '이미지', icon: 'camera' },
+  { key: 'video', label: '동영상', icon: 'video' },
+  { key: 'audio', label: '음성', icon: 'mic' },
+  { key: 'text', label: '텍스트', icon: 'edit' },
 ];
 
 // "올린 증거에 이어서 기록"할 수 있는 증거 유형 (사진·영상·음성·계약분석)
 const ATTACHABLE_TYPES = {
-  image: { icon: '📷', label: '사진' },
-  video: { icon: '🎥', label: '영상' },
-  audio: { icon: '🎙️', label: '음성' },
-  contract: { icon: '📑', label: '계약분석' },
+  image: { icon: 'camera', label: '사진' },
+  video: { icon: 'video', label: '영상' },
+  audio: { icon: 'mic', label: '음성' },
+  contract: { icon: 'contract', label: '계약분석' },
 };
 
 function formatDateTime(date) {
@@ -302,7 +303,7 @@ export function UploadScreen({ navigation, route }) {
                       <Image source={{ uri: thumb }} style={styles.attachThumb} />
                     ) : (
                       <View style={[styles.attachThumb, styles.attachThumbIcon]}>
-                        <Text style={{ fontSize: 20 }}>{meta.icon}</Text>
+                        <Icon name={meta.icon} size={22} color={C.brand600} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
@@ -334,7 +335,7 @@ export function UploadScreen({ navigation, route }) {
                   style={[styles.typeCard, active && styles.typeCardActive]}
                   onPress={() => setEvidenceType(item.key)}
                 >
-                  <Text style={styles.typeIcon}>{item.icon}</Text>
+                  <Icon name={item.icon} size={20} color={active ? C.brand600 : C.ink700} />
                   <Text style={styles.typeText}>{item.label}</Text>
                 </TouchableOpacity>
               );
