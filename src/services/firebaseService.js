@@ -719,3 +719,37 @@ export async function savePreContractChecklistState(userId, items) {
     throw error;
   }
 }
+
+// ==================== 전문가 인증 심사 (관리자) ====================
+
+/**
+ * 심사 대기 중인 전문가 인증 신청 목록 조회.
+ * users 문서의 expertVerification.status === 'pending' 인 문서를 반환한다.
+ * @returns {Promise<Array<{ id: string, expertVerification: object }>>}
+ */
+export async function getPendingExpertVerifications() {
+  const q = query(
+    collection(db, THEMIS_COLLECTIONS.USERS),
+    where('expertVerification.status', '==', 'pending'),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * 전문가 인증 신청 승인/반려 처리.
+ * 승인 시 isExpert=true, 반려 시 isExpert=false 로 두고 심사 결과와 서명 ID를 함께 남긴다.
+ * @param {string} uid 신청자 uid
+ * @param {{ approve: boolean, reviewerUid: string, rejectReason?: string, signatureId?: string }} params
+ */
+export async function reviewExpertVerification(uid, { approve, reviewerUid, rejectReason = '', signatureId = null }) {
+  if (!uid) throw new Error('신청자 정보가 없습니다.');
+  await updateDoc(doc(db, THEMIS_COLLECTIONS.USERS, uid), {
+    isExpert: !!approve,
+    'expertVerification.status': approve ? 'approved' : 'rejected',
+    'expertVerification.reviewedAt': serverTimestamp(),
+    'expertVerification.reviewerUid': reviewerUid ?? null,
+    'expertVerification.rejectReason': approve ? '' : rejectReason,
+    'expertVerification.reviewSignatureId': signatureId,
+  });
+}

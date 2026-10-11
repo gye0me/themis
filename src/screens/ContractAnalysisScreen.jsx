@@ -258,7 +258,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const missingClauses = (results?.checklistItems ?? []).filter((i) => !i.completed);
 
   return (
-    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right', 'bottom']}>
       <BackHeader
         title="계약서 분석"
         subtitle={`독소조항 탐지 · ${selectedType} 특화`}

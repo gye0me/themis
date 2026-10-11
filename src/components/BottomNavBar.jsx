@@ -6,6 +6,7 @@
 
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { C } from '../theme/tokens';
 
@@ -57,6 +58,8 @@ const TABS = [
  * @param {object} navigation - react-navigation의 navigation prop
  */
 export function BottomNavBar({ active, navigation }) {
+  // 안드로이드 하단 시스템 바(제스처/3버튼)에 가려지지 않도록 하단 inset만큼 여백을 더한다.
+  const insets = useSafeAreaInsets();
   const goTab = (key) => {
     if (key === active) return;
     if (key === 'records') navigation.navigate(APP_ROUTES.RECORDS_STACK);
@@ -66,7 +69,7 @@ export function BottomNavBar({ active, navigation }) {
   };
 
   return (
-    <View style={styles.navbar}>
+    <View style={[styles.navbar, { paddingBottom: Math.max(insets.bottom, 0) + 10 }]}>
       {TABS.map((tab) => {
         const isActive = tab.key === active;
         return (
@@ -93,7 +96,6 @@ const styles = StyleSheet.create({
     borderTopColor: C.line,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    paddingBottom: 18,
   },
   navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6, borderRadius: 14 },
   navItemActive: { backgroundColor: C.sky100 },
