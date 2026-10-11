@@ -211,13 +211,8 @@ export function TimelineScreen({ navigation, route }) {
     }
   }
 
-  // 예방 가이드를 닫으면 체크리스트 진행 개수를 다시 반영하기 위해 사건 문서만 새로 불러온다
   function closePrevention() {
     setPreventionVisible(false);
-    if (!caseId) return;
-    getCaseById(caseId)
-      .then((c) => c && setCaseData(c))
-      .catch((err) => console.warn('사건 정보 새로고침 실패:', err.message));
   }
 
   function handleOpenReport() {
@@ -282,7 +277,6 @@ export function TimelineScreen({ navigation, route }) {
       ? records.filter((r) => r.evidenceType === 'text')
       : records.filter((r) => r.evidenceType === activeFilter && !isNestedMemo(r));
 
-  const preventionDoneCount = Object.values(caseData?.preventionChecklist ?? {}).filter(Boolean).length;
 
   const summary = buildSummary(records);
   const totalCount = records.length;
@@ -296,17 +290,12 @@ export function TimelineScreen({ navigation, route }) {
         right={
           <>
             <TouchableOpacity
-              style={styles.newCaseBtn}
-              onPress={() => navigation.popTo(RECORD_ROUTES.START, { openForm: true })}
-            >
-              <Text style={styles.newCaseBtnText}>+ 새 사건</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.shareBtn}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={styles.reportBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               onPress={handleOpenReport}
             >
-              <Icon name="external" size={18} color={C.ink700} />
+              <Icon name="download" size={15} color={C.brand600} strokeWidth={2.4} />
+              <Text style={styles.reportBtnText}>보고서</Text>
             </TouchableOpacity>
             {caseId && (
               <TouchableOpacity
@@ -353,22 +342,19 @@ export function TimelineScreen({ navigation, route }) {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
           {/* 타임라인의 성격 안내 — 법적 효력에 대한 기대를 관리한다 */}
-          <View style={styles.noticeBanner}>
-            <Text style={styles.noticeBannerText}>
-              이 타임라인은 피해 상황에 대비해 남기는 나의 개인 기록이에요. 법적 효력이나 증거로서의 가치를 보장하지 않으며,
-              제출은 가능하지만 증거 채택 여부는 수사기관과 법원이 판단해요.
-            </Text>
-          </View>
+          <Text style={styles.noticeText}>
+            이 타임라인은 피해 상황에 대비해 남기는 나의 개인 기록이에요. 법적 효력이나 증거로서의 가치를 보장하지 않으며,
+            제출은 가능하지만 증거 채택 여부는 수사기관과 법원이 판단해요.
+          </Text>
 
-          {/* 예방 가이드 — 사건 유형별 사례·체크리스트 (사건에 연결된 타임라인에서만) */}
+          {/* 예방 가이드 — 사건 유형별 사례 설명 (사건에 연결된 타임라인에서만) */}
           {caseId && (
             <TouchableOpacity style={styles.preventionCard} onPress={() => setPreventionVisible(true)} activeOpacity={0.85}>
               <Icon name="shield-check" size={22} color={C.safe600} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.preventionTitle}>예방 가이드 · 체크리스트</Text>
+                <Text style={styles.preventionTitle}>예방 가이드</Text>
                 <Text style={styles.preventionDesc}>
                   {(CASE_TYPE_META[caseData?.caseType] ?? CASE_TYPE_META['기타']).label} 사례별로 미리 챙길 것
-                  {preventionDoneCount > 0 ? ` · ${preventionDoneCount}개 완료` : ''}
                 </Text>
               </View>
               <Text style={styles.preventionArrow}>›</Text>
@@ -624,6 +610,14 @@ export function TimelineScreen({ navigation, route }) {
                 );
               })}
 
+              {/* 증거 더 올리기 (플로팅 "+ 증거" 버튼 대신) */}
+              <TouchableOpacity
+                style={styles.addEvidenceBtn}
+                onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null }, { pop: true })}
+              >
+                <Text style={styles.addEvidenceBtnText}>+ 증거 업로드하기</Text>
+              </TouchableOpacity>
+
               {/* 보고서 미리보기 + 다운로드 화면으로 이동 */}
               <TouchableOpacity style={styles.pdfBtn} onPress={handleOpenReport}>
                 <Text style={styles.pdfBtnText}>증거정리 보고서 보기 · 다운로드</Text>
@@ -635,15 +629,7 @@ export function TimelineScreen({ navigation, route }) {
         </ScrollView>
       )}
 
-      {/* 플로팅 버튼 */}
-      {caseId && (
-        <TouchableOpacity
-          style={styles.floatingUploadBtn}
-          onPress={() => navigation.navigate(RECORD_ROUTES.EVIDENCE_UPLOAD, { caseId, caseType: caseData?.caseType ?? null }, { pop: true })}
-        >
-          <Text style={styles.floatingUploadBtnText}>+ 증거</Text>
-        </TouchableOpacity>
-      )}
+      {/* 플로팅 버튼 (사건 대응 퀘스트) */}
       <TouchableOpacity
         style={styles.floatingBtn}
         onPress={() => {
@@ -663,7 +649,6 @@ export function TimelineScreen({ navigation, route }) {
       </TouchableOpacity>
       <PreventionGuideModal
         visible={preventionVisible}
-        caseId={caseId}
         caseType={caseData?.caseType}
         onClose={closePrevention}
       />
@@ -744,8 +729,12 @@ const styles = StyleSheet.create({
   preventionTitle: { fontSize: 13.5, fontWeight: '700', color: C.ink900 },
   preventionDesc: { fontSize: 11.5, color: C.ink500, marginTop: 2 },
   preventionArrow: { fontSize: 20, color: C.ink400 },
-  newCaseBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: C.brand400 },
-  newCaseBtnText: { color: C.brand600, fontSize: 11, fontWeight: '600' },
+  reportBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999,
+    borderWidth: 1.5, borderColor: C.brand400, backgroundColor: C.sky050,
+  },
+  reportBtnText: { color: C.brand600, fontSize: 12, fontWeight: '700' },
   content: { flex: 1, padding: 20 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: C.ink400, fontSize: 13 },
@@ -760,11 +749,7 @@ const styles = StyleSheet.create({
   summaryTag: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 4 },
   summaryTagText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
   emptyTagText: { color: C.ink400, fontSize: 11 },
-  noticeBanner: {
-    backgroundColor: C.sky050, borderWidth: 1, borderColor: C.line, borderRadius: 12,
-    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 12,
-  },
-  noticeBannerText: { color: C.ink500, fontSize: 11.5, lineHeight: 17 },
+  noticeText: { color: C.ink400, fontSize: 11.5, lineHeight: 17, marginBottom: 14 },
   filterRow: { marginBottom: 16 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -838,6 +823,12 @@ const styles = StyleSheet.create({
   hashCard: { backgroundColor: C.sky050, borderRadius: 10, padding: 10, marginBottom: 8 },
   hashLabel: { color: C.ink400, fontSize: 9 },
   hashValue: { color: C.brand600, fontSize: 9 },
+  // "+ 이 증거에 기록 추가"와 같은 테두리 알약 모양
+  addEvidenceBtn: {
+    alignSelf: 'center', borderWidth: 1, borderColor: C.brand400, borderRadius: 999,
+    paddingHorizontal: 16, paddingVertical: 9, marginTop: 6, marginBottom: 12,
+  },
+  addEvidenceBtnText: { color: C.brand600, fontSize: 13, fontWeight: '700' },
   pdfBtn: {
     backgroundColor: C.brand600, borderRadius: 14,
     padding: 15, alignItems: 'center', marginBottom: 10, marginTop: 4,
@@ -851,13 +842,7 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   floatingBtnText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
-  floatingUploadBtn: {
-    position: 'absolute', right: 16, bottom: 92,
-    backgroundColor: C.ink900, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 10,
-    zIndex: 999,
-  },
-  floatingUploadBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+
   inlineVideo: { width: '100%', height: 200, borderRadius: 8, backgroundColor: '#000000' },
   videoPoster: { width: '100%', height: 200, borderRadius: 8, backgroundColor: '#1E293B', overflow: 'hidden' },
   videoPosterImage: { width: '100%', height: '100%' },

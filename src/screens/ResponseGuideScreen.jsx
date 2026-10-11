@@ -364,7 +364,8 @@ export default function ResponseGuideScreen({ navigation, route }) {
         {/* 전문가 연결 */}
         <TouchableOpacity
           style={styles.expertBtn}
-          onPress={() => navigation.navigate(APP_ROUTES.EXPERTS_STACK)}
+          // 이 화면은 하단 탭 바깥(RootStack)에 있어서, 탭 안의 전문가 화면은 'App'(탭)을 거쳐서 이동해야 한다
+          onPress={() => navigation.navigate('App', { screen: APP_ROUTES.EXPERTS_STACK })}
         >
           <Text style={styles.expertBtnText}>전문가 채널 연결하기 ›</Text>
         </TouchableOpacity>

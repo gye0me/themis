@@ -451,7 +451,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStartType]);
 
-  // 사건별로 증거 업로드에 처음 들어왔을 때 예방 가이드(사례별 예방 방법 + 체크리스트)를 한 번 띄운다
+  // 사건별로 증거 업로드에 처음 들어왔을 때 예방 가이드(사례별 예방 방법)를 한 번 띄운다
   useEffect(() => {
     if (!caseId || autoStartType) return;
     const key = `prevention-guide-seen:${caseId}`;
@@ -572,7 +572,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
           <TouchableOpacity style={styles.preventionLink} onPress={() => setPreventionVisible(true)}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Icon name="shield-check" size={18} color={C.brand600} />
-              <Text style={styles.preventionLinkText}>이 사건 예방 가이드 · 체크리스트 보기</Text>
+              <Text style={styles.preventionLinkText}>이 사건 예방 가이드 보기</Text>
             </View>
             <Text style={styles.preventionLinkArrow}>›</Text>
           </TouchableOpacity>
@@ -746,7 +746,6 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
       <PreventionGuideModal
         visible={preventionVisible}
-        caseId={caseId}
         caseType={caseType}
         onClose={() => setPreventionVisible(false)}
       />

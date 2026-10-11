@@ -5,8 +5,8 @@
 // 동일한 모양을 내기 위함. 자세한 배경은 AppNavigator.jsx의 tabScreenOptions 주석 참고.)
 
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { APP_ROUTES, CHAT_ROUTES } from '../navigation/routes';
 import { C } from '../theme/tokens';
 
@@ -58,7 +58,8 @@ const TABS = [
  * @param {object} navigation - react-navigation의 navigation prop
  */
 export function BottomNavBar({ active, navigation }) {
-  // 안드로이드 하단 시스템 바(제스처/3버튼)에 가려지지 않도록 하단 inset만큼 여백을 더한다.
+  // 폰 아래쪽 홈 인디케이터(iOS)·시스템 바(안드로이드 제스처/3버튼)에 가려지거나 너무 낮게 붙지 않도록
+  // 하단 안전 영역만큼 띄우고 여백을 더한다.
   const insets = useSafeAreaInsets();
   const goTab = (key) => {
     if (key === active) return;
@@ -69,7 +70,7 @@ export function BottomNavBar({ active, navigation }) {
   };
 
   return (
-    <View style={[styles.navbar, { paddingBottom: Math.max(insets.bottom, 0) + 10 }]}>
+    <View style={[styles.navbar, { paddingBottom: Math.max(insets.bottom, 10) + 12 }]}>
       {TABS.map((tab) => {
         const isActive = tab.key === active;
         return (
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
     borderTopWidth: 1,
     borderTopColor: C.line,
-    paddingVertical: 10,
+    paddingTop: 12,
     paddingHorizontal: 8,
   },
   navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 6, borderRadius: 14 },
