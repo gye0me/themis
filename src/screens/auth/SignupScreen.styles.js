@@ -34,6 +34,21 @@ const extra = StyleSheet.create({
   },
   uploadText: { fontSize: 12.5, color: C.ink400, fontWeight: '600' },
   notice: { backgroundColor: C.warn100, borderRadius: 12, padding: 12 },
+
+  // 약관 동의
+  agreeBox: { borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 12, gap: 9 },
+  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  agreeRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  agreeDivider: { height: 1, backgroundColor: C.line },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: C.ink400,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: C.brand600, borderColor: C.brand600 },
+  checkMark: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  agreeAllText: { fontSize: 13.5, fontWeight: '700', color: C.ink900 },
+  agreeText: { fontSize: 12.5, color: C.ink700 },
+  agreeView: { fontSize: 12, color: C.ink400, textDecorationLine: 'underline' },
   noticeText: { fontSize: 11.5, color: C.warn600, lineHeight: 17 },
 });
 

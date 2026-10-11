@@ -13,6 +13,8 @@ import {
 } from '../services/expertBoardService';
 import { getHotBoardEntries, DEMO_HOT_BOARD_ENTRIES } from '../services/hotBoardService';
 import { submitReport } from '../services/reportService';
+import { blockUser, getBlockedUserIds } from '../services/blockService';
+import { ConfirmSheet } from '../components/ConfirmSheet';
 import { getOrCreateDirectRoom } from '../services/chatService';
 import { CASE_TYPE_META } from '../services/responseGuideSteps';
 import { EXPERT_ROUTES, CHAT_ROUTES, APP_ROUTES } from '../navigation/routes';
@@ -32,7 +34,11 @@ function formatRelativeTime(ts) {
 }
 
 export function ExpertScreen({ navigation }) {
-  const { user, profile } = useContext(AuthContext);
+  const { user, profile, refreshProfile } = useContext(AuthContext);
+  // 차단한 사용자의 글·댓글은 내 화면에서 숨긴다 (앱스토어 심사 요건: 신고 + 차단)
+  const blockedIds = getBlockedUserIds(profile);
+  const [blockTarget, setBlockTarget] = useState(null); // { uid, name }
+  const [blocking, setBlocking] = useState(false);
   const displayName = profile?.nickname?.trim() || profile?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
   const isExpertUser = profile?.accountType === 'expert' && !!profile?.isExpert;
 
@@ -287,10 +293,10 @@ export function ExpertScreen({ navigation }) {
             <Text style={styles.emptyText}>아직 등록된 질문이 없어요. 첫 질문을 남겨보세요!</Text>
           </View>
         ) : (
-          posts.map((post) => {
+          posts.filter((post) => !blockedIds.has(post.userId)).map((post) => {
             const isMine = post.userId === user?.uid;
             const isExpanded = expandedId === post.id;
-            const comments = commentsByPost[post.id] ?? [];
+            const comments = (commentsByPost[post.id] ?? []).filter((c) => !blockedIds.has(c.userId));
 
             // 익명 댓글 작성자를 "익명 참여자 N"으로 일관되게 표시하기 위해,
             // 오래된 순(채택 정렬 전) 기준으로 사용자별 번호를 미리 매겨둔다.
@@ -367,6 +373,14 @@ export function ExpertScreen({ navigation }) {
                       ) : (
                         <Text style={styles.reportBtnText}>🚩 신고</Text>
                       )}
+                    </TouchableOpacity>
+                  )}
+                  {!isMine && (
+                    <TouchableOpacity
+                      style={styles.reportBtn}
+                      onPress={() => setBlockTarget({ uid: post.userId, name: postAuthorLabel })}
+                    >
+                      <Text style={styles.reportBtnText}>🚫 차단</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -460,6 +474,14 @@ export function ExpertScreen({ navigation }) {
                                     )}
                                   </TouchableOpacity>
                                 ) : null}
+                                {!isCommentMine ? (
+                                  <TouchableOpacity
+                                    style={styles.commentBlockBtn}
+                                    onPress={() => setBlockTarget({ uid: c.userId, name: commentAuthorLabel })}
+                                  >
+                                    <Text style={styles.commentReportBtnText}>🚫 차단</Text>
+                                  </TouchableOpacity>
+                                ) : null}
                               </View>
                             </View>
                           );
@@ -520,6 +542,28 @@ export function ExpertScreen({ navigation }) {
       </View>
 
       <BottomNavBar active="experts" navigation={navigation} />
+      <ConfirmSheet
+        visible={!!blockTarget}
+        title={`${blockTarget?.name ?? '이 사용자'}님을 차단할까요?`}
+        message="차단하면 이 사용자의 글과 댓글이 내 화면에 더 이상 보이지 않아요. 계정 화면에서 언제든 해제할 수 있어요."
+        confirmLabel="차단하기"
+        destructive
+        loading={blocking}
+        onCancel={() => setBlockTarget(null)}
+        onConfirm={async () => {
+          if (!user || !blockTarget) return;
+          setBlocking(true);
+          try {
+            await blockUser(user.uid, blockTarget.uid, blockTarget.name);
+            await refreshProfile?.();
+          } catch (err) {
+            console.error('사용자 차단 오류:', err);
+          } finally {
+            setBlocking(false);
+            setBlockTarget(null);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -662,6 +706,7 @@ const styles = StyleSheet.create({
   acceptBtnText: { color: C.safe600, fontSize: 11, fontWeight: '700' },
   acceptBtnTextCancel: { color: C.ink500, fontSize: 11, fontWeight: '600' },
   commentReportBtn: { paddingVertical: 2, marginLeft: 'auto' },
+  commentBlockBtn: { paddingVertical: 2, marginLeft: 8 },
   commentReportBtnText: { color: C.ink400, fontSize: 10.5, fontWeight: '600' },
   commentDmBtn: { paddingVertical: 2 },
   commentDmBtnText: { color: C.brand600, fontSize: 10.5, fontWeight: '700' },

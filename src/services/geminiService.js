@@ -1,7 +1,6 @@
+import { geminiFetch } from './aiClient';
 import { getRequiredClauses } from './requiredClauseChecklist';
 
-const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
 
 // ─── 공통 출력 포맷 규칙 ─────────────────────────────────────────────────────
 
@@ -275,18 +274,7 @@ export function buildPreprocessPrompt(contractType) {
 }
 
 export async function testGeminiConnection() {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
-  }
-
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey.trim(),
-    },
-    body: JSON.stringify({
+  const response = await geminiFetch({
       contents: [
         {
           parts: [
@@ -298,8 +286,7 @@ export async function testGeminiConnection() {
         temperature: 0,
         maxOutputTokens: 8,
       },
-    }),
-  });
+    });
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -350,10 +337,6 @@ export function compareAnalysisResults(beforeResult, afterResult) {
  * @returns {Promise<{ summary, items, extractedText, documentSummary, contractDate }>}
  */
 export const analyzeContractText = async (contractText, contractType = '전월세') => {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
-  }
   if (!contractText?.trim()) {
     throw new Error('분석할 계약서 텍스트가 없습니다.');
   }
@@ -372,11 +355,7 @@ ${contractText.trim()}`;
     generationConfig: { temperature: 0.2, maxOutputTokens: 3072, thinkingConfig: { thinkingBudget: 0 } },
   };
 
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
-    body: JSON.stringify(body),
-  });
+  const response = await geminiFetch(body);
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -395,11 +374,6 @@ export const B_callGeminiAPI = async (
   contractType = '전월세',
   promptOverride = null,
 ) => {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
-  }
-
   const body = {
     contents: [
       {
@@ -421,14 +395,7 @@ export const B_callGeminiAPI = async (
     },
   };
 
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey.trim() // <-- 여기에 API 키를 숨겨서 보냅니다!
-    },
-    body: JSON.stringify(body),
-  });
+  const response = await geminiFetch(body);
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -499,11 +466,6 @@ function parseChecklistResponse(rawText) {
 }
 
 export async function callGeminiChecklistAPI(base64Img, mimeType = 'image/jpeg', contractType = '전월세') {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('EXPO_PUBLIC_GEMINI_API_KEY가 설정되지 않았습니다.');
-  }
-
   const body = {
     contents: [
       {
@@ -520,14 +482,7 @@ export async function callGeminiChecklistAPI(base64Img, mimeType = 'image/jpeg',
     },
   };
 
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey.trim(),
-    },
-    body: JSON.stringify(body),
-  });
+  const response = await geminiFetch(body);
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');

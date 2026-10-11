@@ -83,7 +83,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && resource.data.uid == request.auth.uid
         && request.resource.data.uid == request.auth.uid;
-      allow delete: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid; // 회원 탈퇴 시 정리
     }
     // 이메일 → 사용자 (이메일을 정확히 아는 경우만 단건 조회)
     match /userDirectory/{emailKey} {
@@ -92,7 +92,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && resource.data.uid == request.auth.uid
         && request.resource.data.uid == request.auth.uid;
-      allow delete: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid; // 회원 탈퇴 시 정리
     }
     // 보호자 연결 — 요청자만 만들고(대기 상태), 보호자만 수락/거절하며, 둘 다 연결을 끊을 수 있다
     match /guardianLinks/{linkId} {

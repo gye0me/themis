@@ -35,6 +35,11 @@ export const EXPERT_ROUTES = {
   HOT_BOARD_DETAIL: 'HotBoardDetail',
 };
 
+export const ACCOUNT_ROUTES = {
+  ACCOUNT: 'Account',
+  LEGAL: 'LegalDocument',
+};
+
 export const GUARDIAN_ROUTES = {
   MANAGE: 'GuardianManage',
 };

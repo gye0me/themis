@@ -22,6 +22,8 @@ import ExpertQuestionScreen from '../screens/ExpertQuestionScreen';
 import PreventionConsultScreen from '../screens/PreventionConsultScreen';
 import PreContractChecklistScreen from '../screens/PreContractChecklistScreen';
 import { GuardianScreen } from '../screens/GuardianScreen';
+import { AccountScreen } from '../screens/AccountScreen';
+import { LegalDocumentScreen } from '../screens/LegalDocumentScreen';
 import { HotBoardDetailScreen } from '../screens/HotBoardDetailScreen';
 import {
   APP_ROUTES,
@@ -32,6 +34,7 @@ import {
   CHAT_ROUTES,
   PREVENTION_ROUTES,
   GUARDIAN_ROUTES,
+  ACCOUNT_ROUTES,
 } from './routes';
 
 // 같은 사건(caseId)의 증거 업로드/타임라인 화면은 스택에 하나만 두기 위한 id.
@@ -176,9 +179,14 @@ function AuthNavigator() {
       </RootStack.Screen>
       <RootStack.Screen name={AUTH_ROUTES.SIGNUP}>
         {({ navigation }) => (
-          <SignupScreen onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)} />
+          <SignupScreen
+            onSwitchToLogin={() => navigation.replace(AUTH_ROUTES.LOGIN)}
+            onOpenDocument={(doc) => navigation.navigate(ACCOUNT_ROUTES.LEGAL, { doc })}
+          />
         )}
       </RootStack.Screen>
+      {/* 가입 화면에서 약관·방침 전문 보기 */}
+      <RootStack.Screen name={ACCOUNT_ROUTES.LEGAL} component={LegalDocumentScreen} />
     </RootStack.Navigator>
   );
 }
@@ -197,6 +205,8 @@ function AppStack() {
       <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={GUARDIAN_ROUTES.MANAGE} component={GuardianScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.ACCOUNT} component={AccountScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.LEGAL} component={LegalDocumentScreen} options={{ headerShown: false }} />
       <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );

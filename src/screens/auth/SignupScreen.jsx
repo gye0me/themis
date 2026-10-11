@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { signUp } from '../../services/firebaseService';
 import { C } from '../../theme/tokens';
 import { AuthLayout, AuthPrimaryButton } from './AuthLayout';
+import { LEGAL_VERSION, SIGNUP_AGREEMENTS } from '../../services/legalDocuments';
 import styles from './SignupScreen.styles';
 
 const ACCOUNT_TYPES = [
@@ -11,7 +12,7 @@ const ACCOUNT_TYPES = [
 ];
 const EXPERT_JOBS = ['변호사', '공인중개사', '기자', '회계사', '기타'];
 
-export function SignupScreen({ onSwitchToLogin }) {
+export function SignupScreen({ onSwitchToLogin, onOpenDocument }) {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +24,10 @@ export function SignupScreen({ onSwitchToLogin }) {
   const [expertOrg, setExpertOrg] = useState('');
   const [expertLicense, setExpertLicense] = useState('');
   const [focused, setFocused] = useState(null);
+  const [agreed, setAgreed] = useState({}); // { agedOver14, terms, privacy, location }
+  const allAgreed = SIGNUP_AGREEMENTS.every((a) => agreed[a.key]);
+  const toggleAll = () =>
+    setAgreed(allAgreed ? {} : Object.fromEntries(SIGNUP_AGREEMENTS.map((a) => [a.key, true])));
 
   const validateForm = () => {
     if (!displayName.trim()) {
@@ -39,6 +44,10 @@ export function SignupScreen({ onSwitchToLogin }) {
     }
     if (password !== confirmPassword) {
       setError('비밀번호가 일치하지 않습니다.');
+      return false;
+    }
+    if (!allAgreed) {
+      setError('필수 약관에 모두 동의해주세요.');
       return false;
     }
     if (accountType === 'expert') {
@@ -74,6 +83,7 @@ export function SignupScreen({ onSwitchToLogin }) {
           accountType === 'expert'
             ? { job: expertJob, organization: expertOrg.trim(), licenseNumber: expertLicense.trim() }
             : null,
+        agreements: { ...agreed, version: LEGAL_VERSION },
       });
     } catch (err) {
       console.error('회원가입 오류:', err);
@@ -230,6 +240,35 @@ export function SignupScreen({ onSwitchToLogin }) {
           </View>
         </View>
       )}
+
+      {/* 약관 동의 (모두 필수) */}
+      <View style={styles.agreeBox}>
+        <Pressable style={styles.agreeRow} onPress={toggleAll}>
+          <View style={[styles.checkbox, allAgreed && styles.checkboxOn]}>
+            {allAgreed && <Text style={styles.checkMark}>✓</Text>}
+          </View>
+          <Text style={styles.agreeAllText}>전체 동의</Text>
+        </Pressable>
+        <View style={styles.agreeDivider} />
+        {SIGNUP_AGREEMENTS.map((a) => (
+          <View key={a.key} style={styles.agreeRow}>
+            <Pressable
+              style={styles.agreeRowMain}
+              onPress={() => setAgreed((prev) => ({ ...prev, [a.key]: !prev[a.key] }))}
+            >
+              <View style={[styles.checkbox, agreed[a.key] && styles.checkboxOn]}>
+                {agreed[a.key] && <Text style={styles.checkMark}>✓</Text>}
+              </View>
+              <Text style={styles.agreeText}>(필수) {a.label}</Text>
+            </Pressable>
+            {a.doc && onOpenDocument ? (
+              <Pressable onPress={() => onOpenDocument(a.doc)} hitSlop={8}>
+                <Text style={styles.agreeView}>보기</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 

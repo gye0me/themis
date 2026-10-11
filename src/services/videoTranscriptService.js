@@ -10,17 +10,19 @@
 //        작은 파일은 inline_data, 큰 파일은 Gemini Files API로 업로드 후 참조한다.
 
 import { Platform } from 'react-native';
+import { AI_PROXY_ENABLED, MAX_PROXY_INLINE_BYTES, geminiFetch, getDirectGeminiKey } from './aiClient';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
-const GEMINI_MODEL = 'gemini-3.5-flash';
-const GEMINI_GENERATE_URL = `${GEMINI_BASE}/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const GEMINI_UPLOAD_URL = `${GEMINI_BASE}/upload/v1beta/files`;
 
-// Gemini 요청 본문 한도(약 20MB)를 넘지 않도록 inline으로 보낼 원본 크기 상한 (base64로 약 1.33배 커짐)
-const INLINE_MAX_BYTES = 14 * 1024 * 1024;
+// inline으로 보낼 원본 크기 상한 (base64로 약 1.33배 커짐)
+// - 직접 호출: Gemini 요청 본문 한도(약 20MB) 기준 14MB
+// - 서버 경유(출시용): 서버 함수 요청 한도(약 10MB) 기준 7MB
+const INLINE_MAX_BYTES = AI_PROXY_ENABLED ? MAX_PROXY_INLINE_BYTES : 14 * 1024 * 1024;
 
 const WAV_SAMPLE_RATE = 16000;
-const WAV_CHUNK_SECONDS = 5 * 60;
+// 16kHz 모노 WAV는 1초에 약 32KB — 서버 경유 시엔 한 조각이 7MB를 넘지 않도록 3분으로 줄인다
+const WAV_CHUNK_SECONDS = AI_PROXY_ENABLED ? 3 * 60 : 5 * 60;
 
 const TRANSCRIBE_PROMPT =
   '이 파일에 녹음된 사람의 말소리를 들리는 그대로 한국어 텍스트로 받아써 주세요. ' +
@@ -35,20 +37,10 @@ function normalizeVideoMime(mimeType) {
   return m;
 }
 
-function getApiKey() {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다.');
-  return apiKey;
-}
-
-async function generateTranscript(mediaPart, apiKey) {
-  const res = await fetch(`${GEMINI_GENERATE_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: TRANSCRIBE_PROMPT }, mediaPart] }],
-      generationConfig: { temperature: 0, maxOutputTokens: 8192 },
-    }),
+async function generateTranscript(mediaPart) {
+  const res = await geminiFetch({
+    contents: [{ parts: [{ text: TRANSCRIBE_PROMPT }, mediaPart] }],
+    generationConfig: { temperature: 0, maxOutputTokens: 8192 },
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
@@ -118,7 +110,7 @@ function encodeWav(samples) {
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
-async function transcribeVideoWeb(file, apiKey) {
+async function transcribeVideoWeb(file) {
   const blob = file.file ?? (await (await fetch(file.uri)).blob());
   let samples;
   try {
@@ -135,7 +127,7 @@ async function transcribeVideoWeb(file, apiKey) {
     const wav = encodeWav(samples.subarray(start, start + chunkLen));
     const data = await blobToBase64(wav);
     // 순서대로(병렬 X) 보내야 이어붙인 텍스트 순서가 보장된다.
-    const text = await generateTranscript({ inline_data: { mime_type: 'audio/wav', data } }, apiKey);
+    const text = await generateTranscript({ inline_data: { mime_type: 'audio/wav', data } });
     if (text) transcripts.push(text);
   }
   return transcripts.join('\n').trim();
@@ -188,7 +180,7 @@ async function uploadToGeminiFiles(fileUri, mimeType, size, apiKey) {
   return info.uri;
 }
 
-async function transcribeVideoNative(file, apiKey) {
+async function transcribeVideoNative(file) {
   const FileSystem = require('expo-file-system/legacy');
   const mimeType = normalizeVideoMime(file.mimeType);
   const size = file.size ?? (await FileSystem.getInfoAsync(file.uri, { size: true })).size;
@@ -196,10 +188,16 @@ async function transcribeVideoNative(file, apiKey) {
 
   if (size <= INLINE_MAX_BYTES) {
     const data = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
-    return generateTranscript({ inline_data: { mime_type: mimeType, data } }, apiKey);
+    return generateTranscript({ inline_data: { mime_type: mimeType, data } });
+  }
+  // 큰 영상은 Gemini Files API로 올려야 하는데, 이 경로는 아직 서버 경유를 지원하지 않는다
+  // (서버 모드에선 키가 앱에 없음). 출시 버전에서는 7MB 이하 영상만 변환하고 나머지는 안내한다.
+  const apiKey = getDirectGeminiKey();
+  if (!apiKey) {
+    throw new Error('영상이 커서(7MB 초과) 음성 변환을 건너뛰었어요. 짧게 나눠서 올리면 변환돼요.');
   }
   const fileUri = await uploadToGeminiFiles(file.uri, mimeType, size, apiKey);
-  return generateTranscript({ file_data: { mime_type: mimeType, file_uri: fileUri } }, apiKey);
+  return generateTranscript({ file_data: { mime_type: mimeType, file_uri: fileUri } });
 }
 
 /**
@@ -207,7 +205,6 @@ async function transcribeVideoNative(file, apiKey) {
  * 말소리가 없으면 빈 문자열을 돌려주고, 추출/변환에 실패하면 예외를 던진다.
  */
 export async function transcribeVideoAudio(file) {
-  const apiKey = getApiKey();
-  if (Platform.OS === 'web') return transcribeVideoWeb(file, apiKey);
-  return transcribeVideoNative(file, apiKey);
+  if (Platform.OS === 'web') return transcribeVideoWeb(file);
+  return transcribeVideoNative(file);
 }

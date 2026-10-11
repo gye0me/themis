@@ -7,9 +7,9 @@ import Svg, { Defs, LinearGradient as SvgGradient, Stop, Ellipse, Circle, Path }
 import * as Location from 'expo-location';
 import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
-import { APP_ROUTES, RECORD_ROUTES, PREVENTION_ROUTES, GUARDIAN_ROUTES } from '../navigation/routes';
+import { APP_ROUTES, RECORD_ROUTES, PREVENTION_ROUTES, GUARDIAN_ROUTES, ACCOUNT_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
-import { logout, getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
+import { getCasesByUser, getEvidenceRecords, updateUserProfile } from '../services/firebaseService';
 import { CASE_TYPE_META, buildQuestSteps } from '../services/responseGuideSteps';
 import {
   syncDeadmanLocalState,
@@ -657,24 +657,6 @@ export function HomeScreen({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick, deadmanEnabled, lastCheckIn, timeoutMin]);
 
-  const handleLogout = () => {
-    Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '로그아웃',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout();
-          } catch (err) {
-            console.error('로그아웃 오류:', err);
-            Alert.alert('오류', '로그아웃에 실패했습니다.');
-          }
-        },
-      },
-    ]);
-  };
-
   const isCustomTimeout = editingCustomTimeout || !DEADMAN_TIMEOUT_PRESETS_MIN.includes(timeoutMin);
 
   const totalEvidence = Object.values(evidenceByCase).reduce((sum, v) => sum + (v?.total ?? 0), 0);
@@ -715,7 +697,7 @@ export function HomeScreen({ navigation }) {
               <TouchableOpacity hitSlop={8} onPress={() => Alert.alert('준비 중', '알림함 기능은 준비 중입니다.')}>
                 <BellIcon color={C.ink700} />
               </TouchableOpacity>
-              <TouchableOpacity hitSlop={8} onPress={handleLogout}>
+              <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.ACCOUNT)}>
                 <AccountIcon color={C.ink700} />
               </TouchableOpacity>
             </View>

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "themis",
+    "name": "Themis",
     "slug": "themis",
     "scheme": "themis",
     "version": "1.0.0",
@@ -13,7 +13,13 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.themis.app"
+      "bundleIdentifier": "com.themis.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "증거를 업로드한 위치를 함께 기록하고, 위급 상황 시 보호자에게 위치를 전달하기 위해 위치 정보를 사용합니다.",
+        "NSCameraUsageDescription": "증거 사진과 계약서를 촬영하기 위해 카메라를 사용합니다.",
+        "NSPhotoLibraryUsageDescription": "갤러리에 있는 사진·영상을 증거로 업로드하기 위해 사진 보관함에 접근합니다.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "plugins": [
       "expo-video",
@@ -31,7 +37,16 @@
         }
       ],
       "expo-sharing",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#F4F9FE"
+        }
+      ]
     ],
     "android": {
       "package": "com.themis.app",
@@ -41,13 +56,21 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#E9F1FD"
+      }
     },
     "extra": {
       "eas": {
         "projectId": "3ca3d694-e15f-4d3a-ac11-d4e1871ed6fa"
       }
     },
-    "owner": "hdeid"
+    "owner": "hdeid",
+    "icon": "./assets/icon.png",
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
 }
