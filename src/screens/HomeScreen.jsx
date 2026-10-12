@@ -692,11 +692,11 @@ export function HomeScreen({ navigation }) {
             style={styles.homeTopBar}
             right={
               <>
-              <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.NOTIFICATIONS)}>
+              <TouchableOpacity hitSlop={8} accessibilityRole="button" accessibilityLabel="알림" onPress={() => navigation.navigate(ACCOUNT_ROUTES.NOTIFICATIONS)}>
                 <BellIcon color={C.ink700} />
                 {unreadNotificationCount > 0 && <View style={styles.bellDot} />}
               </TouchableOpacity>
-              <TouchableOpacity hitSlop={8} onPress={() => navigation.navigate(ACCOUNT_ROUTES.ACCOUNT)}>
+              <TouchableOpacity hitSlop={8} accessibilityRole="button" accessibilityLabel="계정" onPress={() => navigation.navigate(ACCOUNT_ROUTES.ACCOUNT)}>
                 <AccountIcon color={C.ink700} />
               </TouchableOpacity>
               </>

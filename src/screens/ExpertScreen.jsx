@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
 
   deleteBtn: { alignSelf: 'flex-end', marginTop: 8 },
   deleteBtnText: { color: C.danger600, fontSize: 11.5, fontWeight: '600' },
-  postActionsRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
+  postActionsRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 14, marginTop: 8 },
   reportBtn: { paddingVertical: 2 },
   reportBtnText: { color: C.ink400, fontSize: 11, fontWeight: '600' },
 
