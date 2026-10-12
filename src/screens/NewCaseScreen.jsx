@@ -317,13 +317,16 @@ export function NewCaseScreen({ navigation, route }) {
           </View>
 
           <Text style={styles.fieldLabel}>태그</Text>
-          <View style={styles.chipRow}>
+          {/* 고른 태그 줄 — 있을 때만 그리고, 아래 추천 태그 줄과 붙지 않게 간격을 둔다 */}
+          {tags.length > 0 && (
+          <View style={[styles.chipRow, styles.selectedTagRow]}>
             {tags.map((t) => (
               <TouchableOpacity key={t} style={[styles.chip, styles.chipActive]} onPress={() => removeTag(t)}>
                 <Text style={styles.chipTextActive}>{t} ×</Text>
               </TouchableOpacity>
             ))}
           </View>
+          )}
           <View style={styles.chipRow}>
             {SUGGESTED_TAGS.map((t) => {
               const active = tags.includes(t);
@@ -535,6 +538,7 @@ const styles = StyleSheet.create({
   },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selectedTagRow: { marginBottom: 10 },
   chip: {
     borderWidth: 1, borderColor: C.line, borderRadius: 999,
     paddingHorizontal: 14, paddingVertical: 8, backgroundColor: C.surface,
