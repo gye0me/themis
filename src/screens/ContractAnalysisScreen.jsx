@@ -29,6 +29,7 @@ import {
   getJeonseRiskLevel,
   formatManwonToKorean,
   getPreviousYearMonth,
+  getLastRealEstateApiIssue,
 } from "../services/realEstateService";
 import { BackHeader } from "../components/BackHeader";
 import { RECORD_ROUTES } from "../navigation/routes";
@@ -96,6 +97,9 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const [depositAmount, setDepositAmount] = useState("");
   const [tradesLoading, setTradesLoading] = useState(false);
   const [tradesSearched, setTradesSearched] = useState(false);
+  // 조회 결과가 비어있을 때 "왜 비었는지"(API 오류/네트워크 실패 등)를 화면에 그대로 보여주기 위함 —
+  // 폰 실기기 테스트에서는 console.warn이 아무도 안 보여서, 원인 파악이 안 되는 문제가 있었다.
+  const [tradesIssue, setTradesIssue] = useState(null);
   const [rentTrades, setRentTrades] = useState([]);
   const [rentLoading, setRentLoading] = useState(false);
   const [buildingQuery, setBuildingQuery] = useState("");
@@ -195,11 +199,15 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     setSelectedBuilding(null);
     setRentTrades([]);
     setBuildingQuery("");
+    setTradesIssue(null);
     try {
       // 구 단위 평균은 편차가 커서, 최근 3개월치를 모아 건물별로 묶어야
       // 계약서와 같은 건물을 골라 정확하게 비교할 수 있다.
       const recentTrades = await fetchRecentTrades({ housingType, lawdCd, baseYmd: dealYmd, months: 3 });
       setBuildingGroups(groupTradesByBuilding(recentTrades));
+      if (recentTrades.length === 0) {
+        setTradesIssue(getLastRealEstateApiIssue());
+      }
     } finally {
       setTradesLoading(false);
     }
@@ -403,6 +411,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             {tradesSearched && !tradesLoading && buildingGroups.length === 0 && (
               <Text style={styles.emptyText}>
                 해당 조건의 매매 실거래 내역이 없습니다. 기준월을 바꾸거나 주택유형을 확인해보세요.
+                {tradesIssue ? `\n\n(진단 정보: ${tradesIssue})` : ''}
               </Text>
             )}
 
