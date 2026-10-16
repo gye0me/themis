@@ -45,6 +45,15 @@ export const HOUSING_TYPE_LABELS = {
   villa: '연립다세대·빌라',
 };
 
+// 조회 결과가 비어있을 때, 화면에서 "왜 비었는지"(API 오류/네트워크 실패/정상인데 데이터 없음)를
+// 보여줄 수 있도록 마지막 실패 원인을 기록해둔다. console.warn은 폰 실기기 테스트에서는 아무도
+// 못 보므로, 화면에 바로 띄워서 원인(상태코드/에러메시지)을 바로 확인할 수 있게 하기 위함.
+let lastApiIssue = null;
+
+export function getLastRealEstateApiIssue() {
+  return lastApiIssue;
+}
+
 // 서울 25개 자치구의 법정동코드(앞 5자리, 시군구 단위).
 // 경기·인천 등 일부 시는 구 단위로 세분화돼 있어 정확한 코드를 알 수 없는 경우
 // 잘못된 정보를 보여줄 수 있으므로, 코드가 명확한 서울 지역만 우선 지원한다.
@@ -156,6 +165,7 @@ async function fetchTrades(housingType, { lawdCd, dealYmd, numOfRows = 100 }) {
   try {
     const res = await fetch(url);
     if (!res.ok) {
+      lastApiIssue = `매매 실거래가 API 오류 (상태코드 ${res.status})`;
       console.warn(`실거래가 API 오류 (${res.status})`);
       return [];
     }
@@ -165,6 +175,7 @@ async function fetchTrades(housingType, { lawdCd, dealYmd, numOfRows = 100 }) {
       // 정상 응답이지만 결과가 없는 경우와, 인증/파라미터 오류로 item이 아예 없는 경우를 함께 처리
       const resultMsg = extractTag(xmlText, 'resultMsg') || extractTag(xmlText, 'returnAuthMsg');
       if (resultMsg && !/^(NORMAL|정상)/i.test(resultMsg)) {
+        lastApiIssue = `매매 실거래가 API 응답 오류: ${resultMsg}`;
         console.warn('실거래가 API 응답 오류:', resultMsg);
       }
       return [];
@@ -183,6 +194,7 @@ async function fetchTrades(housingType, { lawdCd, dealYmd, numOfRows = 100 }) {
       }))
       .sort((a, b) => (a.dealDate < b.dealDate ? 1 : -1));
   } catch (err) {
+    lastApiIssue = `매매 실거래가 API 호출 실패: ${err.message}`;
     console.warn('실거래가 API 호출 실패:', err.message);
     return []; // 실패해도 계약서 분석 자체는 계속 진행되도록 빈 배열 반환
   }
@@ -247,6 +259,7 @@ async function fetchRentTradesOnce(housingType, { lawdCd, dealYmd, numOfRows = 1
   try {
     const res = await fetch(url);
     if (!res.ok) {
+      lastApiIssue = `전월세 실거래가 API 오류 (상태코드 ${res.status})`;
       console.warn(`전월세 실거래가 API 오류 (${res.status})`);
       return [];
     }
@@ -255,6 +268,7 @@ async function fetchRentTradesOnce(housingType, { lawdCd, dealYmd, numOfRows = 1
     if (!/<item>/.test(xmlText)) {
       const resultMsg = extractTag(xmlText, 'resultMsg') || extractTag(xmlText, 'returnAuthMsg');
       if (resultMsg && !/^(NORMAL|정상)/i.test(resultMsg)) {
+        lastApiIssue = `전월세 실거래가 API 응답 오류: ${resultMsg}`;
         console.warn('전월세 실거래가 API 응답 오류:', resultMsg);
       }
       return [];
@@ -275,6 +289,7 @@ async function fetchRentTradesOnce(housingType, { lawdCd, dealYmd, numOfRows = 1
       }))
       .sort((a, b) => (a.dealDate < b.dealDate ? 1 : -1));
   } catch (err) {
+    lastApiIssue = `전월세 실거래가 API 호출 실패: ${err.message}`;
     console.warn('전월세 실거래가 API 호출 실패:', err.message);
     return [];
   }
@@ -285,6 +300,7 @@ async function fetchRentTradesOnce(housingType, { lawdCd, dealYmd, numOfRows = 1
  * @param {{housingType: 'apt'|'villa', lawdCd: string, baseYmd: string, months?: number}} params
  */
 export async function fetchRecentRentTrades({ housingType = 'apt', lawdCd, baseYmd, months = 3 }) {
+  lastApiIssue = null;
   if (!lawdCd || !baseYmd) return [];
   const ymds = buildRecentYmds(baseYmd, months);
   const results = await Promise.all(ymds.map((dealYmd) => fetchRentTradesOnce(housingType, { lawdCd, dealYmd })));
@@ -338,6 +354,7 @@ function buildRecentYmds(baseYmd, months) {
  * @param {{housingType: 'apt'|'villa', lawdCd: string, baseYmd: string, months?: number}} params
  */
 export async function fetchRecentTrades({ housingType = 'apt', lawdCd, baseYmd, months = 3 }) {
+  lastApiIssue = null;
   if (!lawdCd || !baseYmd) return [];
   const ymds = buildRecentYmds(baseYmd, months);
   const results = await Promise.all(ymds.map((dealYmd) => fetchTrades(housingType, { lawdCd, dealYmd })));
