@@ -179,7 +179,9 @@ export function ExpertScreen({ navigation }) {
     }
   };
 
-  // 댓글 작성자에게 1:1로 "채팅 보내기" — 익명 댓글은 실명이 드러나면 안 되니 DM 자체를 막는다.
+  // 댓글 작성자에게 1:1로 "채팅 보내기" — 글쓴이(질문 작성자)만 쓸 수 있다. 아무나 댓글 보고
+  // DM을 보낼 수 있게 하면 답변해준 전문가가 불특정 다수에게서 쪽지를 계속 받게 돼서 제한한다.
+  // 익명 댓글은 실명이 드러나면 안 되니 DM 자체를 막는다.
   const startDmWithComment = async (comment) => {
     if (!user) {
       Alert.alert('로그인이 필요해요', '채팅을 보내려면 먼저 로그인해주세요.');
@@ -448,7 +450,7 @@ export function ExpertScreen({ navigation }) {
                                     )}
                                   </TouchableOpacity>
                                 ) : null}
-                                {!isCommentMine && !c.isAnonymous ? (
+                                {isMine && !isCommentMine && !c.isAnonymous ? (
                                   <TouchableOpacity
                                     style={styles.commentDmBtn}
                                     onPress={() => startDmWithComment(c)}
