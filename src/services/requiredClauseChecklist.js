@@ -110,6 +110,50 @@ export const REQUIRED_CLAUSES = {
       keywords: ['해지'],
     },
   ],
+
+  근로: [
+    {
+      id: 'labor_choejeimgeum',
+      title: '최저임금 이상 시급 명시',
+      description: '시급이 해당 연도 최저임금 이상으로 명확히 적혀 있어야 합니다.',
+      legalBasis: '최저임금법',
+      keywords: ['시급', '임금', '최저임금'],
+    },
+    {
+      id: 'labor_juhyusudang',
+      title: '주휴수당 지급 명시',
+      description: '주 15시간 이상 근무하면 주휴수당을 지급한다는 내용이 있어야 합니다.',
+      legalBasis: '근로기준법 제55조',
+      keywords: ['주휴수당', '주휴일'],
+    },
+    {
+      id: 'labor_geunrosigan',
+      title: '근로시간·휴게시간 명시',
+      description: '근무 시작·종료 시각과 휴게시간이 구체적으로 적혀 있어야 합니다.',
+      legalBasis: '근로기준법 제17조',
+      keywords: ['근로시간', '휴게시간', '근무시간'],
+    },
+    {
+      id: 'labor_imgeum_jigeupil',
+      title: '임금 지급일·지급방법 명시',
+      description: '매월 며칠에 지급하는지, 어떤 방식(계좌이체 등)으로 지급하는지 명시가 필요합니다.',
+      legalBasis: '근로기준법 제17조',
+      keywords: ['지급일', '지급방법', '임금 지급'],
+    },
+    {
+      id: 'labor_4daeboheom',
+      title: '4대보험 가입 명시',
+      description: '국민연금·건강보험·고용보험·산재보험 가입 여부가 명시되어 있어야 합니다.',
+      keywords: ['4대보험', '고용보험', '산재보험'],
+    },
+    {
+      id: 'labor_haego_yego',
+      title: '해고 예고·절차 명시',
+      description: '해고 시 최소 30일 전 예고하거나 예고수당을 지급한다는 내용이 있어야 합니다.',
+      legalBasis: '근로기준법 제26조',
+      keywords: ['해고', '예고'],
+    },
+  ],
 };
 
 const REQUIRED_CLAUSES_FALLBACK = REQUIRED_CLAUSES['전월세'];
