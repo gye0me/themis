@@ -1,6 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { C } from '../theme/tokens';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LoginScreen } from '../screens/auth/LoginScreen';
@@ -43,6 +45,37 @@ import {
 // 이게 없으면 "업로드 → 타임라인 → 업로드 → 타임라인…"처럼 같은 화면이 계속 중복으로 쌓였다.
 // (caseId가 없는 빠른 기록 화면은 undefined → 기존처럼 동작)
 const getCaseScreenId = ({ params }) => params?.caseId ?? undefined;
+
+// 안드로이드(엣지투엣지)에서 하단 홈바/3버튼 시스템 바가 화면 맨 아래 버튼·입력창을 가리는 문제 해결용.
+// 각 화면의 SafeAreaView는 edges에 'bottom'이 없어서 시스템 바 영역까지 내용이 내려가므로,
+// 커스텀 하단 네비바(BottomNavBar)가 없는 화면은 여기서 하단 안전 영역만큼 한 번에 띄워준다.
+// (BottomNavBar가 있는 화면·이미 bottom을 처리하는 화면은 감싸지 않는다 — 이중 여백 방지)
+function withBottomInset(Screen, backgroundColor = C.surface) {
+  function WithBottomInset(props) {
+    const insets = useSafeAreaInsets();
+    return (
+      <View style={{ flex: 1, backgroundColor, paddingBottom: insets.bottom }}>
+        <Screen {...props} />
+      </View>
+    );
+  }
+  WithBottomInset.displayName = `WithBottomInset(${Screen.displayName || Screen.name || 'Screen'})`;
+  return WithBottomInset;
+}
+
+const EvidenceUploadInset = withBottomInset(EvidenceUploadScreen);
+const TimelineInset = withBottomInset(TimelineScreen);
+const UploadInset = withBottomInset(UploadScreen);
+const ChatRoomInset = withBottomInset(ChatRoomScreen);
+const ResponseGuideInset = withBottomInset(ResponseGuideScreen);
+const ReportPreviewInset = withBottomInset(ReportPreviewScreen);
+const ExpertQuestionInset = withBottomInset(ExpertQuestionScreen);
+const HotBoardDetailInset = withBottomInset(HotBoardDetailScreen);
+const PreContractChecklistInset = withBottomInset(PreContractChecklistScreen, C.sky050);
+const GuardianInset = withBottomInset(GuardianScreen);
+const AccountInset = withBottomInset(AccountScreen);
+const LegalDocumentInset = withBottomInset(LegalDocumentScreen);
+const NotificationsInset = withBottomInset(NotificationsScreen);
 
 const RootStack = createNativeStackNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -111,13 +144,13 @@ function RecordsNavigator() {
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_UPLOAD}
-        component={EvidenceUploadScreen}
+        component={EvidenceUploadInset}
         getId={getCaseScreenId}
         options={{ headerShown: false }}
       />
       <RecordsStack.Screen
         name={RECORD_ROUTES.EVIDENCE_TIMELINE}
-        component={TimelineScreen}
+        component={TimelineInset}
         getId={getCaseScreenId}
         options={{ headerShown: false }}
       />
@@ -152,7 +185,7 @@ function ChatsNavigator() {
       />
       <ChatsStack.Screen
         name={CHAT_ROUTES.ROOM}
-        component={ChatRoomScreen}
+        component={ChatRoomInset}
         options={{ headerShown: false }}
       />
     </ChatsStack.Navigator>
@@ -191,20 +224,20 @@ function AppStack() {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="App">
       <RootStack.Screen name="App" component={MainTabsNavigator} />
-      <RootStack.Screen name="UploadScreen" component={UploadScreen} />
-      <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadScreen} getId={getCaseScreenId} />
-      <RootStack.Screen name="EvidenceTimeline" component={TimelineScreen} getId={getCaseScreenId} />
+      <RootStack.Screen name="UploadScreen" component={UploadInset} />
+      <RootStack.Screen name="EvidenceUpload" component={EvidenceUploadInset} getId={getCaseScreenId} />
+      <RootStack.Screen name="EvidenceTimeline" component={TimelineInset} getId={getCaseScreenId} />
       <RootStack.Screen name="RecordStart" component={NewCaseScreen} />
-      <RootStack.Screen name="ResponseGuide" component={ResponseGuideScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={EXPERT_ROUTES.HOT_BOARD_DETAIL} component={HotBoardDetailScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name="ResponseGuide" component={ResponseGuideInset} options={{ headerShown: false }} />
+      <RootStack.Screen name="ExpertQuestion" component={ExpertQuestionInset} options={{ headerShown: false }} />
+      <RootStack.Screen name={EXPERT_ROUTES.HOT_BOARD_DETAIL} component={HotBoardDetailInset} options={{ headerShown: false }} />
       <RootStack.Screen name={PREVENTION_ROUTES.CONSULT} component={PreventionConsultScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={GUARDIAN_ROUTES.MANAGE} component={GuardianScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={ACCOUNT_ROUTES.ACCOUNT} component={AccountScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={ACCOUNT_ROUTES.LEGAL} component={LegalDocumentScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={ACCOUNT_ROUTES.NOTIFICATIONS} component={NotificationsScreen} options={{ headerShown: false }} />
-      <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewScreen} options={{ headerShown: false }} />
+      <RootStack.Screen name={PREVENTION_ROUTES.CHECKLIST} component={PreContractChecklistInset} options={{ headerShown: false }} />
+      <RootStack.Screen name={GUARDIAN_ROUTES.MANAGE} component={GuardianInset} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.ACCOUNT} component={AccountInset} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.LEGAL} component={LegalDocumentInset} options={{ headerShown: false }} />
+      <RootStack.Screen name={ACCOUNT_ROUTES.NOTIFICATIONS} component={NotificationsInset} options={{ headerShown: false }} />
+      <RootStack.Screen name={RECORD_ROUTES.REPORT_PREVIEW} component={ReportPreviewInset} options={{ headerShown: false }} />
     </RootStack.Navigator>
   );
 }

@@ -46,6 +46,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#F4F9FE"
         }
+      ],
+      [
+        "expo-navigation-bar",
+        {
+          "visibility": "hidden"
+        }
       ]
     ],
     "android": {
@@ -60,14 +66,18 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#E9F1FD"
-      }
+      },
+      "googleServicesFile": "./google-services.json"
     },
     "extra": {
       "eas": {
         "projectId": "3ca3d694-e15f-4d3a-ac11-d4e1871ed6fa"
+      },
+      "expo-navigation-bar": {
+        "hidden": true
       }
     },
-    "owner": "themis-team",
+    "owner": "hdeid",
     "icon": "./assets/icon.png",
     "web": {
       "favicon": "./assets/favicon.png"

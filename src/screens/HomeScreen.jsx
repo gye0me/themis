@@ -379,6 +379,7 @@ export function HomeScreen({ navigation }) {
           timeoutMin: next,
         },
       });
+      await refreshProfile?.();
     } catch (err) {
       console.error('데드맨 시간 설정 저장 오류:', err);
       Alert.alert('오류', '시간 설정을 저장하지 못했습니다.');
@@ -404,6 +405,7 @@ export function HomeScreen({ navigation }) {
       await updateUserProfile(user.uid, {
         deadmanSwitch: { enabled: deadmanEnabled, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn: checkInAt, timeoutMin },
       });
+      await refreshProfile?.();
     } catch (err) {
       console.error('체크인 저장 오류:', err);
     }
@@ -463,6 +465,12 @@ export function HomeScreen({ navigation }) {
   // (OS 정책상 앱이 사용자 동의 없이 문자를 "완전 자동"으로 보낼 수는 없어, 마지막 전송 버튼만 사용자가 누르면 된다.)
   const triggerDeadmanAlert = async () => {
     if (triggeringRef.current) return;
+    // 실제로 켜져 있고 기준 시간을 넘겼을 때만 발동 (앱 복귀 플래그/알림 탭이 오래된 값으로 잘못 발동하는 것 방지)
+    const elapsed = lastCheckIn ? Date.now() - lastCheckIn : null;
+    if (!deadmanEnabled || !lastCheckIn || elapsed < timeoutMin * 60 * 1000) {
+      await clearDeadmanTriggeredFlag().catch(() => {});
+      return;
+    }
     triggeringRef.current = true;
     try {
       // 백그라운드에서 남긴 "감지됨" 표시를 바로 지운다 — 안 지우면 문자 앱에서 돌아올 때마다(앱 복귀) 다시 발동했다.
@@ -475,6 +483,8 @@ export function HomeScreen({ navigation }) {
         await updateUserProfile(user.uid, {
           deadmanSwitch: { enabled: false, contactName: contactName.trim(), contactPhone: contactPhone.trim(), lastCheckIn, timeoutMin },
         }).catch((err) => console.error('데드맨 스위치 비활성화 저장 오류:', err));
+        // 메모리의 프로필도 갱신 — 안 하면 다른 화면에 갔다 홈으로 돌아올 때 옛 값(켜짐)이 복원돼 알림이 또 뜬다
+        await refreshProfile?.();
       }
 
       const locationLine = await getAlertLocationLine();
@@ -644,6 +654,7 @@ export function HomeScreen({ navigation }) {
   // 1초마다 카운트다운 갱신 + 시간 초과 시 알림 발동 (앱이 포그라운드일 때만 동작)
   useEffect(() => {
     if (!deadmanEnabled || !lastCheckIn) return;
+    setNowTick(Date.now());
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, [deadmanEnabled, lastCheckIn]);
@@ -822,7 +833,7 @@ export function HomeScreen({ navigation }) {
                       <View style={styles.countdownBlock}>
                         <Text style={styles.countdownLabel}>남은 시간</Text>
                         <Text style={styles.countdownValue}>
-                          {formatCountdown(timeoutMin * 60 * 1000 - (nowTick - (lastCheckIn ?? nowTick)))}
+                          {formatCountdown(timeoutMin * 60 * 1000 - Math.max(0, nowTick - (lastCheckIn ?? nowTick)))}
                         </Text>
                       </View>
                       <TouchableOpacity style={styles.checkinBtn} onPress={checkIn}>
