@@ -35,6 +35,51 @@ const extra = StyleSheet.create({
   uploadText: { fontSize: 12.5, color: C.ink400, fontWeight: '600' },
   notice: { backgroundColor: C.warn100, borderRadius: 12, padding: 12 },
   noticeText: { fontSize: 11.5, color: C.warn600, lineHeight: 17 },
+
+  // 회원가입 동의 항목
+  checkboxOff: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 1.5, borderColor: C.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxOn: {
+    width: 22, height: 22, borderRadius: 6,
+    backgroundColor: C.brand600,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxOffSmall: {
+    width: 18, height: 18, borderRadius: 5,
+    borderWidth: 1.5, borderColor: C.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxOnSmall: {
+    width: 18, height: 18, borderRadius: 5,
+    backgroundColor: C.brand600,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  agreeAllRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  agreeAllText: { fontSize: 13.5, fontWeight: '700', color: C.ink900 },
+  divider: { height: 1, backgroundColor: C.line, marginVertical: 8 },
+  agreeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 7,
+  },
+  agreeRowMain: { flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1 },
+  agreeLabel: { fontSize: 12, color: C.ink700, flexShrink: 1 },
+  agreeViewLink: { fontSize: 11.5, color: C.ink400, fontWeight: '600', textDecorationLine: 'underline' },
+
+  docOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  docSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, maxHeight: '80%',
+  },
+  docTitle: { fontSize: 15, fontWeight: '700', color: C.ink900, marginBottom: 10 },
+  docScroll: { maxHeight: '85%' },
+  docSection: { marginBottom: 14 },
+  docHeading: { fontSize: 12.5, fontWeight: '700', color: C.brand700, marginBottom: 4 },
+  docBody: { fontSize: 12, color: C.ink700, lineHeight: 18 },
+  docCloseBtn: { marginTop: 14, alignItems: 'center', paddingVertical: 10, backgroundColor: C.sky050, borderRadius: 12 },
+  docCloseText: { fontSize: 13, color: C.brand700, fontWeight: '700' },
 });
 
 export default { ...base, ...extra };

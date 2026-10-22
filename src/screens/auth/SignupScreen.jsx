@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { signUp } from '../../services/firebaseService';
+import { SIGNUP_AGREEMENTS, LEGAL_DOCUMENTS, LEGAL_VERSION } from '../../services/legalDocuments';
 import { C } from '../../theme/tokens';
 import { Icon } from '../../components/Icon';
 import { AuthLayout, AuthPrimaryButton } from './AuthLayout';
@@ -24,6 +25,27 @@ export function SignupScreen({ onSwitchToLogin }) {
   const [expertOrg, setExpertOrg] = useState('');
   const [expertLicense, setExpertLicense] = useState('');
   const [focused, setFocused] = useState(null);
+  const [agreements, setAgreements] = useState(() =>
+    Object.fromEntries(SIGNUP_AGREEMENTS.map((a) => [a.key, false]))
+  );
+  const [viewingDocKey, setViewingDocKey] = useState(null);
+
+  // 전문가 계정일 때만 보이는 항목(expertOnly)은 일반 계정에서는 필요 없으니 숨긴다.
+  const visibleAgreements = SIGNUP_AGREEMENTS.filter((a) => !a.expertOnly || accountType === 'expert');
+  const allRequiredChecked = visibleAgreements.every((a) => a.optional || agreements[a.key]);
+
+  const toggleAgreement = (key) => {
+    setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleAgreeAll = () => {
+    const next = !allRequiredChecked;
+    setAgreements((prev) => {
+      const updated = { ...prev };
+      visibleAgreements.forEach((a) => { updated[a.key] = next; });
+      return updated;
+    });
+  };
 
   const validateForm = () => {
     if (!displayName.trim()) {
@@ -56,6 +78,10 @@ export function SignupScreen({ onSwitchToLogin }) {
         return false;
       }
     }
+    if (!allRequiredChecked) {
+      setError('필수 동의 항목을 모두 확인해주세요.');
+      return false;
+    }
     return true;
   };
 
@@ -75,6 +101,7 @@ export function SignupScreen({ onSwitchToLogin }) {
           accountType === 'expert'
             ? { job: expertJob, organization: expertOrg.trim(), licenseNumber: expertLicense.trim() }
             : null,
+        agreements: { ...agreements, version: LEGAL_VERSION },
       });
     } catch (err) {
       console.error('회원가입 오류:', err);
@@ -232,9 +259,61 @@ export function SignupScreen({ onSwitchToLogin }) {
         </View>
       )}
 
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>이용 약관 동의</Text>
+
+        <Pressable style={styles.agreeAllRow} onPress={toggleAgreeAll}>
+          <View style={allRequiredChecked ? styles.checkboxOn : styles.checkboxOff}>
+            {allRequiredChecked ? <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} /> : null}
+          </View>
+          <Text style={styles.agreeAllText}>전체 동의합니다</Text>
+        </Pressable>
+        <View style={styles.divider} />
+
+        {visibleAgreements.map((a) => {
+          const checked = !!agreements[a.key];
+          return (
+            <View key={a.key} style={styles.agreeRow}>
+              <Pressable style={styles.agreeRowMain} onPress={() => toggleAgreement(a.key)}>
+                <View style={checked ? styles.checkboxOnSmall : styles.checkboxOffSmall}>
+                  {checked ? <Icon name="check" size={11} color="#FFFFFF" strokeWidth={3} /> : null}
+                </View>
+                <Text style={styles.agreeLabel}>
+                  {a.label} {a.optional ? '(선택)' : '(필수)'}
+                </Text>
+              </Pressable>
+              {a.doc ? (
+                <Pressable onPress={() => setViewingDocKey(a.doc)} hitSlop={8}>
+                  <Text style={styles.agreeViewLink}>보기</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <AuthPrimaryButton label="계정 만들기" loading={loading} onPress={handleSignup} />
+
+      <Modal visible={!!viewingDocKey} animationType="slide" transparent onRequestClose={() => setViewingDocKey(null)}>
+        <View style={styles.docOverlay}>
+          <View style={styles.docSheet}>
+            <Text style={styles.docTitle}>{viewingDocKey ? LEGAL_DOCUMENTS[viewingDocKey]?.title : ''}</Text>
+            <ScrollView style={styles.docScroll}>
+              {(viewingDocKey ? LEGAL_DOCUMENTS[viewingDocKey]?.sections ?? [] : []).map((s) => (
+                <View key={s.heading} style={styles.docSection}>
+                  <Text style={styles.docHeading}>{s.heading}</Text>
+                  <Text style={styles.docBody}>{s.body}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <Pressable style={styles.docCloseBtn} onPress={() => setViewingDocKey(null)}>
+              <Text style={styles.docCloseText}>닫기</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </AuthLayout>
   );
 }

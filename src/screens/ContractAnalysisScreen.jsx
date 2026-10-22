@@ -25,18 +25,26 @@ import {
   filterTradesByArea,
   calcAverageDealAmount,
   calcAverageDeposit,
+  calcAverageMonthlyRent,
   calcJeonseRatio,
   getJeonseRiskLevel,
   formatManwonToKorean,
   getPreviousYearMonth,
   getLastRealEstateApiIssue,
+  DEMO_REGION,
+  DEMO_HOUSING_TYPE,
+  DEMO_TRADES,
+  DEMO_RENT_TRADES,
 } from "../services/realEstateService";
 import { BackHeader } from "../components/BackHeader";
 import { BuildingCheckCard } from "../components/BuildingCheckCard";
 import { RECORD_ROUTES } from "../navigation/routes";
 import { C, SIGNAL } from "../theme/tokens";
 
-const CONTRACT_TYPES = ["전월세", "매매", "프리랜서"];
+const CONTRACT_TYPES = ["전월세", "매매", "프리랜서", "근로"];
+// 화면에 보여줄 이름만 다르게 — 내부 값(contractType)은 themisSchema.js의 CONTRACT_TYPES랑
+// 맞춰서 "근로"를 그대로 쓰고, 20대 타겟층한테 더 와닿는 "알바"로만 바꿔서 보여준다.
+const CONTRACT_TYPE_LABELS = { 근로: "알바" };
 
 // 신호등 색: 동그라미·테두리(levelColor) / 글자(levelTextColor) / 배경(levelBg)
 const levelColor = SIGNAL.dot;
@@ -63,7 +71,7 @@ async function saveAnalysisToTimeline({ userId, caseId, contractType, image, res
   await createEvidenceRecord({
     userId,
     caseId: caseId ?? 'general',
-    title: `${contractType} 계약서 분석`,
+    title: `${CONTRACT_TYPE_LABELS[contractType] ?? contractType} 계약서 분석`,
     note: buildAnalysisNote(result),
     evidenceType: 'contract',
     file: image ?? null,
@@ -126,6 +134,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const areaRentTrades = filterTradesByArea(rentTrades, contractArea);
   const filteredRentTrades = areaRentTrades.filter((t) => t.isJeonse);
   const avgDeposit = calcAverageDeposit(filteredRentTrades);
+  const avgMonthly = calcAverageMonthlyRent(areaRentTrades);
 
   // 건물을 고르면(매매 쪽 선택), 같은 건물·같은 지역의 전월세 실거래도 같이 가져와서
   // "다른 세입자들은 실제로 얼마 냈는지" 비교할 수 있게 한다.
@@ -141,9 +150,15 @@ export default function ContractAnalysisScreen({ navigation, route }) {
       try {
         const all = await fetchRecentRentTrades({ housingType, lawdCd, baseYmd: dealYmd, months: 3 });
         if (cancelled) return;
-        const sameBuilding = all.filter(
+        let sameBuilding = all.filter(
           (t) => t.buildingName === selectedBuilding.buildingName && t.dong === selectedBuilding.dong
         );
+        // 매매 쪾에서 예시 매물(덕새빌라·복단원룸)을 보여준 경우, 전월세도 같은 예시 데이터로 맞춰준다.
+        if (sameBuilding.length === 0 && selectedBuilding.trades?.[0]?.isDemo) {
+          sameBuilding = DEMO_RENT_TRADES.filter(
+            (t) => t.buildingName === selectedBuilding.buildingName && t.dong === selectedBuilding.dong
+          );
+        }
         setRentTrades(sameBuilding);
       } finally {
         if (!cancelled) setRentLoading(false);
@@ -205,8 +220,14 @@ export default function ContractAnalysisScreen({ navigation, route }) {
       // 구 단위 평균은 편차가 커서, 최근 3개월치를 모아 건물별로 묶어야
       // 계약서와 같은 건물을 골라 정확하게 비교할 수 있다.
       const recentTrades = await fetchRecentTrades({ housingType, lawdCd, baseYmd: dealYmd, months: 3 });
-      setBuildingGroups(groupTradesByBuilding(recentTrades));
-      if (recentTrades.length === 0) {
+      // 도봉구·빌라 조합이면 실제 조회 결과가 있든 없든 전시용 예시 매물(저가 원룸)을 항상 같이 보여준다.
+      // "실거래가 0건일 때만"으로 하면 그날 실제 데이터가 조금이라도 있을 때 예시가 묻혀서 전시 때
+      // 재현이 안 될 수 있어, 이 지역·유형 조합에서는 무조건 뜨게 한다.
+      // 실제 API 데이터는 아파트 위주라 가격대가 높아 "나랑 상관없는 얘기"처럼 느껴진다는 피드백 반영.
+      const isDemoRegion = selectedRegion === DEMO_REGION && housingType === DEMO_HOUSING_TYPE;
+      const tradesToShow = isDemoRegion ? [...DEMO_TRADES, ...recentTrades] : recentTrades;
+      setBuildingGroups(groupTradesByBuilding(tradesToShow));
+      if (recentTrades.length === 0 && !isDemoRegion) {
         setTradesIssue(getLastRealEstateApiIssue());
       }
     } finally {
@@ -283,7 +304,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
     <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right', 'bottom']}>
       <BackHeader
         title="계약서 분석"
-        subtitle={`독소조항 탐지 · ${selectedType} 특화`}
+        subtitle={`독소조항 탐지 · ${CONTRACT_TYPE_LABELS[selectedType] ?? selectedType} 특화`}
         onBack={() => navigation.goBack()}
       />
 
@@ -297,7 +318,9 @@ export default function ContractAnalysisScreen({ navigation, route }) {
               onPress={() => setSelectedType(type)}
               style={[styles.chip, selectedType === type && styles.chipActive]}
             >
-              <Text style={[styles.chipText, selectedType === type && styles.chipTextActive]}>{type}</Text>
+              <Text style={[styles.chipText, selectedType === type && styles.chipTextActive]}>
+                {CONTRACT_TYPE_LABELS[type] ?? type}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -401,7 +424,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                         style={[styles.chip, selectedBuilding?.buildingName === g.buildingName && styles.chipActive]}
                       >
                         <Text style={[styles.chipText, selectedBuilding?.buildingName === g.buildingName && styles.chipTextActive]}>
-                          {g.buildingName} ({g.count})
+                          {g.buildingName} ({g.count}){g.trades?.[0]?.isDemo ? ' · 예시' : ''}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -450,8 +473,15 @@ export default function ContractAnalysisScreen({ navigation, route }) {
                   {contractArea ? `, ${contractArea}㎡ 근접` : ""})
                 </Text>
                 <Text style={styles.compareAvgText}>
-                  같은 건물 다른 세입자 평균 보증금: {rentLoading ? "조회 중..." : (formatManwonToKorean(avgDeposit) || "전세 거래 없음")}
+                  같은 건물 다른 세입자 평균 보증금(전세): {rentLoading ? "조회 중..." : (formatManwonToKorean(avgDeposit) || "전세 거래 없음")}
                   {!rentLoading && filteredRentTrades.length > 0 ? ` (${filteredRentTrades.length}건 기준)` : ""}
+                </Text>
+                <Text style={styles.compareAvgText}>
+                  같은 건물 다른 세입자 평균 월세: {rentLoading
+                    ? "조회 중..."
+                    : avgMonthly
+                      ? `보증금 ${formatManwonToKorean(avgMonthly.avgDeposit) || "0원"} / 월세 ${avgMonthly.avgMonthlyRent}만원`
+                      : "월세 거래 없음"}
                 </Text>
 
                 {jeonseRatio != null && jeonseRisk && (

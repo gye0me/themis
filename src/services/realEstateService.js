@@ -54,6 +54,60 @@ export function getLastRealEstateApiIssue() {
   return lastApiIssue;
 }
 
+// 전시·시연용 예시 데이터 — 도봉구, 20~30대가 실제로 구할 만한 저가 원룸 매물.
+// 실거래가 API가 돌려주는 실제 데이터는 아파트 위주라 가격대가 높아서, "나랑은 상관없는
+// 얘기"처럼 느껴진다는 피드백이 있었다. 대학생 페르소나("덕새")가 실제로 살 만한
+// 도봉구 소형 빌라·원룸 시세로, 지역(도봉구) 조회 결과가 비었을 때만 화면에서 대신 보여준다.
+// 실제 API 응답과 혼동되지 않도록 isDemo로 표시해둔다.
+export const DEMO_REGION = '도봉구';
+export const DEMO_HOUSING_TYPE = 'villa';
+
+export const DEMO_TRADES = [
+  {
+    buildingName: '덕새빌라', dong: '도봉동', jibun: '123-4', housingType: 'villa',
+    dealAmount: '14500', dealAmountKorean: formatManwonToKorean('14500'),
+    area: '23.1', floor: '3', buildYear: '2015', dealDate: '2026.08.12', isDemo: true,
+  },
+  {
+    buildingName: '덕새빌라', dong: '도봉동', jibun: '123-4', housingType: 'villa',
+    dealAmount: '15200', dealAmountKorean: formatManwonToKorean('15200'),
+    area: '24.0', floor: '5', buildYear: '2015', dealDate: '2026.07.03', isDemo: true,
+  },
+  {
+    buildingName: '복단원룸', dong: '방학동', jibun: '77-2', housingType: 'villa',
+    dealAmount: '11800', dealAmountKorean: formatManwonToKorean('11800'),
+    area: '19.8', floor: '2', buildYear: '2018', dealDate: '2026.08.05', isDemo: true,
+  },
+  {
+    buildingName: '복단원룸', dong: '방학동', jibun: '77-2', housingType: 'villa',
+    dealAmount: '12300', dealAmountKorean: formatManwonToKorean('12300'),
+    area: '21.0', floor: '4', buildYear: '2018', dealDate: '2026.05.22', isDemo: true,
+  },
+];
+
+export const DEMO_RENT_TRADES = [
+  {
+    buildingName: '덕새빌라', dong: '도봉동', jibun: '123-4', housingType: 'villa',
+    deposit: '11000', depositKorean: formatManwonToKorean('11000'), monthlyRent: '0', isJeonse: true,
+    area: '23.1', floor: '3', dealDate: '2026.08.20', isDemo: true,
+  },
+  {
+    buildingName: '덕새빌라', dong: '도봉동', jibun: '123-4', housingType: 'villa',
+    deposit: '1000', depositKorean: formatManwonToKorean('1000'), monthlyRent: '38', isJeonse: false,
+    area: '23.1', floor: '2', dealDate: '2026.06.15', isDemo: true,
+  },
+  {
+    buildingName: '복단원룸', dong: '방학동', jibun: '77-2', housingType: 'villa',
+    deposit: '10500', depositKorean: formatManwonToKorean('10500'), monthlyRent: '0', isJeonse: true,
+    area: '19.8', floor: '2', dealDate: '2026.07.28', isDemo: true,
+  },
+  {
+    buildingName: '복단원룸', dong: '방학동', jibun: '77-3', housingType: 'villa',
+    deposit: '500', depositKorean: formatManwonToKorean('500'), monthlyRent: '42', isJeonse: false,
+    area: '20.5', floor: '3', dealDate: '2026.06.02', isDemo: true,
+  },
+];
+
 // 서울 25개 자치구의 법정동코드(앞 5자리, 시군구 단위).
 // 경기·인천 등 일부 시는 구 단위로 세분화돼 있어 정확한 코드를 알 수 없는 경우
 // 잘못된 정보를 보여줄 수 있으므로, 코드가 명확한 서울 지역만 우선 지원한다.
@@ -321,6 +375,27 @@ export function calcAverageDeposit(rentTrades, { jeonseOnly = true } = {}) {
     .filter((n) => Number.isFinite(n) && n > 0);
   if (!amounts.length) return null;
   return Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length);
+}
+
+/**
+ * 월세(반전세 포함, monthlyRent > 0) 거래만 모아 평균 보증금·평균 월세를 계산한다.
+ * 전세 보증금은 월세 보증금보다 훨씬 커서 같이 평균 내면 의미가 없어 따로 뗀다.
+ * @param {Array<{deposit: string, monthlyRent: string, isJeonse: boolean}>} rentTrades
+ * @returns {{avgDeposit: number, avgMonthlyRent: number}|null}
+ */
+export function calcAverageMonthlyRent(rentTrades) {
+  const source = (rentTrades ?? []).filter((t) => !t.isJeonse);
+  const rents = source
+    .map((t) => Number(String(t.monthlyRent).replace(/,/g, '')))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (!rents.length) return null;
+  const deposits = source
+    .map((t) => Number(String(t.deposit).replace(/,/g, '')))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  return {
+    avgDeposit: deposits.length ? Math.round(deposits.reduce((a, b) => a + b, 0) / deposits.length) : 0,
+    avgMonthlyRent: Math.round(rents.reduce((a, b) => a + b, 0) / rents.length),
+  };
 }
 
 /**
