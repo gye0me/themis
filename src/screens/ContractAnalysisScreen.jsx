@@ -32,6 +32,7 @@ import {
   getLastRealEstateApiIssue,
 } from "../services/realEstateService";
 import { BackHeader } from "../components/BackHeader";
+import { BuildingCheckCard } from "../components/BuildingCheckCard";
 import { RECORD_ROUTES } from "../navigation/routes";
 import { C, SIGNAL } from "../theme/tokens";
 
@@ -500,6 +501,9 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             )}
           </View>
         )}
+
+        {/* 전월세 계약 시 건축물대장으로 건물 자체 위험(위반건축물·신축·주거용 여부) 확인 */}
+        {selectedType === "전월세" && <BuildingCheckCard />}
 
         {/* 사진 영역 */}
         {image ? (
