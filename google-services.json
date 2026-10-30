@@ -1,21 +1,22 @@
 {
   "project_info": {
-    "project_number": "843199908993",
-    "project_id": "themis-f7a1f",
-    "storage_bucket": "themis-f7a1f.firebasestorage.app"
+    "project_number": "247507083988",
+    "firebase_url": "https://themis-e96f4-default-rtdb.firebaseio.com",
+    "project_id": "themis-e96f4",
+    "storage_bucket": "themis-e96f4.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:843199908993:android:4cff0081e7f7f923315180",
+        "mobilesdk_app_id": "1:247507083988:android:a41507dd9e3a40be3c1141",
         "android_client_info": {
-          "package_name": "com.themis.app"
+          "package_name": "com.themis_team.themis"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAYeoSJ5pEt0j2IbZFDixFP2NAKJkCWb2s"
+          "current_key": "AIzaSyCXQLva7ue_GTMI3ez00KavUWs6e-vsy4I"
         }
       ],
       "services": {
