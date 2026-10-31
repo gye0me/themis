@@ -1,4 +1,4 @@
-{
+﻿{
   "expo": {
     "name": "Themis",
     "slug": "themis",
@@ -55,7 +55,7 @@
       ]
     ],
     "android": {
-      "package": "com.themis.app",
+      "package": "com.themis_team.themis",
       "permissions": [
         "RECORD_AUDIO",
         "android.permission.RECORD_AUDIO",
@@ -84,3 +84,4 @@
     }
   }
 }
+
