@@ -1,6 +1,7 @@
 import { Icon } from '../components/Icon';
 import { useContext, useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, TextInput, ActivityIndicator } from "react-native";
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { AuthContext } from "../context/AuthContext";
@@ -173,7 +174,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const handleCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("권한 필요", "카메라 권한이 필요합니다.");
+      appAlert("권한 필요", "카메라 권한이 필요합니다.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -190,7 +191,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const handleGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("권한 필요", "갤러리 권한이 필요합니다.");
+      appAlert("권한 필요", "갤러리 권한이 필요합니다.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -207,7 +208,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
   const handleFetchTrades = async () => {
     const lawdCd = REGION_CODES[selectedRegion];
     if (!lawdCd || !/^\d{6}$/.test(dealYmd)) {
-      Alert.alert("알림", "지역과 조회월(YYYYMM)을 확인해주세요.");
+      appAlert("알림", "지역과 조회월(YYYYMM)을 확인해주세요.");
       return;
     }
     setTradesLoading(true);
@@ -272,11 +273,11 @@ export default function ContractAnalysisScreen({ navigation, route }) {
       saveToCase(analysis);
       if (!nextResult.items.length) {
         const alertMessage = nextResult.documentSummary || '위험 조항을 찾지 못했습니다.';
-        Alert.alert('알림', alertMessage);
+        appAlert('알림', alertMessage);
       }
 
     } catch (err) {
-      Alert.alert('오류', err.message ?? '분석 중 오류가 발생했습니다.');
+      appAlert('오류', err.message ?? '분석 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -435,7 +436,7 @@ export default function ContractAnalysisScreen({ navigation, route }) {
             {tradesSearched && !tradesLoading && buildingGroups.length === 0 && (
               <Text style={styles.emptyText}>
                 해당 조건의 매매 실거래 내역이 없습니다. 기준월을 바꾸거나 주택유형을 확인해보세요.
-                {tradesIssue ? `\n\n(진단 정보: ${tradesIssue})` : ''}
+                {__DEV__ && tradesIssue ? `\n\n(진단 정보: ${tradesIssue})` : ''}
               </Text>
             )}
 

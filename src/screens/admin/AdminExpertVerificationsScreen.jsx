@@ -1,5 +1,6 @@
 import { useCallback, useContext, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { appAlert } from '../../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../../context/AuthContext';
@@ -50,14 +51,14 @@ export function AdminExpertVerificationsScreen({ navigation }) {
   );
 
   const handleApprove = (req) => {
-    Alert.alert('승인', `${req.expertVerification?.name ?? '신청자'}님을 전문가로 승인할까요?`, [
+    appAlert('승인', `${req.expertVerification?.name ?? '신청자'}님을 전문가로 승인할까요?`, [
       { text: '취소', style: 'cancel' },
       { text: '승인', onPress: () => setPendingAction({ req, approve: true, reason: '' }) },
     ]);
   };
 
   const handleReject = (req) => {
-    Alert.alert('반려 사유', '반려 사유를 선택해주세요.', [
+    appAlert('반려 사유', '반려 사유를 선택해주세요.', [
       { text: '서류 불명확', onPress: () => setPendingAction({ req, approve: false, reason: '제출한 서류를 확인할 수 없어요.' }) },
       { text: '자격 확인 불가', onPress: () => setPendingAction({ req, approve: false, reason: '자격 정보를 확인할 수 없어요.' }) },
       { text: '취소', style: 'cancel' },
@@ -88,7 +89,7 @@ export function AdminExpertVerificationsScreen({ navigation }) {
       setPendingAction(null);
     } catch (err) {
       console.error('심사 처리 오류:', err);
-      Alert.alert('오류', '심사 처리에 실패했습니다.');
+      appAlert('오류', '심사 처리에 실패했습니다.');
     } finally {
       setProcessingId(null);
     }

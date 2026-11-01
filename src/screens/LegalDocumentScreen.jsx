@@ -8,13 +8,13 @@ import { LEGAL_DOCUMENTS, LEGAL_VERSION } from '../services/legalDocuments';
 import { C } from '../theme/tokens';
 
 export function LegalDocumentScreen({ navigation, route }) {
-  const document = LEGAL_DOCUMENTS[route?.params?.doc] ?? LEGAL_DOCUMENTS.terms;
+  const legalDocument = LEGAL_DOCUMENTS[route?.params?.doc] ?? LEGAL_DOCUMENTS.terms;
 
   return (
     <SafeAreaView style={styles.wrapper} edges={['top', 'left', 'right']}>
-      <BackHeader title={document.title} onBack={() => navigation.goBack()} />
+      <BackHeader title={legalDocument.title} onBack={() => navigation.goBack()} />
       <ScrollView style={styles.content} contentContainerStyle={{ gap: 18, paddingBottom: 40 }}>
-        {document.sections.map((section) => (
+        {legalDocument.sections.map((section) => (
           <View key={section.heading} style={{ gap: 6 }}>
             <Text style={styles.heading}>{section.heading}</Text>
             <Text style={styles.body}>{section.body}</Text>

@@ -1,5 +1,6 @@
 import { useCallback, useContext, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, ScrollView, Platform } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
@@ -165,15 +166,15 @@ export function NewCaseScreen({ navigation, route }) {
 
   const handleStart = async () => {
     if (!title.trim()) {
-      Alert.alert('알림', '기록 이름을 입력해주세요.');
+      appAlert('알림', '기록 이름을 입력해주세요.');
       return;
     }
     if (!selectedType) {
-      Alert.alert('알림', '사건 유형을 선택해주세요.');
+      appAlert('알림', '사건 유형을 선택해주세요.');
       return;
     }
     if (!user) {
-      Alert.alert('알림', '로그인이 필요합니다.');
+      appAlert('알림', '로그인이 필요합니다.');
       return;
     }
     setSubmitting(true);
@@ -206,7 +207,7 @@ export function NewCaseScreen({ navigation, route }) {
       // (버튼이 있는 Alert는 웹에서 뜨지 않아 웹에서는 바로 증거 업로드로 넘어간다)
       const matchedRoom = Platform.OS === 'web' ? null : getMatchingRoomForCaseType(selectedType);
       if (matchedRoom) {
-        Alert.alert(
+        appAlert(
           '같은 피해 유형의 방이 있어요',
           `"${matchedRoom.name}" 방에서 비슷한 피해를 겪은 분들과 정보를 나눌 수 있어요. 지금 참여하시겠어요?`,
           [
@@ -234,7 +235,7 @@ export function NewCaseScreen({ navigation, route }) {
       }
     } catch (err) {
       console.error('사건 생성 오류:', err);
-      Alert.alert('오류', '사건 생성에 실패했습니다.');
+      appAlert('오류', '사건 생성에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }

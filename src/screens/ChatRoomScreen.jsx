@@ -1,8 +1,8 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  StyleSheet, Text, View, ScrollView, Modal, FlatList, Linking,
-  TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  StyleSheet, Text, View, ScrollView, Modal, FlatList, Linking, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import {
@@ -98,7 +98,7 @@ export function ChatRoomScreen({ navigation, route }) {
         navigation.goBack();
       } catch (err) {
         console.error('채팅방 나가기 오류:', err);
-        Alert.alert('오류', '채팅방을 나가지 못했습니다.');
+        appAlert('오류', '채팅방을 나가지 못했습니다.');
       }
     };
 
@@ -111,7 +111,7 @@ export function ChatRoomScreen({ navigation, route }) {
       return;
     }
 
-    Alert.alert(
+    appAlert(
       '채팅방 나가기',
       '이 채팅방에서 나가시겠어요? 다시 들어오려면 재참여해야 해요.',
       [
@@ -127,7 +127,7 @@ export function ChatRoomScreen({ navigation, route }) {
       if (Platform.OS === 'web') {
         window.alert('보고서를 보내려면 먼저 로그인해주세요.');
       } else {
-        Alert.alert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
+        appAlert('로그인이 필요해요', '보고서를 보내려면 먼저 로그인해주세요.');
       }
       return;
     }
@@ -143,7 +143,7 @@ export function ChatRoomScreen({ navigation, route }) {
       setMyCases(cases);
     } catch (err) {
       console.error('사건 목록 조회 오류:', err);
-      Alert.alert('오류', '사건 목록을 불러오지 못했습니다.');
+      appAlert('오류', '사건 목록을 불러오지 못했습니다.');
     } finally {
       setLoadingCases(false);
     }
@@ -158,7 +158,7 @@ export function ChatRoomScreen({ navigation, route }) {
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     } catch (err) {
       console.error('보고서 전송 오류:', err);
-      Alert.alert('전송 실패', err?.message ?? '보고서를 보내지 못했습니다.');
+      appAlert('전송 실패', err?.message ?? '보고서를 보내지 못했습니다.');
     } finally {
       setSendingReportCaseId(null);
     }
@@ -168,7 +168,7 @@ export function ChatRoomScreen({ navigation, route }) {
     const text = draft.trim();
     if (!text || !roomId) return;
     if (!user) {
-      Alert.alert('로그인이 필요해요', '메시지를 보내려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '메시지를 보내려면 먼저 로그인해주세요.');
       return;
     }
     setDraft('');
@@ -178,7 +178,7 @@ export function ChatRoomScreen({ navigation, route }) {
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     } catch (err) {
       console.error('메시지 전송 오류:', err);
-      Alert.alert('전송 실패', err?.message ?? '메시지를 보내지 못했습니다.');
+      appAlert('전송 실패', err?.message ?? '메시지를 보내지 못했습니다.');
       setDraft(text);
     } finally {
       setSending(false);
@@ -251,7 +251,7 @@ export function ChatRoomScreen({ navigation, route }) {
                 <TouchableOpacity
                   style={styles.fileBubble}
                   onPress={() => Linking.openURL(msg.file.url).catch(() => {
-                    Alert.alert('오류', '파일을 열지 못했습니다.');
+                    appAlert('오류', '파일을 열지 못했습니다.');
                   })}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

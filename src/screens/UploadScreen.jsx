@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Image,
+  ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image,
 } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
@@ -147,7 +140,7 @@ export function UploadScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('파일 선택 오류:', error);
-      Alert.alert('파일 선택 실패', '기기에서 파일을 가져오지 못했습니다.');
+      appAlert('파일 선택 실패', '기기에서 파일을 가져오지 못했습니다.');
     }
   }
 
@@ -160,11 +153,11 @@ export function UploadScreen({ navigation, route }) {
 
     if (isAttach) {
       if (!linkedEvidence) {
-        Alert.alert('증거 선택', '기록을 덧붙일 증거를 골라주세요.');
+        appAlert('증거 선택', '기록을 덧붙일 증거를 골라주세요.');
         return;
       }
       if (!trimmedNote) {
-        Alert.alert('내용 필요', '덧붙일 기록 내용을 입력해 주세요.');
+        appAlert('내용 필요', '덧붙일 기록 내용을 입력해 주세요.');
         return;
       }
     }
@@ -173,17 +166,17 @@ export function UploadScreen({ navigation, route }) {
     const trimmedTitle = title.trim() || (isAttach ? `${linkedLabel} 추가 기록` : '');
 
     if (!trimmedTitle) {
-      Alert.alert('제목 필요', '증거 제목을 입력해 주세요.');
+      appAlert('제목 필요', '증거 제목을 입력해 주세요.');
       return;
     }
 
     if (!isAttach && evidenceType !== 'text' && !file) {
-      Alert.alert('파일 필요', '이미지, 동영상, 음성은 파일을 선택해 주세요.');
+      appAlert('파일 필요', '이미지, 동영상, 음성은 파일을 선택해 주세요.');
       return;
     }
 
     if (!isAttach && evidenceType === 'text' && !trimmedNote && !file) {
-      Alert.alert('내용 필요', '텍스트 메모를 입력하거나 파일을 첨부해 주세요.');
+      appAlert('내용 필요', '텍스트 메모를 입력하거나 파일을 첨부해 주세요.');
       return;
     }
 
@@ -227,14 +220,14 @@ export function UploadScreen({ navigation, route }) {
 
       setSavedId(savedRecord.id);
       setSavedAt(savedRecord.capturedAt?.toDate ? savedRecord.capturedAt.toDate() : new Date());
-      Alert.alert('저장 완료', isAttach ? '선택한 증거 밑에 기록이 저장되었습니다.' : '증거가 저장되었습니다.');
+      appAlert('저장 완료', isAttach ? '선택한 증거 밑에 기록이 저장되었습니다.' : '증거가 저장되었습니다.');
       setTitle('');
       setNote('');
       setFile(null);
       setEventDate(new Date());
     } catch (error) {
       console.error('증거 저장 실패:', error);
-      Alert.alert('저장 실패', '증거를 저장하지 못했습니다. 다시 시도해 주세요.');
+      appAlert('저장 실패', '증거를 저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
       setSaving(false);
     }

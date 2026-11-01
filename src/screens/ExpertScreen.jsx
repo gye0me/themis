@@ -1,5 +1,6 @@
 import { useCallback, useContext, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
@@ -111,7 +112,7 @@ export function ExpertScreen({ navigation }) {
   };
 
   const handleDelete = (post) => {
-    Alert.alert('게시글 삭제', '이 질문을 삭제할까요? 삭제하면 되돌릴 수 없어요.', [
+    appAlert('게시글 삭제', '이 질문을 삭제할까요? 삭제하면 되돌릴 수 없어요.', [
       { text: '취소', style: 'cancel' },
       {
         text: '삭제',
@@ -124,7 +125,7 @@ export function ExpertScreen({ navigation }) {
             if (expandedId === post.id) setExpandedId(null);
           } catch (err) {
             console.error('게시글 삭제 오류:', err);
-            Alert.alert('삭제 실패', err?.message ?? '게시글을 삭제하지 못했습니다.');
+            appAlert('삭제 실패', err?.message ?? '게시글을 삭제하지 못했습니다.');
           } finally {
             setDeletingId(null);
           }
@@ -137,7 +138,7 @@ export function ExpertScreen({ navigation }) {
     const text = (commentDraft[postId] ?? '').trim();
     if (!text) return;
     if (!user) {
-      Alert.alert('로그인이 필요해요', '댓글을 남기려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '댓글을 남기려면 먼저 로그인해주세요.');
       return;
     }
     setPostingComment((prev) => ({ ...prev, [postId]: true }));
@@ -153,7 +154,7 @@ export function ExpertScreen({ navigation }) {
       loadComments(postId);
     } catch (err) {
       console.error('댓글 등록 오류:', err);
-      Alert.alert('오류', '댓글을 등록하지 못했습니다.');
+      appAlert('오류', '댓글을 등록하지 못했습니다.');
     } finally {
       setPostingComment((prev) => ({ ...prev, [postId]: false }));
     }
@@ -173,7 +174,7 @@ export function ExpertScreen({ navigation }) {
       }
     } catch (err) {
       console.error('답변 채택 오류:', err);
-      Alert.alert('오류', err?.message ?? '처리하지 못했습니다.');
+      appAlert('오류', err?.message ?? '처리하지 못했습니다.');
     } finally {
       setAcceptingId(null);
     }
@@ -184,7 +185,7 @@ export function ExpertScreen({ navigation }) {
   // 익명 댓글은 실명이 드러나면 안 되니 DM 자체를 막는다.
   const startDmWithComment = async (comment) => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '채팅을 보내려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '채팅을 보내려면 먼저 로그인해주세요.');
       return;
     }
     setDmStartingId(comment.id);
@@ -201,7 +202,7 @@ export function ExpertScreen({ navigation }) {
       });
     } catch (err) {
       console.error('1:1 채팅방 생성 오류:', err);
-      Alert.alert('오류', err?.message ?? '채팅방을 열지 못했습니다.');
+      appAlert('오류', err?.message ?? '채팅방을 열지 못했습니다.');
     } finally {
       setDmStartingId(null);
     }
@@ -209,10 +210,10 @@ export function ExpertScreen({ navigation }) {
 
   const reportTarget = (targetType, targetId, onHidden) => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '신고하려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '신고하려면 먼저 로그인해주세요.');
       return;
     }
-    Alert.alert('신고하기', '신고 사유를 선택해주세요.', [
+    appAlert('신고하기', '신고 사유를 선택해주세요.', [
       { text: '욕설/비방', onPress: () => doReport(targetType, targetId, '욕설/비방', onHidden) },
       { text: '스팸/광고', onPress: () => doReport(targetType, targetId, '스팸/광고', onHidden) },
       { text: '개인정보 노출', onPress: () => doReport(targetType, targetId, '개인정보 노출', onHidden) },
@@ -224,11 +225,11 @@ export function ExpertScreen({ navigation }) {
     setReportingId(targetId);
     try {
       await submitReport({ targetType, targetId, reporterUserId: user.uid, reason });
-      Alert.alert('신고 접수', '신고가 접수됐어요. 검토 후 조치할게요.');
+      appAlert('신고 접수', '신고가 접수됐어요. 검토 후 조치할게요.');
       onHidden?.();
     } catch (err) {
       console.error('신고 오류:', err);
-      Alert.alert('알림', err?.message ?? '신고를 접수하지 못했습니다.');
+      appAlert('알림', err?.message ?? '신고를 접수하지 못했습니다.');
     } finally {
       setReportingId(null);
     }

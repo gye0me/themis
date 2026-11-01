@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
@@ -99,7 +100,7 @@ export default function PreventionConsultScreen({ navigation }) {
 
   const handleSaveRecord = async () => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '상담 기록을 남기려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '상담 기록을 남기려면 먼저 로그인해주세요.');
       return;
     }
     if (!answer || saving) return;
@@ -118,7 +119,7 @@ export default function PreventionConsultScreen({ navigation }) {
       setSaved(true);
       loadSavedRecords();
     } catch (err) {
-      Alert.alert('저장 실패', err.message ?? '상담 기록을 저장하지 못했습니다.');
+      appAlert('저장 실패', err.message ?? '상담 기록을 저장하지 못했습니다.');
     } finally {
       setSaving(false);
     }

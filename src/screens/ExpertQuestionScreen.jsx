@@ -1,5 +1,6 @@
 import { useContext, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { createExpertPost } from '../services/expertBoardService';
@@ -18,15 +19,15 @@ export default function ExpertQuestionScreen({ navigation }) {
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert('알림', '제목을 입력해주세요.');
+      appAlert('알림', '제목을 입력해주세요.');
       return;
     }
     if (!content.trim()) {
-      Alert.alert('알림', '내용을 입력해주세요.');
+      appAlert('알림', '내용을 입력해주세요.');
       return;
     }
     if (!user) {
-      Alert.alert('알림', '로그인이 필요합니다.');
+      appAlert('알림', '로그인이 필요합니다.');
       return;
     }
     setSubmitting(true);
@@ -38,11 +39,11 @@ export default function ExpertQuestionScreen({ navigation }) {
         content,
         isAnonymous,
       });
-      Alert.alert('등록 완료', '질문이 등록되었습니다!');
+      appAlert('등록 완료', '질문이 등록되었습니다!');
       navigation.goBack();
     } catch (err) {
       console.error('질문 등록 오류:', err);
-      Alert.alert('오류', '질문 등록에 실패했습니다.');
+      appAlert('오류', '질문 등록에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }

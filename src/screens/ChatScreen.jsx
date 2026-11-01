@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CHAT_ROUTES } from '../navigation/routes';
 import { AuthContext } from '../context/AuthContext';
@@ -81,19 +82,19 @@ export function ChatScreen({ navigation }) {
 
   const handleJoinPendingRequest = async (topic) => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '채팅방 요청에 참여하려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '채팅방 요청에 참여하려면 먼저 로그인해주세요.');
       return;
     }
     setRequesting(true);
     try {
       const result = await requestNewRoomTopic(topic, user.uid, displayName);
       if (result.opened) {
-        Alert.alert('채팅방이 열렸어요!', `"${topic}" 채팅방에 참여자 ${result.interestedCount}명이 모여 개설됐습니다.`);
+        appAlert('채팅방이 열렸어요!', `"${topic}" 채팅방에 참여자 ${result.interestedCount}명이 모여 개설됐습니다.`);
       } else {
-        Alert.alert('관심 등록 완료', `"${topic}" — 현재 ${result.interestedCount}명 모였어요.`);
+        appAlert('관심 등록 완료', `"${topic}" — 현재 ${result.interestedCount}명 모였어요.`);
       }
     } catch (err) {
-      Alert.alert('오류', err.message ?? '참여하지 못했습니다.');
+      appAlert('오류', err.message ?? '참여하지 못했습니다.');
     } finally {
       setRequesting(false);
     }
@@ -102,7 +103,7 @@ export function ChatScreen({ navigation }) {
   // "참여 중"인 요청을 눌렀을 때 — 확인 후 내 관심 표시만 취소
   const handleCancelPendingRequest = (req) => {
     if (!user) return;
-    Alert.alert('참여를 취소할까요?', `"${req.topic}" 모임 참여를 취소합니다.`, [
+    appAlert('참여를 취소할까요?', `"${req.topic}" 모임 참여를 취소합니다.`, [
       { text: '닫기', style: 'cancel' },
       {
         text: '참여 취소',
@@ -112,7 +113,7 @@ export function ChatScreen({ navigation }) {
           try {
             await cancelRoomTopicInterest(req.topicKey, user.uid);
           } catch (err) {
-            Alert.alert('오류', err.message ?? '참여를 취소하지 못했습니다.');
+            appAlert('오류', err.message ?? '참여를 취소하지 못했습니다.');
           } finally {
             setCancelingKey(null);
           }
@@ -123,7 +124,7 @@ export function ChatScreen({ navigation }) {
 
   const handleRequestRoom = async () => {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '채팅방을 요청하려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '채팅방을 요청하려면 먼저 로그인해주세요.');
       return;
     }
     const trimmed = newTopic.trim();
@@ -133,16 +134,16 @@ export function ChatScreen({ navigation }) {
       const result = await requestNewRoomTopic(trimmed, user.uid, displayName);
       setRequestStatus(result);
       if (result.opened) {
-        Alert.alert('채팅방이 열렸어요!', `"${trimmed}" 채팅방에 참여자 ${result.interestedCount}명이 모여 개설됐습니다.`);
+        appAlert('채팅방이 열렸어요!', `"${trimmed}" 채팅방에 참여자 ${result.interestedCount}명이 모여 개설됐습니다.`);
         setNewTopic('');
       } else {
-        Alert.alert(
+        appAlert(
           '관심 등록 완료',
           `"${trimmed}" — 현재 ${result.interestedCount}명 모였어요. ${MIN_PARTICIPANTS_TO_OPEN}명이 모이면 자동으로 채팅방이 열립니다.`
         );
       }
     } catch (err) {
-      Alert.alert('오류', err.message ?? '요청을 등록하지 못했습니다.');
+      appAlert('오류', err.message ?? '요청을 등록하지 못했습니다.');
     } finally {
       setRequesting(false);
     }
@@ -165,7 +166,7 @@ export function ChatScreen({ navigation }) {
 
   async function enterRoom(room) {
     if (!user) {
-      Alert.alert('로그인이 필요해요', '채팅방에 참여하려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '채팅방에 참여하려면 먼저 로그인해주세요.');
       return;
     }
     try {
@@ -180,7 +181,7 @@ export function ChatScreen({ navigation }) {
       });
     } catch (err) {
       console.error('채팅방 참여 오류:', err);
-      Alert.alert('입장 실패', err?.message ?? '채팅방에 참여하지 못했습니다.');
+      appAlert('입장 실패', err?.message ?? '채팅방에 참여하지 못했습니다.');
     } finally {
       setJoining(null);
     }

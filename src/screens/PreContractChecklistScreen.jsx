@@ -8,7 +8,8 @@
 // 매물 하나에 집중하는 도구). 로그인하지 않은 경우 로컬 상태로만 동작하고 저장은 건너뛴다.
 
 import { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '../components/BackHeader';
 import { C } from '../theme/tokens';
@@ -70,7 +71,7 @@ export default function PreContractChecklistScreen({ navigation }) {
   };
 
   const handleReset = () => {
-    Alert.alert('체크리스트 초기화', '새 매물을 확인할 때 체크 상태를 모두 초기화할까요?', [
+    appAlert('체크리스트 초기화', '새 매물을 확인할 때 체크 상태를 모두 초기화할까요?', [
       { text: '취소', style: 'cancel' },
       {
         text: '초기화',

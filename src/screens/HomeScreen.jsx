@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, AppState, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, AppState, Switch } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -275,7 +276,7 @@ export function HomeScreen({ navigation }) {
       await refreshProfile?.();
     } catch (err) {
       console.error('전문가 인증 저장 오류:', err);
-      Alert.alert('오류', '설정을 저장하지 못했습니다.');
+      appAlert('오류', '설정을 저장하지 못했습니다.');
     } finally {
       setSavingExpertBadge(false);
     }
@@ -310,7 +311,7 @@ export function HomeScreen({ navigation }) {
         await cacheGuardianTokensForBackground(user.uid, displayName);
         const ok = await registerDeadmanBackgroundTask();
         if (!ok) {
-          Alert.alert(
+          appAlert(
             '알림',
             'Expo Go에서는 백그라운드 감지가 동작하지 않아요. 앱이 켜져있는 동안만 카운트다운돼요.\n(EAS 개발 빌드로 실행하면 백그라운드에서도 감지됩니다.)'
           );
@@ -320,14 +321,14 @@ export function HomeScreen({ navigation }) {
       }
     } catch (err) {
       console.error('데드맨 스위치 저장 오류:', err);
-      Alert.alert('오류', '설정을 저장하지 못했습니다.');
+      appAlert('오류', '설정을 저장하지 못했습니다.');
     }
   };
 
   const saveContact = async () => {
     if (!user) return;
     if (!contactName.trim() || !contactPhone.trim()) {
-      Alert.alert('알림', '보호자 이름과 연락처를 입력해주세요.');
+      appAlert('알림', '보호자 이름과 연락처를 입력해주세요.');
       return;
     }
     setSavingContact(true);
@@ -352,7 +353,7 @@ export function HomeScreen({ navigation }) {
       setEditingContact(false);
     } catch (err) {
       console.error('보호자 연락처 저장 오류:', err);
-      Alert.alert('오류', '저장하지 못했습니다.');
+      appAlert('오류', '저장하지 못했습니다.');
     } finally {
       setSavingContact(false);
     }
@@ -382,14 +383,14 @@ export function HomeScreen({ navigation }) {
       await refreshProfile?.();
     } catch (err) {
       console.error('데드맨 시간 설정 저장 오류:', err);
-      Alert.alert('오류', '시간 설정을 저장하지 못했습니다.');
+      appAlert('오류', '시간 설정을 저장하지 못했습니다.');
     }
   };
 
   const submitCustomTimeout = () => {
     const n = Math.round(Number(customTimeoutInput));
     if (!Number.isFinite(n) || n < DEADMAN_TIMEOUT_MIN_RANGE.min || n > DEADMAN_TIMEOUT_MIN_RANGE.max) {
-      Alert.alert('알림', `${DEADMAN_TIMEOUT_MIN_RANGE.min}분 ~ ${DEADMAN_TIMEOUT_MIN_RANGE.max}분(24시간) 사이로 입력해주세요.`);
+      appAlert('알림', `${DEADMAN_TIMEOUT_MIN_RANGE.min}분 ~ ${DEADMAN_TIMEOUT_MIN_RANGE.max}분(24시간) 사이로 입력해주세요.`);
       return;
     }
     changeTimeout(n);

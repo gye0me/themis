@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -195,7 +196,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
           return false;
         });
         if (saved) {
-          Alert.alert('저장 완료', '선택한 폴더에 보고서 HTML 파일이 저장되었습니다.');
+          appAlert('저장 완료', '선택한 폴더에 보고서 HTML 파일이 저장되었습니다.');
           return;
         }
       }
@@ -212,11 +213,11 @@ export default function ReportPreviewScreen({ navigation, route }) {
           UTI: 'public.html',
         });
       } else {
-        Alert.alert('저장 완료', `기기 저장소에 파일이 생성되었습니다.\n${fileUri}`);
+        appAlert('저장 완료', `기기 저장소에 파일이 생성되었습니다.\n${fileUri}`);
       }
     } catch (err) {
       console.error('HTML 보고서 저장 오류:', err);
-      Alert.alert('오류', '보고서를 저장하지 못했습니다. 다시 시도해주세요.');
+      appAlert('오류', '보고서를 저장하지 못했습니다. 다시 시도해주세요.');
     } finally {
       setSaving(false);
     }
@@ -258,7 +259,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
           return false;
         });
         if (saved) {
-          Alert.alert('저장 완료', '선택한 폴더에 보고서 PDF 파일이 저장되었습니다.');
+          appAlert('저장 완료', '선택한 폴더에 보고서 PDF 파일이 저장되었습니다.');
           return;
         }
       }
@@ -270,11 +271,11 @@ export default function ReportPreviewScreen({ navigation, route }) {
           UTI: 'com.adobe.pdf',
         });
       } else {
-        Alert.alert('저장 완료', `기기 저장소에 PDF가 생성되었습니다.\n${uri}`);
+        appAlert('저장 완료', `기기 저장소에 PDF가 생성되었습니다.\n${uri}`);
       }
     } catch (err) {
       console.error('PDF 보고서 생성 오류:', err);
-      Alert.alert('오류', 'PDF를 생성하지 못했습니다. 다시 시도해주세요.');
+      appAlert('오류', 'PDF를 생성하지 못했습니다. 다시 시도해주세요.');
     } finally {
       setSavingPdf(false);
     }
@@ -304,7 +305,7 @@ export default function ReportPreviewScreen({ navigation, route }) {
   async function handleConfirmSignature(typedName) {
     if (signing) return;
     if (!user) {
-      Alert.alert('로그인이 필요해요', '서명하려면 먼저 로그인해주세요.');
+      appAlert('로그인이 필요해요', '서명하려면 먼저 로그인해주세요.');
       return;
     }
     setSigning(true);
@@ -339,11 +340,11 @@ export default function ReportPreviewScreen({ navigation, route }) {
       if (nextDownload) {
         await runDownload(nextDownload, signed);
       } else {
-        Alert.alert('서명 완료', '확인 서명과 해시값이 함께 기록되었습니다.');
+        appAlert('서명 완료', '확인 서명과 해시값이 함께 기록되었습니다.');
       }
     } catch (err) {
       console.error('보고서 서명 오류:', err);
-      Alert.alert('오류', '서명을 저장하지 못했습니다. 다시 시도해주세요.');
+      appAlert('오류', '서명을 저장하지 못했습니다. 다시 시도해주세요.');
     } finally {
       setSigning(false);
     }

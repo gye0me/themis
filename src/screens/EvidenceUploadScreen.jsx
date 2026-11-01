@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_ROUTES, RECORD_ROUTES, EXPERT_ROUTES } from '../navigation/routes';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Modal, Platform } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -141,7 +142,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
       AsyncStorage.setItem('themis:useServerWatermark', 'false');
       return;
     }
-    Alert.alert(
+    appAlert(
       '외부 서버 워터마크 사용',
       '이 기능은 사진을 외부 서버(versatility.cloud)로 전송합니다. 이 서버는 로그인 인증이 없고, ' +
         '올린 파일을 삭제하는 기능도 제공하지 않아 사실상 영구 보관됩니다.\n\n' +
@@ -279,10 +280,10 @@ export function EvidenceUploadScreen({ navigation, route }) {
         msg = `${cfg.label}과 GPS 위치, 타임스탬프가 안전하게 기록되었습니다.`;
       }
       setLastSaved({ caseId: target.caseId, caseTitle: target.caseTitle, label: cfg.label });
-      Alert.alert('업로드 완료!', msg);
+      appAlert('업로드 완료!', msg);
     } catch (error) {
       console.error('업로드 실패:', error);
-      Alert.alert('업로드 실패', error.message);
+      appAlert('업로드 실패', error.message);
     } finally {
       setUploadingType(null);
     }
@@ -412,7 +413,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
       await saveEvidence(evidenceType, file);
     } catch (error) {
       console.error('파일 선택 실패:', error);
-      Alert.alert('오류', '파일을 선택하지 못했습니다.');
+      appAlert('오류', '파일을 선택하지 못했습니다.');
     }
   };
 
@@ -472,7 +473,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('마이크 권한 필요', '설정에서 마이크 접근 권한을 허용해주세요.');
+        appAlert('마이크 권한 필요', '설정에서 마이크 접근 권한을 허용해주세요.');
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
@@ -483,7 +484,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
 
     } catch (error) {
       console.error('녹음 시작 실패:', error);
-      Alert.alert('녹음 시작 실패', error.message ?? String(error));
+      appAlert('녹음 시작 실패', error.message ?? String(error));
     }
   };
 
@@ -493,7 +494,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
       setHasRecorded(true);
     } catch (error) {
       console.error('녹음 정지 실패:', error);
-      Alert.alert('녹음 정지 실패', error.message ?? String(error));
+      appAlert('녹음 정지 실패', error.message ?? String(error));
     }
   };
 
@@ -510,7 +511,7 @@ export function EvidenceUploadScreen({ navigation, route }) {
     setRecordModalVisible(false);
     setHasRecorded(false);
     if (!uri) {
-      Alert.alert('오류', '녹음 파일을 찾을 수 없습니다. 다시 시도해주세요.');
+      appAlert('오류', '녹음 파일을 찾을 수 없습니다. 다시 시도해주세요.');
       return;
     }
     const eventTime = recordingStartRef.current ?? null;

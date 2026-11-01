@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Image, Modal } from 'react-native';
+import { appAlert } from '../utils/appAlert';
 import { useFocusEffect } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAudioPlayer } from 'expo-audio';
@@ -547,7 +548,7 @@ export function TimelineScreen({ navigation, route }) {
                           {item.note ? (
                             <TouchableOpacity 
                               style={styles.hashCard}
-                              onPress={() => Alert.alert('OCR 추출 텍스트', item.note)}
+                              onPress={() => appAlert('OCR 추출 텍스트', item.note)}
                             >
                               <Text style={styles.hashLabel}>OCR 추출 텍스트 (탭하면 전체 보기)</Text>
                               <Text style={styles.memoDetailText} numberOfLines={3}>{item.note}</Text>
@@ -567,7 +568,7 @@ export function TimelineScreen({ navigation, route }) {
                           {item.note ? (
                             <TouchableOpacity
                               style={styles.hashCard}
-                              onPress={() => Alert.alert('영상 음성 텍스트', item.note)}
+                              onPress={() => appAlert('영상 음성 텍스트', item.note)}
                             >
                               <Text style={styles.hashLabel}>영상 음성 텍스트 (탭하면 전체 보기)</Text>
                               <Text style={styles.memoDetailText} numberOfLines={3}>{item.note}</Text>
