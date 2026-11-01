@@ -8,12 +8,12 @@
 // 법률 검토(교수님·법률 전문가)를 한 번 받은 뒤 출시하는 것을 권장한다.
 
 export const LEGAL_VERSION = '2026-11-v3';
-export const EFFECTIVE_DATE = '2026년 ○○월 ○○일';
+export const EFFECTIVE_DATE = '2026년 11월 1일';
 export const OPERATOR = {
-  name: '[운영 주체명 — 예: 덕성여대 따라와조]',
-  representative: '[대표자 이름]',
-  email: '[문의 이메일]',
-  privacyOfficer: '[개인정보 보호책임자 이름 · 연락처]',
+  name: '덕성여대 따라와조',
+  representative: '따라와조 팀',
+  email: '졸업전시 시연 버전은 전시장 팀원에게 문의',
+  privacyOfficer: '따라와조 팀',
 };
 
 // 회원가입 시 받는 동의 항목.
