@@ -15,6 +15,7 @@
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import app from '../config/firebase';
+import { base64ToBytes } from '../utils/base64';
 
 export const GEMINI_MODEL = 'gemini-3.5-flash';
 export const AI_PROXY_ENABLED = process.env.EXPO_PUBLIC_AI_PROXY === '1';
@@ -84,7 +85,7 @@ export function getDirectGeminiKey() {
 /**
  * CLOVA 음성인식(CSR) — 60초 이하 음성 조각(base64) 하나를 텍스트로 변환한다.
  */
-export async function clovaRecognize(base64Chunk, mimeType = 'audio/m4a', lang = 'Kor') {
+export async function clovaRecognize(base64Chunk, lang = 'Kor') {
   if (AI_PROXY_ENABLED) {
     try {
       const { data } = await callable('clovaStt')({ audioBase64: base64Chunk, lang });
@@ -97,8 +98,6 @@ export async function clovaRecognize(base64Chunk, mimeType = 'audio/m4a', lang =
   const clientSecret = process.env.EXPO_PUBLIC_CLOVA_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error('클로바 API 키가 설정되지 않았습니다.');
 
-  // RN/expo에는 Buffer가 없어 data URI → fetch로 Blob을 얻는다
-  const blob = await (await fetch(`data:${mimeType};base64,${base64Chunk}`)).blob();
   const res = await fetch(`${CLOVA_STT_URL}?lang=${lang}`, {
     method: 'POST',
     headers: {
@@ -106,7 +105,7 @@ export async function clovaRecognize(base64Chunk, mimeType = 'audio/m4a', lang =
       'X-NCP-APIGW-API-KEY-ID': clientId,
       'X-NCP-APIGW-API-KEY': clientSecret,
     },
-    body: blob,
+    body: base64ToBytes(base64Chunk),
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => '');

@@ -69,7 +69,7 @@ export async function transcribeAudioClova(fileUri, mimeType = 'audio/m4a') {
 
     try {
       // 조각을 순서대로(await, 병렬 X) 보내야 텍스트 이어붙이기 순서가 보장된다.
-      const text = await clovaRecognize(base64Chunk, mimeType);
+      const text = await clovaRecognize(base64Chunk);
       if (text) transcripts.push(text);
     } catch (e) {
       console.warn(`클로바 STT 조각 ${i + 1}/${chunkCount} 변환 실패:`, e.message);

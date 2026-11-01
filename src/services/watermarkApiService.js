@@ -12,15 +12,22 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 const BASE_URL = 'https://versatility.cloud';
 
-// Expo SDK 56+는 전역 fetch를 자체 WinterCG 구현으로 바꿨는데, 이 구현의 멀티파트 인코더가
-// React Native의 예전 파일 표현 방식인 { uri, name, type }을 이해 못 해서
-// "Unsupported FormDataPart implementation" 오류가 났다(watermarkAndDownload 쪽에서 실제로 확인됨).
-// expo-file-system의 새 File 클래스로 감싸보는 시도도 해봤지만 실기기에서도 동일하게 실패해서,
-// 결국 .env의 EXPO_PUBLIC_USE_RN_FETCH=1 로 전역 fetch 자체를 React Native 예전 구현으로
-//되돌리는 방식을 쓰고 있다 — 그 경우 FormData도 예전 방식을 쓰므로, 파일 파트는 다시
-// 고전적인 { uri, name, type } 객체 형태로 돌려놓는다(.env 설정 전제).
-function toFormDataFilePart(uri, name, mimeType) {
-  return { uri, name, type: mimeType };
+// 앱의 fetch는 { uri } 파일이 든 FormData를 보내지 못하므로 FileSystem.uploadAsync로 파일을 보낸다.
+// 웹에서는 uploadAsync가 없고 서버도 브라우저 요청을 막아서 실패하며, 호출부가 로컬 합성으로 대체한다.
+async function postFile(path, { uri, mimeType, parameters }) {
+  const result = await FileSystem.uploadAsync(`${BASE_URL}${path}`, uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: 'file',
+    mimeType,
+    parameters,
+    headers: { Accept: 'application/json' },
+  });
+  return {
+    ok: result.status >= 200 && result.status < 300,
+    status: result.status,
+    json: async () => JSON.parse(result.body),
+  };
 }
 
 function toAbsoluteUrl(pathOrUrl) {
@@ -45,23 +52,18 @@ async function parseJsonOrThrow(response, fallbackMessage) {
 
 /**
  * 이미지/PDF에 서버 워터마크를 합성한다.
- * @param {{ uri: string, name: string, mimeType: string, text: string }} params
+ * @param {{ uri: string, mimeType: string, text: string }} params
  *   text: 워터마크로 박을 문구 (최대 120자 — 서버 제한에 맞춰 자동으로 자름)
  * @returns {Promise<{ fileUrl: string, seq: number, name: string, watermarkText: string, createdAt: string }>}
  */
-export async function applyServerWatermark({ uri, name, mimeType, text }) {
+export async function applyServerWatermark({ uri, mimeType, text }) {
   if (!uri) throw new Error('워터마크를 적용할 파일이 없습니다.');
   const watermarkText = (text ?? '').slice(0, 120);
 
-  const formData = new FormData();
-  formData.append('file', toFormDataFilePart(uri, name ?? 'evidence', mimeType ?? 'application/octet-stream'));
-  formData.append('text', watermarkText);
-
-  const response = await fetch(`${BASE_URL}/api/watermark/`, {
-    method: 'POST',
-    body: formData,
-    headers: { Accept: 'application/json' },
-    // Content-Type(multipart boundary)은 fetch가 FormData를 보고 자동으로 설정하므로 직접 지정하지 않는다.
+  const response = await postFile('/api/watermark/', {
+    uri,
+    mimeType: mimeType ?? 'application/octet-stream',
+    parameters: { text: watermarkText },
   });
 
   const body = await parseJsonOrThrow(response, '워터마크 서버 요청 실패');
@@ -95,7 +97,7 @@ export async function downloadServerFile(fileUrl, localFileName) {
  * EvidenceUploadScreen처럼 "합성된 로컬 uri"가 바로 필요한 화면에서 사용.
  */
 export async function watermarkAndDownload({ uri, name, mimeType, text }) {
-  const result = await applyServerWatermark({ uri, name, mimeType, text });
+  const result = await applyServerWatermark({ uri, mimeType, text });
   if (!result.fileUrl) throw new Error('워터마크 서버가 결과 파일 URL을 돌려주지 않았습니다.');
   const localUri = await downloadServerFile(result.fileUrl, result.name || name || `watermarked-${Date.now()}`);
   return { ...result, localUri };
@@ -105,21 +107,16 @@ export async function watermarkAndDownload({ uri, name, mimeType, text }) {
 
 /**
  * 비디오 프레임 추출 작업을 시작한다 (비동기 — 작업 ID를 받아서 상태를 폴링해야 함).
- * @param {{ uri: string, name: string, mimeType: string, fpsOption?: number, keepOriginal?: boolean }} params
+ * @param {{ uri: string, fpsOption?: number, keepOriginal?: boolean }} params
  * @returns {Promise<{ taskId: string, status: string }>}
  */
-export async function startVideoFrameExtraction({ uri, name, mimeType, fpsOption = 1, keepOriginal = false }) {
+export async function startVideoFrameExtraction({ uri, fpsOption = 1, keepOriginal = false }) {
   if (!uri) throw new Error('프레임을 추출할 영상 파일이 없습니다.');
 
-  const formData = new FormData();
-  formData.append('file', toFormDataFilePart(uri, name ?? 'video.mp4', 'video/mp4'));
-  formData.append('fps_option', String(fpsOption));
-  formData.append('keep_original', String(keepOriginal));
-
-  const response = await fetch(`${BASE_URL}/api/videos/upload/`, {
-    method: 'POST',
-    body: formData,
-    headers: { Accept: 'application/json' },
+  const response = await postFile('/api/videos/upload/', {
+    uri,
+    mimeType: 'video/mp4',
+    parameters: { fps_option: String(fpsOption), keep_original: String(keepOriginal) },
   });
 
   const body = await parseJsonOrThrow(response, '영상 프레임 추출 요청 실패');
