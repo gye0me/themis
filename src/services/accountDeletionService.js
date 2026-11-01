@@ -88,6 +88,8 @@ export async function deleteMyAccount(password) {
   await safely('게시판 글', () => anonymizeAuthored('expertPosts', uid));
   await safely('게시판 댓글', () => anonymizeAuthored('expertPostComments', uid));
 
+  // signatures는 수정·삭제가 막힌 기록이라 지우지 않는다 (개인정보처리방침 3번에 고지)
+
   // 7) 사용자 문서 → 인증 계정 (인증 계정을 지우면 자동으로 로그아웃된다)
   await safely('사용자 문서', () => deleteDoc(doc(db, 'users', uid)));
   await deleteUser(user);
