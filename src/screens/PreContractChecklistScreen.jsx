@@ -20,6 +20,7 @@ import {
   togglePreContractItem,
   toSavablePreContractChecklist,
   getPreContractProgress,
+  groupPreContractItems,
 } from '../services/preContractChecklist';
 
 const SEVERITY_LABEL = { critical: '필수', high: '중요', medium: '권장' };
@@ -30,6 +31,7 @@ export default function PreContractChecklistScreen({ navigation }) {
   const [items, setItems] = useState(() => mergePreContractChecklist([]));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +53,7 @@ export default function PreContractChecklistScreen({ navigation }) {
   }, [user?.uid]);
 
   const progress = getPreContractProgress(items);
+  const stages = groupPreContractItems(items);
 
   const handleToggle = async (id) => {
     const next = togglePreContractItem(items, id);
@@ -109,34 +112,58 @@ export default function PreContractChecklistScreen({ navigation }) {
             <View style={styles.progressBarTrack}>
               <View style={[styles.progressBarFill, { width: `${progress.percent}%` }]} />
             </View>
-            {progress.hasUncheckedCritical && (
-              <Text style={styles.criticalWarning}>
-                아직 확인하지 않은 필수 항목이 있어요. 계약 전 반드시 확인하세요.
-              </Text>
+            {progress.uncheckedCritical > 0 && (
+              <Text style={styles.criticalWarning}>필수 항목 {progress.uncheckedCritical}개가 남았어요.</Text>
             )}
           </View>
 
-          {items.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[styles.itemCard, item.completed && styles.itemCardDone]}
-              onPress={() => handleToggle(item.id)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.checkbox, item.completed && styles.checkboxDone]}>
-                {item.completed && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
+          {stages.map((stage, stageIndex) => (
+            <View key={stage.id} style={styles.stageSection}>
+              <View style={styles.stageHeader}>
+                <Text style={styles.stageTitle}>{stageIndex + 1}. {stage.title}</Text>
+                <Text style={styles.stageCount}>{stage.completed} / {stage.total}</Text>
               </View>
-              <View style={styles.itemBody}>
-                <View style={styles.itemTitleRow}>
-                  <Text style={[styles.itemTitle, item.completed && styles.itemTitleDone]}>{item.title}</Text>
-                  <Text style={[styles.severityBadge, { color: SEVERITY_COLOR[item.severity] }]}>
-                    {SEVERITY_LABEL[item.severity]}
-                  </Text>
-                </View>
-                <Text style={styles.itemDescription}>{item.description}</Text>
-                {item.legalBasis && <Text style={styles.itemLegalBasis}>근거: {item.legalBasis}</Text>}
-              </View>
-            </TouchableOpacity>
+
+              {stage.items.map((item) => {
+                const expanded = expandedId === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.itemCard, item.completed && styles.itemCardDone]}
+                    onPress={() => setExpandedId(expanded ? null : item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        handleToggle(item.id);
+                      }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                      <View style={[styles.checkbox, item.completed && styles.checkboxDone]}>
+                        {item.completed && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
+                      </View>
+                    </TouchableOpacity>
+                    <View style={styles.itemBody}>
+                      <View style={styles.itemTitleRow}>
+                        <Text style={[styles.itemTitle, item.completed && styles.itemTitleDone]}>{item.title}</Text>
+                        <Text style={[styles.severityBadge, { color: SEVERITY_COLOR[item.severity] }]}>
+                          {SEVERITY_LABEL[item.severity]}
+                        </Text>
+                      </View>
+                      <Text style={styles.itemSummary}>{item.summary}</Text>
+                      {expanded && (
+                        <View style={styles.itemDetail}>
+                          <Text style={styles.itemDescription}>{item.description}</Text>
+                          {item.legalBasis && <Text style={styles.itemLegalBasis}>근거: {item.legalBasis}</Text>}
+                        </View>
+                      )}
+                      <Text style={styles.itemToggle}>{expanded ? '접기' : '왜 필요한가요?'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           ))}
 
           <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
@@ -169,9 +196,14 @@ const styles = StyleSheet.create({
   progressBarFill: { height: 8, borderRadius: 4, backgroundColor: C.brand600 },
   criticalWarning: { color: C.danger600, fontSize: 11.5, fontWeight: '600', marginTop: 10 },
 
+  stageSection: { marginBottom: 8 },
+  stageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 2 },
+  stageTitle: { fontSize: 13, fontWeight: '700', color: C.brand700 },
+  stageCount: { fontSize: 11.5, fontWeight: '600', color: C.ink400 },
+
   itemCard: {
     flexDirection: 'row', gap: 10, backgroundColor: C.surface, borderRadius: 14,
-    padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.line,
+    padding: 14, marginBottom: 8, borderWidth: 1, borderColor: C.line,
   },
   itemCardDone: { backgroundColor: C.safe100, borderColor: C.safe600 },
   checkbox: {
@@ -185,8 +217,11 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 13.5, fontWeight: '700', color: C.ink900, flexShrink: 1, marginRight: 8 },
   itemTitleDone: { textDecorationLine: 'line-through', color: C.ink500 },
   severityBadge: { fontSize: 10.5, fontWeight: '800' },
-  itemDescription: { fontSize: 12, color: C.ink500, lineHeight: 17 },
+  itemSummary: { fontSize: 12.5, color: C.ink700, lineHeight: 18 },
+  itemDetail: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.line },
+  itemDescription: { fontSize: 12, color: C.ink500, lineHeight: 18 },
   itemLegalBasis: { fontSize: 10.5, color: C.ink400, marginTop: 6 },
+  itemToggle: { fontSize: 11, fontWeight: '600', color: C.brand600, marginTop: 6 },
 
   resetBtn: {
     alignSelf: 'center', marginTop: 8, paddingVertical: 10, paddingHorizontal: 16,
