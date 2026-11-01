@@ -1,6 +1,6 @@
 // 전자서명 기록 서비스 — Firestore 컬렉션: signatures (write-once, 수정·삭제 불가)
 //
-// 전문가 인증 신청/승인, 공론화 SOS 발동처럼 "누가 언제 무엇에 동의/책임졌는지"가
+// 전문가 인증 신청/승인, 공론화 SOS 발동, 보고서 다운로드 전 확인처럼 "누가 언제 무엇에 동의/책임졌는지"가
 // 나중에 문제될 수 있는 행위에 대해, 서명 시점의 내용 해시 + 타이핑한 본인 이름 +
 // 서명 문구를 별도 컬렉션에 남긴다. firestore.rules에서 이 컬렉션은 생성만 허용하고
 // 수정·삭제를 막아둬서, 한 번 서명되면 아무도(관리자 포함) 사후에 바꿀 수 없다.
@@ -13,8 +13,15 @@ const COLLECTION = 'signatures';
 
 // 서명 대상 내용을 키 순서에 상관없이 항상 같은 문자열로 만든다 —
 // 나중에 원본 데이터가 바뀌면 해시가 달라져서 "서명 당시와 다르다"는 걸 알 수 있다.
+// 중첩 객체까지 정렬한다 (JSON.stringify에 키 배열을 넘기면 중첩 객체의 다른 키가 빠져서
+// 증거 메모·파일 주소가 바뀌어도 해시가 그대로였다).
+function sortKeys(_key, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
 function canonicalize(obj) {
-  return JSON.stringify(obj ?? {}, Object.keys(obj ?? {}).sort());
+  return JSON.stringify(obj ?? {}, sortKeys);
 }
 
 export async function hashContent(content) {
@@ -23,7 +30,7 @@ export async function hashContent(content) {
 
 /**
  * 전자서명 기록 생성.
- * targetType: 'expertVerificationSubmit' | 'expertVerificationReview' | 'hotBoardSos'
+ * targetType: 'expertVerificationSubmit' | 'expertVerificationReview' | 'hotBoardSos' | 'caseReport'
  * 반환값: 생성된 signatures 문서 id (서명 대상 문서에 signatureId로 같이 저장해두면 추적 가능)
  */
 export async function createElectronicSignature({

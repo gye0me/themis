@@ -158,7 +158,7 @@ export function buildReportHashPayload({ caseData = {}, records = [], questItems
  * @param {Object} caseData - { title, caseType, createdAt }
  * @param {Array} records - evidenceRecords 배열
  * @param {Array} questItems - responseGuideSteps.buildQuestSteps().items (완료된 것만 타임라인에 포함)
- * @param {{ hash: string, finalizedAt: (Date|string|null) }|null} finalization - 확정 정보 (법적 효력 안내 확인 시각 + 해시)
+ * @param {{ hash: string, finalizedAt: (Date|string|null), signerName: string, signatureId: string }|null} finalization - 확인 서명 정보 (서명 시각 + 해시 + 서명자)
  * @param {boolean} forPrint - PDF 인쇄용 HTML (영상·음성을 인쇄 가능한 썸네일/링크로 대체)
  */
 export function buildCaseReportHtml({ caseData = {}, records = [], questItems = [], finalization = null, forPrint = false }) {
@@ -256,6 +256,7 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
     display: inline-block; margin-top: 10px; font-size: 11.5px; font-weight: 700; color: var(--safe-600);
     background: #E4F7EF; border-radius: 999px; padding: 4px 10px;
   }
+  .signer-line { font-size: 11.5px; color: var(--ink-700); margin-top: 8px; }
   .hash-label { font-size: 10px; color: var(--ink-400); margin-top: 10px; }
   .hash-value {
     font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; color: var(--ink-700);
@@ -299,11 +300,15 @@ export function buildCaseReportHtml({ caseData = {}, records = [], questItems = 
       ${finalization?.hash
         ? `
       <div class="confirm-ack">${escapeHtml(REPORT_LEGAL_NOTICE_ACK)}</div>
-      <div class="finalize-badge">안내 확인 후 확정됨 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
+      <div class="finalize-badge">확인 서명 완료 · ${escapeHtml(formatDateTime(finalization.finalizedAt) || formatDateOnly(now))}</div>
+      <div class="signer-line">확인자: ${escapeHtml(finalization.signerName ?? '')}</div>
+      <div class="hash-label">서명 기록 ID</div>
+      <div class="hash-value">${escapeHtml(finalization.signatureId ?? '')}</div>
       <div class="hash-label">확정 시점 내용 해시 (SHA-256)</div>
       <div class="hash-value">${escapeHtml(finalization.hash)}</div>
-      <p class="hash-note">이 해시는 확정 시점의 증거 내용으로 계산됩니다. 이후 내용이 바뀌면 같은 방식으로 다시 계산한 값이 이 값과 달라져, 위변조 여부를 확인할 수 있습니다.</p>`
-        : `<div class="confirm-pending">아직 확정되지 않은 보고서입니다. 앱에서 법적 효력 안내를 확인하면 확정됩니다.</div>`}
+      <p class="hash-note">이 해시는 확정 시점의 증거 내용으로 계산됩니다. 이후 내용이 바뀌면 같은 방식으로 다시 계산한 값이 이 값과 달라져, 위변조 여부를 확인할 수 있습니다.</p>
+      <p class="hash-note">이 서명은 위 안내를 확인했다는 기록이며, 보고서에 법적 효력을 부여하지 않습니다.</p>`
+        : `<div class="confirm-pending">아직 확인 서명 전인 보고서입니다. 앱에서 증거 내용을 확인하고 서명하면 내려받을 수 있습니다.</div>`}
     </div>
   </div>
 </div>

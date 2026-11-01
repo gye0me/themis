@@ -67,7 +67,8 @@ service cloud.firestore {
     }
     // 전자서명 기록 — 생성만 가능, 한 번 남기면 누구도 수정·삭제할 수 없다 (signatureService.js)
     match /signatures/{docId} {
-      allow read, create: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.signerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.signerUid == request.auth.uid;
       allow update, delete: if false;
     }
     // ── 데드맨 스위치 보호자 연결 (guardianService.js) ──────────────────────────

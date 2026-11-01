@@ -11,12 +11,14 @@ import { Icon } from './Icon';
 // 이렇게 갖출 수 있다.
 
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 
 export function ElectronicSignatureModal({
   visible,
   title = '전자서명 확인',
   statementText,
+  agreeText = '위 내용을 확인했고 이에 동의합니다.',
+  confirmLabel = '서명하고 진행',
   expectedName, // 있으면 타이핑한 이름이 이 값과 정확히 일치해야 서명 가능 (본인 확인 강화)
   submitting = false,
   onCancel,
@@ -35,19 +37,19 @@ export function ElectronicSignatureModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onCancel}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <Text style={styles.title}>{title}</Text>
 
-          <View style={styles.statementBox}>
+          <ScrollView style={styles.statementBox}>
             <Text style={styles.statementText}>{statementText}</Text>
-          </View>
+          </ScrollView>
 
           <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed((v) => !v)}>
             <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
               {agreed && <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />}
             </View>
-            <Text style={styles.agreeText}>위 내용을 확인했고 이에 동의합니다.</Text>
+            <Text style={styles.agreeText}>{agreeText}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>
@@ -65,7 +67,7 @@ export function ElectronicSignatureModal({
           )}
 
           <Text style={styles.hint}>
-            * 입력하신 이름과 시각, 관련 내용의 해시값이 서명 기록으로 함께 저장되며, 이후 수정·삭제할 수 없습니다.
+            * 입력하신 이름과 시각, 관련 내용의 해시값이 서명 기록으로 함께 저장되며, 이후 수정·삭제할 수 없고 회원 탈퇴 후에도 남습니다.
           </Text>
 
           <View style={styles.btnRow}>
@@ -80,23 +82,23 @@ export function ElectronicSignatureModal({
               {submitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.confirmBtnText}>서명하고 진행</Text>
+                <Text style={styles.confirmBtnText}>{confirmLabel}</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', padding: 20 },
-  sheet: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 18 },
+  sheet: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 18, maxHeight: '95%' },
   title: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 10 },
-  statementBox: { backgroundColor: '#F8FAFC', borderRadius: 8, padding: 12, marginBottom: 12, maxHeight: 150 },
+  statementBox: { backgroundColor: '#F8FAFC', borderRadius: 8, padding: 12, marginBottom: 12, flexGrow: 0, maxHeight: 200 },
   statementText: { fontSize: 12.5, color: '#334155', lineHeight: 19 },
-  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 14 },
   checkbox: {
     width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: '#94A3B8',
     alignItems: 'center', justifyContent: 'center',
